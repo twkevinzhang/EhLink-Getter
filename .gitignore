@@ -4,6 +4,7 @@ a/filter.csv
 *_out.csv
 metadata.json
 *_FavoriteList.csv
+*.7z
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
