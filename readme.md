@@ -28,3 +28,8 @@
 3. 在`cmd`中輸入`python main.py`
 4. 選擇`b> get link with title`
 5. 輸出結果會放在`./b/執行開始時間_link.csv`
+
+### TODO
+ - [ ] UI for web
+ - [ ] 改用帳密輸入，讓城市更人性化
+ - [ ] installer for windows
