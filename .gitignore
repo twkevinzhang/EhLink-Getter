@@ -1,10 +1,9 @@
 /.idea
 cookies.txt
-a/filter.csv
-*_out.csv
+titles.txt
 metadata.json
-*_FavoriteList.csv
-*.7z
+*.tsv
+*.csv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -141,3 +140,4 @@ dmypy.json
 
 # pytype static type analyzer
 .pytype/
+cookies.txt
