@@ -8,7 +8,6 @@ interface SidecarAPI {
   searchMetadata: (query: string) => Promise<{ results: any[] }>;
   mapMetadata: (payload: any) => Promise<{ results: any[]; error?: string }>;
   saveConfig: (config: any) => Promise<{ success: boolean; error?: string }>;
-  getFavoritesPages: () => Promise<{ pages: number; error?: string }>;
   fetchFavoritesPage: (
     nextToken?: string
   ) => Promise<{ items: any[]; next?: string; error?: string }>;

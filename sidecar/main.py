@@ -43,53 +43,6 @@ async def update_config(new_config: Config):
     config = new_config
     return {"status": "updated", "config": config}
 
-@app.post("/tasks/favorites")
-async def start_favorites_task(background_tasks: BackgroundTasks, output_path: Optional[str] = None):
-    global current_service
-    headers = build_headers(config.cookies)
-    current_service = EhFavoriteService(headers)
-    
-    async def run_task():
-        log_event("log", {"level": "info", "message": "Starting favorites download task..."})
-        try:
-            def progress_cb(page, items):
-                log_event("progress", {
-                    "message": f"Fetched page {page}",
-                    "items_count": len(items)
-                })
-            
-            results = await current_service.scrapy(progress_callback=progress_cb)
-            
-            if output_path:
-                actual_path = output_path
-                import datetime
-                now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                actual_path = actual_path.replace("{execute_started_at}", now)
-                
-                current_service.save_to_csv(actual_path)
-                log_event("log", {"level": "info", "message": f"Results saved to {actual_path}"})
-
-            log_event("task_complete", {
-                "task": "favorites",
-                "count": len(results),
-                "results": [r.dict() for r in results]
-            })
-        except Exception as e:
-            log_event("log", {"level": "error", "message": str(e)})
-        finally:
-            pass # Keep service for a bit if needed, or clear it
-
-    background_tasks.add_task(run_task)
-    return {"status": "task_started"}
-
-@app.get("/tasks/favorites/pages")
-async def get_favorites_pages():
-    headers = build_headers(config.cookies)
-    service = EhFavoriteService(headers)
-    async with httpx.AsyncClient(timeout=30) as client:
-        count = await service.get_latest_page(client)
-        return {"pages": count}
-
 @app.get("/tasks/favorites/fetch")
 async def fetch_favorites_with_token(next: Optional[str] = None):
     headers = build_headers(config.cookies)
@@ -100,16 +53,6 @@ async def fetch_favorites_with_token(next: Optional[str] = None):
             "items": [item.dict() for item in result["items"]],
             "next": result["next"]
         }
-
-@app.get("/tasks/favorites/page/{page}")
-async def get_favorites_page(page: int):
-    headers = build_headers(config.cookies)
-    service = EhFavoriteService(headers)
-    async with httpx.AsyncClient(timeout=30) as client:
-        # We need to know total_pages just for progress log inside service, 
-        # but here we can just pass a dummy or 0 if we don't care about service-side progress logs
-        items = await service.fetch_page_standalone(client, page)
-        return {"items": [item.dict() for item in items]}
 
 class FavoritesSaveRequest(BaseModel):
     path: str
