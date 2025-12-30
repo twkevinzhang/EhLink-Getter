@@ -226,8 +226,8 @@ const openLink = (url: string) => {
           </div>
 
           <el-card class="glass-card !p-2.5">
-            <div class="flex justify-between items-center">
-              <div class="flex-1">
+            <div class="flex justify-between items-center gap-10">
+              <div class="flex-2">
                 <div class="flex items-center gap-3 mb-2">
                   <h3 class="m-0 text-white">Download Favorites</h3>
                   <el-icon
@@ -290,7 +290,7 @@ const openLink = (url: string) => {
                   />
                 </div>
               </div>
-              <div class="flex gap-3">
+              <div class="flex-1">
                 <el-button
                   v-if="store.task.status === 'running'"
                   type="danger"
