@@ -10,6 +10,7 @@ import {
   FolderOpened,
   Search,
   Connection,
+  Loading,
 } from "@element-plus/icons-vue";
 
 const store = useAppStore();
@@ -44,6 +45,9 @@ onMounted(() => {
 });
 
 const startTask = async () => {
+  // Auto save config when starting task if cookies changed
+  await window.api.saveConfig({ ...store.config });
+
   store.task.status = "running";
   store.task.progress = 0;
   const res = await window.api.startFavoritesTask(outputPattern.value);
@@ -178,8 +182,28 @@ const openLink = (url: string) => {
           <el-card class="glass-card main-action-card">
             <div class="action-grid">
               <div class="task-info">
-                <h3>Download Favorites</h3>
+                <div class="title-with-status">
+                  <h3>Download Favorites</h3>
+                  <el-icon
+                    v-if="store.task.status === 'running'"
+                    class="is-loading title-spinner"
+                  >
+                    <Loading />
+                  </el-icon>
+                </div>
                 <p>Fetch all items from your E-Hentai favorites list.</p>
+
+                <div class="auth-section">
+                  <span class="input-label">Cookies (raw string):</span>
+                  <el-input
+                    v-model="store.config.cookies"
+                    type="textarea"
+                    :rows="3"
+                    placeholder="ipb_member_id=...; ipb_pass_hash=...;"
+                    size="small"
+                    class="auth-input"
+                  />
+                </div>
 
                 <div class="path-input-group">
                   <span class="input-label">Output Path Pattern:</span>
@@ -208,7 +232,10 @@ const openLink = (url: string) => {
                           ? 'success'
                           : ''
                     "
-                    :indeterminate="store.task.status === 'running'"
+                    :indeterminate="
+                      store.task.status === 'running' &&
+                      store.task.progress === 0
+                    "
                   />
                 </div>
               </div>
@@ -216,27 +243,21 @@ const openLink = (url: string) => {
                 <el-button
                   v-if="store.task.status === 'running'"
                   type="danger"
-                  plain
+                  size="large"
                   @click="stopTask"
-                  class="stop-btn"
+                  class="stop-btn-toggle"
                 >
                   Stop Task
                 </el-button>
                 <el-button
+                  v-else
                   type="primary"
                   size="large"
-                  :loading="store.task.status === 'running'"
                   @click="startTask"
                   class="start-btn"
                 >
-                  <el-icon v-if="store.task.status !== 'running'"
-                    ><VideoPlay
-                  /></el-icon>
-                  {{
-                    store.task.status === "running"
-                      ? "Processing..."
-                      : "Start Task"
-                  }}
+                  <el-icon><VideoPlay /></el-icon>
+                  Start Task
                 </el-button>
               </div>
             </div>
@@ -436,32 +457,10 @@ const openLink = (url: string) => {
             <el-card class="glass-card settings-group">
               <template #header>
                 <div class="card-header">
-                  <el-icon><Connection /></el-icon> <span>Authentication</span>
+                  <el-icon><Connection /></el-icon>
+                  <span>Network Configuration</span>
                 </div>
               </template>
-              <el-form-item label="Cookies (raw string)">
-                <el-input
-                  v-model="store.config.cookies"
-                  type="textarea"
-                  rows="4"
-                  placeholder="ipb_member_id=...; ipb_pass_hash=...;"
-                />
-              </el-form-item>
-            </el-card>
-
-            <el-card class="glass-card settings-group">
-              <template #header>
-                <div class="card-header">
-                  <el-icon><FolderOpened /></el-icon>
-                  <span>Paths & Networking</span>
-                </div>
-              </template>
-              <el-form-item label="Metadata File Path">
-                <el-input v-model="store.config.metadata_path" />
-              </el-form-item>
-              <el-form-item label="Download Directory">
-                <el-input v-model="store.config.download_path" />
-              </el-form-item>
               <el-form-item label="Proxy (Optional)">
                 <el-input
                   v-model="store.config.proxy"
@@ -627,6 +626,7 @@ h1 {
   margin: 0;
   background: linear-gradient(to right, #fff, #94a3b8);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
@@ -790,6 +790,30 @@ h1 {
   width: 200px;
 }
 
+.title-with-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.title-with-status h3 {
+  margin: 0;
+}
+
+.title-spinner {
+  font-size: 1.5rem;
+  color: var(--primary-color);
+}
+
+.auth-section {
+  margin: 15px 0;
+}
+
+.auth-input {
+  margin-top: 8px;
+}
+
 .path-input-group {
   margin: 15px 0;
   display: flex;
@@ -810,6 +834,19 @@ h1 {
 .btn-group {
   display: flex;
   gap: 12px;
+}
+
+.stop-btn-toggle {
+  height: 50px;
+  padding: 0 30px;
+  font-weight: 600;
+  border-radius: 12px;
+  transition: transform 0.2s;
+}
+
+.stop-btn-toggle:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px -10px #f87171;
 }
 
 .stop-btn {
