@@ -15,9 +15,6 @@ module.exports = {
         'text-main': '#f8fafc',
         'text-muted': '#94a3b8',
       },
-      backdropBlur: {
-        'xs': '2px',
-      }
     },
   },
   plugins: [],
