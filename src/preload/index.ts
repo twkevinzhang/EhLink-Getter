@@ -7,6 +7,8 @@ const api = {
   searchMetadata: (query: string) =>
     ipcRenderer.invoke("search-metadata", query),
   saveConfig: (config: any) => ipcRenderer.invoke("save-config", config),
+  selectDirectory: () => ipcRenderer.invoke("select-directory"),
+  openFolder: (path?: string) => ipcRenderer.invoke("open-folder", path),
   onLog: (callback: any) =>
     ipcRenderer.on("python-log", (_event, value) => callback(value)),
   onProgress: (callback: any) =>

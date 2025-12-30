@@ -10,6 +10,8 @@ let pythonProcess: ChildProcess | null = null;
 const SIDECAR_PORT = 8000;
 const SIDECAR_URL = `http://127.0.0.1:${SIDECAR_PORT}`;
 
+let isQuitting = false;
+
 function startSidecar() {
   const isDev = is.dev;
   let pythonExecutable = "python";
@@ -65,7 +67,7 @@ function startSidecar() {
 
   pythonProcess.on("close", (code) => {
     console.log(`Sidecar process exited with code ${code}`);
-    if (code !== 0 && !app.isQuitting) {
+    if (code !== 0 && !isQuitting) {
       // Auto restart in production if needed
       // startSidecar()
     }
@@ -134,6 +136,25 @@ ipcMain.handle("save-config", async (_, config: any) => {
   } catch (error: any) {
     return { success: false, error: error.message };
   }
+});
+
+ipcMain.handle("open-folder", async (_, folderPath: string) => {
+  if (folderPath) {
+    shell.openPath(folderPath);
+  } else {
+    shell.openPath(app.getPath("downloads"));
+  }
+});
+
+ipcMain.handle("select-directory", async () => {
+  const { canceled, filePaths } =
+    await require("electron").dialog.showOpenDialog(mainWindow, {
+      properties: ["openDirectory"],
+    });
+  if (!canceled) {
+    return filePaths[0];
+  }
+  return null;
 });
 
 // This method will be called when Electron has finished
