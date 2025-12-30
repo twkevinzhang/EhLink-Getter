@@ -141,6 +141,41 @@ ipcMain.handle("map-metadata", async (_, payload: any) => {
   }
 });
 
+ipcMain.handle("get-favorites-pages", async () => {
+  try {
+    const response = await axios.get(`${SIDECAR_URL}/tasks/favorites/pages`);
+    return response.data;
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("fetch-favorites-page", async (_, page: number) => {
+  try {
+    const response = await axios.get(
+      `${SIDECAR_URL}/tasks/favorites/page/${page}`
+    );
+    return response.data;
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle(
+  "save-favorites-csv",
+  async (_, payload: { path: string; results: any[] }) => {
+    try {
+      const response = await axios.post(
+        `${SIDECAR_URL}/tasks/favorites/save`,
+        payload
+      );
+      return response.data;
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+);
+
 ipcMain.handle("search-metadata", async (_, query: string) => {
   try {
     const response = await axios.get(`${SIDECAR_URL}/search`, {

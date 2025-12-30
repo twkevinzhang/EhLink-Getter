@@ -64,15 +64,24 @@ class EhFavoriteService:
         
         return self.results
 
-    def save_to_csv(self, file_path: str):
+    async def fetch_page_standalone(self, client: httpx.AsyncClient, page: int) -> List[LinkInfo]:
+        url = f"https://e-hentai.org/favorites.php?page={page}"
+        response = await client.get(url, headers=self.headers, follow_redirects=True, timeout=30)
+        if response.status_code != 200:
+            return []
+        soup = BeautifulSoup(response.text, 'html.parser')
+        return self.parse_list(soup)
+
+    def save_to_csv(self, file_path: str, results: List[LinkInfo] = None):
         import os
         import csv
         
         # Ensure directory exists
         os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
         
+        data = results if results is not None else self.results
         with open(file_path, 'w', encoding='utf-8-sig', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(['Title', 'Link'])
-            for item in self.results:
+            for item in data:
                 writer.writerow([item.title, item.link])

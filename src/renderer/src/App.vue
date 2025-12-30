@@ -53,22 +53,81 @@ const startTask = async () => {
 
   store.task.status = "running";
   store.task.progress = 0;
-  const res = await window.api.startFavoritesTask(outputPattern.value);
-  if (!res.success) {
-    ElMessage.error(res.error || "Unknown error");
-    store.setTaskError(res.error || "Unknown error");
+  store.task.message = "Detecting total pages...";
+
+  try {
+    const pageRes = await window.api.getFavoritesPages();
+    if (!pageRes || pageRes.error || typeof pageRes.pages !== "number") {
+      throw new Error(pageRes?.error || "Failed to detect total pages");
+    }
+
+    const totalPages = pageRes.pages;
+    store.addLog({
+      level: "info",
+      message: `Total pages detected: ${totalPages}`,
+    });
+
+    const allResults: any[] = [];
+
+    for (let p = 0; p < totalPages; p++) {
+      if (store.task.status !== "running") {
+        store.addLog({ level: "warn", message: "Task stopped by user." });
+        break;
+      }
+
+      store.task.message = `Fetching page ${p + 1} of ${totalPages}...`;
+      store.task.progress = Math.floor((p / totalPages) * 100);
+
+      const res = await window.api.fetchFavoritesPage(p);
+      if (res && res.items) {
+        allResults.push(...res.items);
+        store.addLog({
+          level: "info",
+          message: `Page ${p} fetched: ${res.items.length} items.`,
+        });
+      } else {
+        store.addLog({
+          level: "error",
+          message: `Failed to fetch page ${p}: ${res?.error || "Unknown error"}`,
+        });
+      }
+
+      // Optional: Add a small delay between requests to be gentle
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    if (store.task.status === "running") {
+      store.task.message = "Saving results...";
+      const saveRes = await window.api.saveFavoritesCSV({
+        path: outputPattern.value,
+        results: allResults,
+      });
+
+      if (saveRes && saveRes.status === "saved") {
+        store.setTaskComplete({
+          count: allResults.length,
+          results: allResults,
+        });
+        store.addLog({
+          level: "info",
+          message: `Task complete. Saved to ${saveRes.path}`,
+        });
+      } else {
+        throw new Error(saveRes?.error || "Failed to save CSV");
+      }
+    }
+  } catch (error: any) {
+    ElMessage.error(error.message || "Task failed");
+    store.setTaskError(error.message || "Unknown error");
   }
 };
 
 const stopTask = async () => {
-  const res = await window.api.stopFavoritesTask();
-  if (res.success) {
-    ElMessage.warning("Termination signal sent.");
-    store.task.status = "idle";
-    store.task.message = "Terminated by user";
-  } else {
-    ElMessage.error(res.error || "Failed to stop task");
-  }
+  store.task.status = "idle";
+  store.task.message = "Stopping...";
+  await window.api.stopFavoritesTask(); // Optional fallback
+  store.task.message = "Terminated by user";
+  ElMessage.warning("Task stopped");
 };
 
 const handleMetadataMap = async () => {

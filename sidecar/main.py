@@ -81,6 +81,42 @@ async def start_favorites_task(background_tasks: BackgroundTasks, output_path: O
     background_tasks.add_task(run_task)
     return {"status": "task_started"}
 
+@app.get("/tasks/favorites/pages")
+async def get_favorites_pages():
+    headers = build_headers(config.cookies)
+    service = EhFavoriteService(headers)
+    async with httpx.AsyncClient(timeout=30) as client:
+        count = await service.get_latest_page(client)
+        return {"pages": count}
+
+@app.get("/tasks/favorites/page/{page}")
+async def get_favorites_page(page: int):
+    headers = build_headers(config.cookies)
+    service = EhFavoriteService(headers)
+    async with httpx.AsyncClient(timeout=30) as client:
+        # We need to know total_pages just for progress log inside service, 
+        # but here we can just pass a dummy or 0 if we don't care about service-side progress logs
+        items = await service.fetch_page_standalone(client, page)
+        return {"items": [item.dict() for item in items]}
+
+class FavoritesSaveRequest(BaseModel):
+    path: str
+    results: List[LinkInfo]
+
+@app.post("/tasks/favorites/save")
+async def save_favorites_task(req: FavoritesSaveRequest):
+    service = EhFavoriteService(build_headers(config.cookies))
+    try:
+        import datetime
+        now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        actual_path = req.path.replace("{execute_started_at}", now)
+        
+        service.save_to_csv(actual_path, results=req.results)
+        log_event("log", {"level": "info", "message": f"Results manually saved to {actual_path}"})
+        return {"status": "saved", "path": actual_path}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/tasks/favorites/stop")
 async def stop_favorites_task():
     global current_service
