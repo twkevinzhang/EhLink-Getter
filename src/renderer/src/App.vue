@@ -19,8 +19,15 @@ const activeTab = ref("dashboard");
 const searchQuery = ref("");
 const searchResults = ref<{ title: string; link: string }[]>([]);
 
-// Download Favorites
-const outputPattern = ref("./output/{execute_started_at}_FavoriteList.csv");
+// Download Scraper
+const favoriteOutputPattern = ref(
+  "./output/{execute_started_at}_FavoriteList.csv"
+);
+const otherPageUrl = ref("");
+const otherPageOutputPattern = ref(
+  "./output/{execute_started_at}_ScrapedList.csv"
+);
+const runningTaskType = ref<null | "favorites" | "other">(null);
 
 // Metadata Mapping
 const mapKeywords = ref("");
@@ -45,7 +52,12 @@ onMounted(() => {
   });
 });
 
-const startTask = async () => {
+const executeScrape = async (
+  type: "favorites" | "other",
+  url: string,
+  outputPath: string
+) => {
+  runningTaskType.value = type;
   // Auto save config when starting task if cookies changed
   await window.api.saveConfig({ ...store.config });
 
@@ -66,9 +78,9 @@ const startTask = async () => {
       }
 
       store.task.message = `Fetching page ${pagesFetched + 1}...`;
-      store.task.progress = (pagesFetched * 5) % 100; // Visual movement only
+      store.task.progress = (pagesFetched * 5) % 100;
 
-      const res = await window.api.fetchFavoritesPage(nextToken);
+      const res = await window.api.fetchPage({ url, next: nextToken });
       if (res && res.items) {
         allResults.push(...res.items);
         nextToken = res.next;
@@ -84,14 +96,13 @@ const startTask = async () => {
         throw new Error(errMsg);
       }
 
-      // Optional: Add a small delay between requests to be gentle
       await new Promise((resolve) => setTimeout(resolve, 800));
     }
 
     if (store.task.status === "running") {
       store.task.message = "Saving results...";
-      const saveRes = await window.api.saveFavoritesCSV({
-        path: outputPattern.value,
+      const saveRes = await window.api.saveCSV({
+        path: outputPath,
         results: allResults,
       });
 
@@ -111,14 +122,33 @@ const startTask = async () => {
   } catch (error: any) {
     ElMessage.error(error.message || "Task failed");
     store.setTaskError(error.message || "Unknown error");
+  } finally {
+    runningTaskType.value = null;
   }
+};
+
+const startFavoritesTask = () => {
+  executeScrape(
+    "favorites",
+    "https://e-hentai.org/favorites.php",
+    favoriteOutputPattern.value
+  );
+};
+
+const startOtherPageTask = () => {
+  if (!otherPageUrl.value.trim()) {
+    ElMessage.warning("Please enter a valid URL");
+    return;
+  }
+  executeScrape("other", otherPageUrl.value, otherPageOutputPattern.value);
 };
 
 const stopTask = async () => {
   store.task.status = "idle";
   store.task.message = "Stopping...";
-  await window.api.stopFavoritesTask(); // Optional fallback
+  await window.api.stopTask(); // Optional fallback
   store.task.message = "Terminated by user";
+  runningTaskType.value = null;
   ElMessage.warning("Task stopped");
 };
 
@@ -276,75 +306,38 @@ const openLink = (url: string) => {
             <p class="text-text-muted mt-2">Management and download control</p>
           </div>
 
-          <el-card class="glass-card !p-2.5">
+          <!-- Download Favorites Panel -->
+          <el-card class="glass-card !p-2.5 mb-6">
             <div class="flex justify-between items-center gap-10">
               <div class="flex-2">
                 <div class="flex items-center gap-3 mb-2">
-                  <h3 class="m-0 text-white">Download Favorites</h3>
+                  <h3 class="m-0 text-white font-bold">Download Favorites</h3>
                   <el-icon
-                    v-if="store.task.status === 'running'"
+                    v-if="runningTaskType === 'favorites'"
                     class="is-loading text-primary text-2xl"
                   >
                     <Loading />
                   </el-icon>
                 </div>
-                <p class="text-text-muted">
+                <p class="text-text-muted mb-4">
                   Fetch all items from your E-Hentai favorites list.
                 </p>
-
-                <div class="my-4">
-                  <span class="text-[0.85rem] text-text-muted"
-                    >Cookies (raw string):</span
-                  >
-                  <el-input
-                    v-model="store.config.cookies"
-                    type="textarea"
-                    :rows="3"
-                    placeholder="ipb_member_id=...; ipb_pass_hash=...;"
-                    size="small"
-                    class="mt-2"
-                  />
-                </div>
 
                 <div class="my-4 flex items-center gap-3">
                   <span class="text-[0.85rem] text-text-muted whitespace-nowrap"
                     >Output Path Pattern:</span
                   >
                   <el-input
-                    v-model="outputPattern"
+                    v-model="favoriteOutputPattern"
                     placeholder="./output/{execute_started_at}_FavoriteList.csv"
                     size="small"
                     class="max-w-[400px]"
                   />
                 </div>
-
-                <div v-if="store.task.status !== 'idle'" class="mt-5">
-                  <div class="flex items-center gap-4">
-                    <span class="text-[0.9rem] text-text-muted">{{
-                      store.task.message
-                    }}</span>
-                    <el-tag
-                      v-if="store.task.status === 'completed'"
-                      type="success"
-                      effect="dark"
-                      class="!bg-emerald-500/20 !text-emerald-400 !border-emerald-500/30 !px-4 font-bold tracking-wider"
-                    >
-                      DONE
-                    </el-tag>
-                    <el-tag
-                      v-if="store.task.status === 'error'"
-                      type="danger"
-                      effect="dark"
-                      class="!bg-red-500/20 !text-red-400 !border-red-500/30 !px-4 font-bold"
-                    >
-                      ERROR
-                    </el-tag>
-                  </div>
-                </div>
               </div>
               <div class="flex-1">
                 <el-button
-                  v-if="store.task.status === 'running'"
+                  v-if="runningTaskType === 'favorites'"
                   type="danger"
                   size="large"
                   @click="stopTask"
@@ -356,7 +349,8 @@ const openLink = (url: string) => {
                   v-else
                   type="primary"
                   size="large"
-                  @click="startTask"
+                  @click="startFavoritesTask"
+                  :disabled="runningTaskType === 'other'"
                   class="!h-[50px] !px-7 !font-semibold !rounded-xl !bg-gradient-to-br !from-indigo-500 !to-indigo-600 !border-none transition-transform hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-10px_#6366f1]"
                 >
                   <el-icon><VideoPlay /></el-icon>
@@ -365,6 +359,101 @@ const openLink = (url: string) => {
               </div>
             </div>
           </el-card>
+
+          <!-- Download Other Page Panel -->
+          <el-card class="glass-card !p-2.5 mb-6">
+            <div class="flex justify-between items-center gap-10">
+              <div class="flex-2">
+                <div class="flex items-center gap-3 mb-2">
+                  <h3 class="m-0 text-white font-bold">Download Other Page</h3>
+                  <el-icon
+                    v-if="runningTaskType === 'other'"
+                    class="is-loading text-primary text-2xl"
+                  >
+                    <Loading />
+                  </el-icon>
+                </div>
+                <p class="text-text-muted mb-4">
+                  Scrape any gallery list URL (e.g., search results or tag
+                  lists).
+                </p>
+
+                <div class="my-4">
+                  <span class="text-[0.85rem] text-text-muted"
+                    >Target URL:</span
+                  >
+                  <el-input
+                    v-model="otherPageUrl"
+                    placeholder="https://e-hentai.org/?f_cats=96"
+                    size="small"
+                    class="mt-2"
+                  />
+                </div>
+
+                <div class="my-4 flex items-center gap-3">
+                  <span class="text-[0.85rem] text-text-muted whitespace-nowrap"
+                    >Output Path Pattern:</span
+                  >
+                  <el-input
+                    v-model="otherPageOutputPattern"
+                    placeholder="./output/{execute_started_at}_ScrapedList.csv"
+                    size="small"
+                    class="max-w-[400px]"
+                  />
+                </div>
+              </div>
+              <div class="flex-1 text-right">
+                <el-button
+                  v-if="runningTaskType === 'other'"
+                  type="danger"
+                  size="large"
+                  @click="stopTask"
+                  class="!h-[50px] !px-7 !font-semibold !rounded-xl transition-transform hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-10px_#f87171]"
+                >
+                  Stop Task
+                </el-button>
+                <el-button
+                  v-else
+                  type="primary"
+                  size="large"
+                  @click="startOtherPageTask"
+                  :disabled="runningTaskType === 'favorites'"
+                  class="!h-[50px] !px-7 !font-semibold !rounded-xl !bg-gradient-to-br !from-purple-500 !to-purple-600 !border-none transition-transform hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-10px_#a855f7]"
+                >
+                  <el-icon><VideoPlay /></el-icon>
+                  Scrape URL
+                </el-button>
+              </div>
+            </div>
+          </el-card>
+
+          <!-- Shared Status Display -->
+          <div
+            v-if="store.task.status !== 'idle'"
+            class="mt-8 mb-4 p-4 rounded-xl bg-glass-bg border border-glass-border"
+          >
+            <div class="flex items-center gap-4">
+              <span class="text-[0.95rem] font-medium text-white">{{
+                store.task.message
+              }}</span>
+              <el-tag
+                v-if="store.task.status === 'completed'"
+                type="success"
+                effect="dark"
+                class="!bg-emerald-500/20 !text-emerald-400 !border-emerald-500/30 !px-4 font-bold tracking-wider"
+              >
+                DONE
+              </el-tag>
+              <el-tag
+                v-if="store.task.status === 'error'"
+                type="danger"
+                effect="dark"
+                class="!bg-red-500/20 !text-red-400 !border-red-500/30 !px-4 font-bold"
+              >
+                ERROR
+              </el-tag>
+            </div>
+          </div>
 
           <div class="mt-10" v-if="store.results.length > 0">
             <h3 class="mb-4">Recent Results</h3>

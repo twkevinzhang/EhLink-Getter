@@ -3,20 +3,15 @@ import { exposeElectronAPI } from "@electron-toolkit/preload";
 
 // Custom APIs for renderer
 const api = {
-  startFavoritesTask: (outputPath?: string) =>
-    ipcRenderer.invoke("start-favorites-task", outputPath),
-  stopFavoritesTask: () => ipcRenderer.invoke("stop-favorites-task"),
+  stopTask: () => ipcRenderer.invoke("stop-task"),
   searchMetadata: (query: string) =>
     ipcRenderer.invoke("search-metadata", query),
   mapMetadata: (payload: any) => ipcRenderer.invoke("map-metadata", payload),
   saveConfig: (config: any) => ipcRenderer.invoke("save-config", config),
-  fetchFavoritesPage: (nextToken?: string) =>
-    ipcRenderer.invoke("fetch-favorites-page", nextToken),
-  saveFavoritesCSV: (payload: { path: string; results: any[] }) =>
-    ipcRenderer.invoke(
-      "save-favorites-csv",
-      JSON.parse(JSON.stringify(payload))
-    ),
+  fetchPage: (payload: { url: string; next?: string }) =>
+    ipcRenderer.invoke("fetch-page", payload),
+  saveCSV: (payload: { path: string; results: any[] }) =>
+    ipcRenderer.invoke("save-csv", JSON.parse(JSON.stringify(payload))),
   selectDirectory: () => ipcRenderer.invoke("select-directory"),
   openFolder: (path?: string) => ipcRenderer.invoke("open-folder", path),
   onLog: (callback: any) =>

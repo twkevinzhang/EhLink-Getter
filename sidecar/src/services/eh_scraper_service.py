@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 from typing import List
 from ..entities.link_info import LinkInfo
 
-class EhFavoriteService:
+class EhScraperService:
     def __init__(self, headers: dict):
         self.headers = headers
         self.results = []
@@ -11,7 +11,6 @@ class EhFavoriteService:
 
     def cancel(self):
         self._cancelled = True
-
 
     def parse_list(self, soup: BeautifulSoup) -> List[LinkInfo]:
         return [
@@ -22,9 +21,7 @@ class EhFavoriteService:
             for title_element in soup.select("table.itg.gltm div.glink")
         ]
 
-
-    async def fetch_page_with_token(self, client: httpx.AsyncClient, next_token: str = None) -> dict:
-        url = "https://e-hentai.org/favorites.php"
+    async def fetch_page_with_token(self, client: httpx.AsyncClient, url: str, next_token: str = None) -> dict:
         params = {}
         if next_token:
             params["next"] = next_token
@@ -49,7 +46,6 @@ class EhFavoriteService:
                 new_token = qs["next"][0]
                 
         return {"items": items, "next": new_token}
-
 
     def save_to_csv(self, file_path: str, results: List[LinkInfo] = None):
         import os

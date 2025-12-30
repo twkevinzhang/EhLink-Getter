@@ -119,9 +119,9 @@ ipcMain.handle("start-favorites-task", async (_, outputPath?: string) => {
   }
 });
 
-ipcMain.handle("stop-favorites-task", async () => {
+ipcMain.handle("stop-task", async () => {
   try {
-    await axios.post(`${SIDECAR_URL}/tasks/favorites/stop`);
+    await axios.post(`${SIDECAR_URL}/tasks/stop`);
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -140,25 +140,25 @@ ipcMain.handle("map-metadata", async (_, payload: any) => {
     return { success: false, error: error.message };
   }
 });
-ipcMain.handle("fetch-favorites-page", async (_, nextToken?: string) => {
-  try {
-    const response = await axios.get(`${SIDECAR_URL}/tasks/favorites/fetch`, {
-      params: { next: nextToken },
-    });
-    return response.data;
-  } catch (error: any) {
-    return { success: false, error: error.message };
+ipcMain.handle(
+  "fetch-page",
+  async (_, payload: { url: string; next?: string }) => {
+    try {
+      const response = await axios.get(`${SIDECAR_URL}/tasks/fetch`, {
+        params: { url: payload.url, next: payload.next },
+      });
+      return response.data;
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
   }
-});
+);
 
 ipcMain.handle(
-  "save-favorites-csv",
+  "save-csv",
   async (_, payload: { path: string; results: any[] }) => {
     try {
-      const response = await axios.post(
-        `${SIDECAR_URL}/tasks/favorites/save`,
-        payload
-      );
+      const response = await axios.post(`${SIDECAR_URL}/tasks/save`, payload);
       return response.data;
     } catch (error: any) {
       return { success: false, error: error.message };
