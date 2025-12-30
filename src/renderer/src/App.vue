@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, toRaw } from "vue";
 import { useAppStore } from "./stores/app";
 import { ElMessage } from "element-plus";
 import {
@@ -23,7 +23,9 @@ const searchResults = ref<{ title: string; link: string }[]>([]);
 const outputPattern = ref("./output/{execute_started_at}_FavoriteList.csv");
 
 // Metadata Mapping
-const mapKeywords = ref("");
+const mapKeywords = ref(
+  "(C71) [Arisan-Antenna (Koari)] Eat The Rich! (Sukatto Golf Pangya)"
+);
 const mapMetadataPath = ref("metadata.json");
 const mapFields = ref(["title", "link"]);
 const mapResults = ref<any[]>([]);
@@ -82,8 +84,8 @@ const handleMetadataMap = async () => {
       .filter((k) => k);
     const res = await window.api.mapMetadata({
       keywords,
-      metadata_path: mapMetadataPath.value,
-      fields: mapFields.value,
+      metadata_path: toRaw(mapMetadataPath.value),
+      fields: toRaw(mapFields.value),
     });
 
     if (res && res.results) {
