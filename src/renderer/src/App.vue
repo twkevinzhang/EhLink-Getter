@@ -341,27 +341,28 @@ const openLink = (url: string) => {
                   />
                 </div>
 
-                <div v-if="store.task.status !== 'idle'" class="mt-5 w-[400px]">
-                  <div
-                    class="flex justify-between mb-2 text-[0.85rem] text-text-muted"
-                  >
-                    <span>{{ store.task.message }}</span>
-                    <span>{{ store.task.progress }}%</span>
+                <div v-if="store.task.status !== 'idle'" class="mt-5">
+                  <div class="flex items-center gap-4">
+                    <span class="text-[0.9rem] text-text-muted">{{
+                      store.task.message
+                    }}</span>
+                    <el-tag
+                      v-if="store.task.status === 'completed'"
+                      type="success"
+                      effect="dark"
+                      class="!bg-emerald-500/20 !text-emerald-400 !border-emerald-500/30 !px-4 font-bold tracking-wider"
+                    >
+                      DONE
+                    </el-tag>
+                    <el-tag
+                      v-if="store.task.status === 'error'"
+                      type="danger"
+                      effect="dark"
+                      class="!bg-red-500/20 !text-red-400 !border-red-500/30 !px-4 font-bold"
+                    >
+                      ERROR
+                    </el-tag>
                   </div>
-                  <el-progress
-                    :percentage="store.task.progress"
-                    :status="
-                      store.task.status === 'error'
-                        ? 'exception'
-                        : store.task.status === 'completed'
-                          ? 'success'
-                          : ''
-                    "
-                    :indeterminate="
-                      store.task.status === 'running' &&
-                      store.task.progress === 0
-                    "
-                  />
                 </div>
               </div>
               <div class="flex-1">
