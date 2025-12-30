@@ -10,6 +10,14 @@ const api = {
     ipcRenderer.invoke("search-metadata", query),
   mapMetadata: (payload: any) => ipcRenderer.invoke("map-metadata", payload),
   saveConfig: (config: any) => ipcRenderer.invoke("save-config", config),
+  getFavoritesPages: () => ipcRenderer.invoke("get-favorites-pages"),
+  fetchFavoritesPage: (page: number) =>
+    ipcRenderer.invoke("fetch-favorites-page", page),
+  saveFavoritesCSV: (payload: { path: string; results: any[] }) =>
+    ipcRenderer.invoke(
+      "save-favorites-csv",
+      JSON.parse(JSON.stringify(payload))
+    ),
   selectDirectory: () => ipcRenderer.invoke("select-directory"),
   openFolder: (path?: string) => ipcRenderer.invoke("open-folder", path),
   onLog: (callback: any) =>
