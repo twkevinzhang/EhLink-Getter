@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply m-0 font-sans bg-bg-dark text-text-main overflow-hidden;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-glass-bg backdrop-blur-md border border-glass-border rounded-2xl text-white;
+  }
+
+  .glass-table {
+    --el-table-bg-color: transparent;
+    --el-table-tr-bg-color: transparent;
+    --el-table-header-bg-color: rgba(255, 255, 255, 0.03);
+    --el-table-border-color: rgba(255, 255, 255, 0.1);
+    @apply rounded-xl overflow-hidden;
+  }
+}
+
+/* Custom keyframes if needed, though Tailwind has pulse */
+@keyframes pulse-custom {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse-custom {
+  animation: pulse-custom 1s infinite;
+}

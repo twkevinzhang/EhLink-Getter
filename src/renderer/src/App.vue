@@ -127,99 +127,142 @@ const openLink = (url: string) => {
 </script>
 
 <template>
-  <div class="app-container" :class="{ dark: true }">
-    <el-container class="main-layout">
+  <div class="h-screen w-screen flex bg-bg-dark text-text-main overflow-hidden">
+    <el-container class="h-full">
       <!-- Sidebar -->
-      <el-aside width="240px" class="sidebar">
-        <div class="logo-container">
-          <div class="logo-icon">Eh</div>
-          <span class="logo-text">Link Getter</span>
+      <el-aside
+        width="240px"
+        class="bg-bg-sidebar border-r border-glass-border flex flex-col"
+      >
+        <div class="p-7 px-6 flex items-center gap-3">
+          <div
+            class="w-8 h-8 bg-gradient-to-br from-primary to-purple-500 rounded-lg flex items-center justify-center font-bold text-white"
+          >
+            Eh
+          </div>
+          <span class="text-xl font-bold tracking-tight">Link Getter</span>
         </div>
 
         <el-menu
           :default-active="activeTab"
-          class="sidebar-menu"
+          class="!bg-transparent !border-r-0 flex-1"
           @select="(key: string) => (activeTab = key)"
         >
-          <el-menu-item index="dashboard">
+          <el-menu-item
+            index="dashboard"
+            class="!h-[50px] !m-1 !mx-3 !rounded-lg !text-text-muted hover:!bg-glass-bg [&.is-active]:!bg-glass-bg [&.is-active]:!text-primary"
+          >
             <el-icon><Monitor /></el-icon>
             <span>Console</span>
           </el-menu-item>
-          <el-menu-item index="mapping">
+          <el-menu-item
+            index="mapping"
+            class="!h-[50px] !m-1 !mx-3 !rounded-lg !text-text-muted hover:!bg-glass-bg [&.is-active]:!bg-glass-bg [&.is-active]:!text-primary"
+          >
             <el-icon><Connection /></el-icon>
             <span>Mapping Metadata</span>
           </el-menu-item>
-          <el-menu-item index="search">
+          <el-menu-item
+            index="search"
+            class="!h-[50px] !m-1 !mx-3 !rounded-lg !text-text-muted hover:!bg-glass-bg [&.is-active]:!bg-glass-bg [&.is-active]:!text-primary"
+          >
             <el-icon><Search /></el-icon>
             <span>Search Metadata</span>
           </el-menu-item>
-          <el-menu-item index="logs">
+          <el-menu-item
+            index="logs"
+            class="!h-[50px] !m-1 !mx-3 !rounded-lg !text-text-muted hover:!bg-glass-bg [&.is-active]:!bg-glass-bg [&.is-active]:!text-primary"
+          >
             <el-icon><Document /></el-icon>
             <span>Logs</span>
           </el-menu-item>
-          <el-menu-item index="settings">
+          <el-menu-item
+            index="settings"
+            class="!h-[50px] !m-1 !mx-3 !rounded-lg !text-text-muted hover:!bg-glass-bg [&.is-active]:!bg-glass-bg [&.is-active]:!text-primary"
+          >
             <el-icon><Setting /></el-icon>
             <span>Settings</span>
           </el-menu-item>
         </el-menu>
 
-        <div class="sidebar-footer">
-          <div class="status-indicator" :class="store.task.status">
-            <div class="dot"></div>
+        <div class="p-5 border-t border-glass-border">
+          <div
+            class="flex items-center gap-2 text-[0.8rem] text-text-muted"
+            :class="store.task.status"
+          >
+            <div
+              class="w-2 h-2 rounded-full"
+              :class="
+                store.task.status === 'running'
+                  ? 'bg-blue-500 shadow-[0_0_10px_#3b82f6] animate-pulse-custom'
+                  : 'bg-emerald-500 shadow-[0_0_10px_#10b981]'
+              "
+            ></div>
             <span>Sidecar: Online</span>
           </div>
         </div>
       </el-aside>
 
       <!-- Main Content -->
-      <el-main class="content-area">
+      <el-main
+        class="p-10 flex-1 relative bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.05),transparent_400px),radial-gradient(circle_at_bottom_left,rgba(168,85,247,0.05),transparent_400px)]"
+      >
         <div v-if="activeTab === 'dashboard'" class="tab-pane">
-          <div class="header-section">
-            <h1>Task Console</h1>
-            <p class="subtitle">Management and download control</p>
+          <div class="mb-8">
+            <h1
+              class="text-[2rem] font-extrabold m-0 bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent"
+            >
+              Task Console
+            </h1>
+            <p class="text-text-muted mt-2">Management and download control</p>
           </div>
 
-          <el-card class="glass-card main-action-card">
-            <div class="action-grid">
-              <div class="task-info">
-                <div class="title-with-status">
-                  <h3>Download Favorites</h3>
+          <el-card class="glass-card !p-2.5">
+            <div class="flex justify-between items-center">
+              <div class="flex-1">
+                <div class="flex items-center gap-3 mb-2">
+                  <h3 class="m-0 text-white">Download Favorites</h3>
                   <el-icon
                     v-if="store.task.status === 'running'"
-                    class="is-loading title-spinner"
+                    class="is-loading text-primary text-2xl"
                   >
                     <Loading />
                   </el-icon>
                 </div>
-                <p>Fetch all items from your E-Hentai favorites list.</p>
+                <p class="text-text-muted">
+                  Fetch all items from your E-Hentai favorites list.
+                </p>
 
-                <div class="auth-section">
-                  <span class="input-label">Cookies (raw string):</span>
+                <div class="my-4">
+                  <span class="text-[0.85rem] text-text-muted"
+                    >Cookies (raw string):</span
+                  >
                   <el-input
                     v-model="store.config.cookies"
                     type="textarea"
                     :rows="3"
                     placeholder="ipb_member_id=...; ipb_pass_hash=...;"
                     size="small"
-                    class="auth-input"
+                    class="mt-2"
                   />
                 </div>
 
-                <div class="path-input-group">
-                  <span class="input-label">Output Path Pattern:</span>
+                <div class="my-4 flex items-center gap-3">
+                  <span class="text-[0.85rem] text-text-muted whitespace-nowrap"
+                    >Output Path Pattern:</span
+                  >
                   <el-input
                     v-model="outputPattern"
                     placeholder="./output/{execute_started_at}_FavoriteList.csv"
                     size="small"
-                    class="path-input"
+                    class="max-w-[400px]"
                   />
                 </div>
 
-                <div
-                  v-if="store.task.status !== 'idle'"
-                  class="progress-section"
-                >
-                  <div class="progress-text">
+                <div v-if="store.task.status !== 'idle'" class="mt-5 w-[400px]">
+                  <div
+                    class="flex justify-between mb-2 text-[0.85rem] text-text-muted"
+                  >
                     <span>{{ store.task.message }}</span>
                     <span>{{ store.task.progress }}%</span>
                   </div>
@@ -239,13 +282,13 @@ const openLink = (url: string) => {
                   />
                 </div>
               </div>
-              <div class="btn-group">
+              <div class="flex gap-3">
                 <el-button
                   v-if="store.task.status === 'running'"
                   type="danger"
                   size="large"
                   @click="stopTask"
-                  class="stop-btn-toggle"
+                  class="!h-[50px] !px-7 !font-semibold !rounded-xl transition-transform hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-10px_#f87171]"
                 >
                   Stop Task
                 </el-button>
@@ -254,7 +297,7 @@ const openLink = (url: string) => {
                   type="primary"
                   size="large"
                   @click="startTask"
-                  class="start-btn"
+                  class="!h-[50px] !px-7 !font-semibold !rounded-xl !bg-gradient-to-br !from-indigo-500 !to-indigo-600 !border-none transition-transform hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-10px_#6366f1]"
                 >
                   <el-icon><VideoPlay /></el-icon>
                   Start Task
@@ -263,8 +306,8 @@ const openLink = (url: string) => {
             </div>
           </el-card>
 
-          <div class="results-section" v-if="store.results.length > 0">
-            <h3>Recent Results</h3>
+          <div class="mt-10" v-if="store.results.length > 0">
+            <h3 class="mb-4">Recent Results</h3>
             <el-table
               :data="store.results"
               style="width: 100%"
@@ -291,12 +334,18 @@ const openLink = (url: string) => {
         </div>
 
         <div v-if="activeTab === 'mapping'" class="tab-pane">
-          <div class="header-section">
-            <h1>Mapping Metadata</h1>
-            <p class="subtitle">Bulk find links by title keywords</p>
+          <div class="mb-8">
+            <h1
+              class="text-[2rem] font-extrabold m-0 bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent"
+            >
+              Mapping Metadata
+            </h1>
+            <p class="text-text-muted mt-2">
+              Bulk find links by title keywords
+            </p>
           </div>
 
-          <el-card class="glass-card mapping-card">
+          <el-card class="glass-card !p-5">
             <el-form label-position="top">
               <el-row :gutter="20">
                 <el-col :span="12">
@@ -329,25 +378,24 @@ const openLink = (url: string) => {
                       <el-option label="Token" value="token" />
                     </el-select>
                   </el-form-item>
-                  <div class="mapping-actions">
+                  <div class="mt-5 flex justify-end">
                     <el-button
                       type="primary"
                       size="large"
                       :loading="mapLoading"
                       @click="handleMetadataMap"
                       icon="CaretRight"
+                      >Start Mapping</el-button
                     >
-                      Start Mapping
-                    </el-button>
                   </div>
                 </el-col>
               </el-row>
             </el-form>
           </el-card>
 
-          <div class="results-section" v-if="mapResults.length > 0">
-            <div class="section-header">
-              <h3>Mapping Results ({{ mapResults.length }})</h3>
+          <div class="mt-10" v-if="mapResults.length > 0">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="m-0">Mapping Results ({{ mapResults.length }})</h3>
               <el-button size="small" @click="mapResults = []">Clear</el-button>
             </div>
             <el-table
@@ -374,38 +422,45 @@ const openLink = (url: string) => {
         </div>
 
         <div v-if="activeTab === 'search'" class="tab-pane">
-          <div class="header-section">
-            <h1>Search Metadata</h1>
-            <p class="subtitle">Deep search in local metadata index</p>
+          <div class="mb-8">
+            <h1
+              class="text-[2rem] font-extrabold m-0 bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent"
+            >
+              Search Metadata
+            </h1>
+            <p class="text-text-muted mt-2">
+              Deep search in local metadata index
+            </p>
           </div>
 
-          <el-card class="glass-card search-card">
-            <div class="search-input-wrapper">
-              <el-input
-                v-model="searchQuery"
-                placeholder="Enter search keywords..."
-                class="premium-input"
-                @keyup.enter="handleSearch"
+          <el-card class="glass-card mb-6">
+            <el-input
+              v-model="searchQuery"
+              placeholder="Enter search keywords..."
+              class="!bg-black/5"
+              @keyup.enter="handleSearch"
+            >
+              <template #prefix
+                ><el-icon><Search /></el-icon
+              ></template>
+              <template #append
+                ><el-button @click="handleSearch">Search</el-button></template
               >
-                <template #prefix>
-                  <el-icon><Search /></el-icon>
-                </template>
-                <template #append>
-                  <el-button @click="handleSearch">Search</el-button>
-                </template>
-              </el-input>
-            </div>
+            </el-input>
           </el-card>
 
-          <div class="search-results-list" v-if="searchResults.length > 0">
+          <div
+            class="mt-5 flex flex-col gap-3 max-h-[500px] overflow-y-auto"
+            v-if="searchResults.length > 0"
+          >
             <el-card
               v-for="(item, idx) in searchResults"
               :key="idx"
-              class="result-item-card glass-card"
+              class="glass-card !p-4 flex justify-between items-center"
             >
-              <div class="result-content">
-                <div class="title">{{ item.title }}</div>
-                <div class="link">{{ item.link }}</div>
+              <div class="flex-1">
+                <div class="font-semibold mb-1">{{ item.title }}</div>
+                <div class="text-[0.8rem] text-text-muted">{{ item.link }}</div>
               </div>
               <el-button
                 type="primary"
@@ -419,44 +474,67 @@ const openLink = (url: string) => {
           <el-empty v-else-if="searchQuery" description="No results found" />
         </div>
 
-        <div v-if="activeTab === 'logs'" class="tab-pane full-height">
-          <div class="header-section">
-            <h1>System Logs</h1>
-            <p class="subtitle">Real-time sidecar output</p>
+        <div
+          v-if="activeTab === 'logs'"
+          class="tab-pane flex flex-col h-full overflow-hidden"
+        >
+          <div class="mb-8">
+            <h1
+              class="text-[2rem] font-extrabold m-0 bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent"
+            >
+              System Logs
+            </h1>
+            <p class="text-text-muted mt-2">Real-time sidecar output</p>
           </div>
-          <div class="log-container-wrapper glass-card">
-            <div class="log-header">
+          <div
+            class="flex-1 flex flex-col overflow-hidden h-[500px] glass-card"
+          >
+            <div
+              class="p-3 px-5 border-b border-glass-border flex justify-between items-center font-semibold text-[0.9rem]"
+            >
               <span>Output Console</span>
               <el-button link @click="store.logs = []">Clear</el-button>
             </div>
-            <div class="log-scroll">
+            <div
+              class="p-5 flex-1 overflow-y-auto font-mono text-[0.85rem] bg-black/20"
+            >
               <div
                 v-for="(log, idx) in store.logs"
                 :key="idx"
-                class="log-line"
-                :class="log.level"
+                class="mb-1 whitespace-pre-wrap"
+                :class="
+                  log.level === 'error'
+                    ? 'text-red-400'
+                    : log.level === 'warn'
+                      ? 'text-amber-400'
+                      : 'text-slate-400'
+                "
               >
-                <span class="log-time">[{{ log.timestamp }}]</span>
-                <span class="log-msg">{{ log.message }}</span>
+                <span class="text-slate-500 mr-2.5">[{{ log.timestamp }}]</span>
+                <span>{{ log.message }}</span>
               </div>
             </div>
           </div>
         </div>
 
         <div v-if="activeTab === 'settings'" class="tab-pane">
-          <div class="header-section">
-            <h1>Configuration</h1>
-            <p class="subtitle">Setup your credentials and paths</p>
+          <div class="mb-8">
+            <h1
+              class="text-[2rem] font-extrabold m-0 bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent"
+            >
+              Configuration
+            </h1>
+            <p class="text-text-muted mt-2">Setup your credentials and paths</p>
           </div>
 
           <el-form
             :model="store.config"
             label-position="top"
-            class="settings-form"
+            class="max-w-[800px]"
           >
-            <el-card class="glass-card settings-group">
+            <el-card class="glass-card mb-6">
               <template #header>
-                <div class="card-header">
+                <div class="flex items-center gap-2 font-semibold">
                   <el-icon><Connection /></el-icon>
                   <span>Network Configuration</span>
                 </div>
@@ -469,12 +547,12 @@ const openLink = (url: string) => {
               </el-form-item>
             </el-card>
 
-            <div class="form-actions">
+            <div class="flex justify-start">
               <el-button
                 type="primary"
                 size="large"
                 @click="saveConfig"
-                class="save-btn"
+                class="w-[200px]"
                 >Save Changes</el-button
               >
             </div>
@@ -486,425 +564,42 @@ const openLink = (url: string) => {
 </template>
 
 <style>
-:root {
-  --primary-color: #6366f1;
-  --bg-dark: #0f172a;
-  --bg-sidebar: #1e293b;
-  --glass-bg: rgba(255, 255, 255, 0.05);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --text-main: #f8fafc;
-  --text-muted: #94a3b8;
-}
+/* 
+  Global Element Plus overrides that are easier to keep here 
+  or in assets/tailwind.css. We'll keep some deep specificity fixers.
+*/
 
-body {
-  margin: 0;
-  font-family:
-    "Inter",
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    sans-serif;
-  background-color: var(--bg-dark);
-  color: var(--text-main);
-  overflow: hidden;
-}
-
-.app-container {
-  height: 100vh;
-  width: 100vw;
-  display: flex;
-}
-
-.main-layout {
-  height: 100%;
-}
-
-.sidebar {
-  background-color: var(--bg-sidebar);
-  border-right: 1px solid var(--glass-border);
-  display: flex;
-  flex-direction: column;
-}
-
-.logo-container {
-  padding: 30px 24px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.logo-icon {
-  width: 32px;
-  height: 32px;
-  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  color: white;
-}
-
-.logo-text {
-  font-size: 1.25rem;
-  font-weight: 700;
-  letter-spacing: -0.025em;
-}
-
-.sidebar-menu {
-  background: transparent !important;
-  border-right: none !important;
-  flex: 1;
-}
-
-.sidebar-menu .el-menu-item {
-  height: 50px;
-  margin: 4px 12px;
-  border-radius: 8px;
-  color: var(--text-muted) !important;
-}
-
-.sidebar-menu .el-menu-item.is-active {
-  background: var(--glass-bg) !important;
-  color: var(--primary-color) !important;
-}
-
-.sidebar-menu .el-menu-item:hover {
-  background: var(--glass-bg) !important;
-}
-
-.sidebar-footer {
-  padding: 20px;
-  border-top: 1px solid var(--glass-border);
-}
-
-.status-indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-.status-indicator .dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: #10b981;
-  box-shadow: 0 0 10px #10b981;
-}
-
-.status-indicator.running .dot {
-  background-color: #3b82f6;
-  box-shadow: 0 0 10px #3b82f6;
-  animation: pulse 1s infinite;
-}
-
-.content-area {
-  padding: 40px;
-  background:
-    radial-gradient(
-      circle at top right,
-      rgba(99, 102, 241, 0.05),
-      transparent 400px
-    ),
-    radial-gradient(
-      circle at bottom left,
-      rgba(168, 85, 247, 0.05),
-      transparent 400px
-    );
-}
-
-.header-section {
-  margin-bottom: 30px;
-}
-
-h1 {
-  font-size: 2rem;
-  font-weight: 800;
-  margin: 0;
-  background: linear-gradient(to right, #fff, #94a3b8);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.subtitle {
-  color: var(--text-muted);
-  margin: 8px 0 0 0;
-}
-
-.glass-card {
-  background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--glass-border);
-  border-radius: 16px;
-  color: white;
-}
-
-.main-action-card {
-  padding: 10px;
-}
-
-.action-grid {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.task-info h3 {
-  margin: 0 0 8px 0;
-}
-
-.progress-section {
-  margin-top: 20px;
-  width: 400px;
-}
-
-.progress-text {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-.start-btn {
-  height: 50px;
-  padding: 0 30px;
-  font-weight: 600;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
-  border: none !important;
-  transition: transform 0.2s;
-}
-
-.start-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 20px -10px #6366f1;
-}
-
-.results-section {
-  margin-top: 40px;
-}
-
-.glass-table {
-  --el-table-bg-color: transparent;
-  --el-table-tr-bg-color: transparent;
-  --el-table-header-bg-color: rgba(255, 255, 255, 0.03);
-  --el-table-border-color: var(--glass-border);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.log-container-wrapper {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  height: 500px;
-}
-
-.log-header {
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--glass-border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.log-scroll {
-  padding: 20px;
-  flex: 1;
-  overflow-y: auto;
-  font-family: "JetBrains Mono", "Fira Code", monospace;
-  font-size: 0.85rem;
-  background: rgba(0, 0, 0, 0.2);
-}
-
-.log-line {
-  margin-bottom: 4px;
-  white-space: pre-wrap;
-}
-
-.log-time {
-  color: #64748b;
-  margin-right: 10px;
-}
-
-.log-line.error .log-msg {
-  color: #f87171;
-}
-.log-line.warn .log-msg {
-  color: #fbbf24;
-}
-.log-line.info .log-msg {
-  color: #94a3b8;
-}
-
-.search-results-list {
-  margin-top: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: 500px;
-  overflow-y: auto;
-}
-
-.result-item-card {
-  padding: 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.result-content .title {
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.result-content .link {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-.settings-form {
-  max-width: 800px;
-}
-
-.settings-group {
-  margin-bottom: 24px;
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-}
-
-.save-btn {
-  width: 200px;
-}
-
-.title-with-status {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.title-with-status h3 {
-  margin: 0;
-}
-
-.title-spinner {
-  font-size: 1.5rem;
-  color: var(--primary-color);
-}
-
-.auth-section {
-  margin: 15px 0;
-}
-
-.auth-input {
-  margin-top: 8px;
-}
-
-.path-input-group {
-  margin: 15px 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.input-label {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.path-input {
-  max-width: 400px;
-}
-
-.btn-group {
-  display: flex;
-  gap: 12px;
-}
-
-.stop-btn-toggle {
-  height: 50px;
-  padding: 0 30px;
-  font-weight: 600;
-  border-radius: 12px;
-  transition: transform 0.2s;
-}
-
-.stop-btn-toggle:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 20px -10px #f87171;
-}
-
-.stop-btn {
-  height: 50px;
-  border-radius: 12px;
-}
-
-.mapping-card {
-  padding: 20px;
-}
-
-.mapping-actions {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-@keyframes pulse {
-  0% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-  100% {
-    opacity: 1;
-  }
-}
-
-/* Element Plus Overrides for Dark Mode */
 .el-input__wrapper {
-  background-color: rgba(255, 255, 255, 0.05) !important;
-  box-shadow: 0 0 0 1px var(--glass-border) inset !important;
+  @apply !bg-white/5 !shadow-none !border !border-glass-border !text-white;
 }
 
 .el-textarea__inner {
-  background-color: rgba(255, 255, 255, 0.05) !important;
-  box-shadow: 0 0 0 1px var(--glass-border) inset !important;
-  color: white !important;
+  @apply !bg-white/5 !shadow-none !border !border-glass-border !text-white;
 }
 
 .el-card__header {
-  border-bottom: 1px solid var(--glass-border) !important;
+  @apply !border-b-glass-border;
 }
 
 .el-select .el-input__wrapper {
-  background-color: rgba(255, 255, 255, 0.05) !important;
+  @apply !bg-white/5;
 }
 
 .el-tag {
-  background-color: rgba(99, 102, 241, 0.2) !important;
-  border-color: rgba(99, 102, 241, 0.3) !important;
-  color: #a5b4fc !important;
+  @apply !bg-indigo-500/20 !border-indigo-500/30 !text-indigo-300;
+}
+
+/* Custom scrollbar for webkit */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-white/10 rounded-full hover:bg-white/20;
 }
 </style>
