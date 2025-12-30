@@ -90,6 +90,17 @@ async def get_favorites_pages():
         count = await service.get_latest_page(client)
         return {"pages": count}
 
+@app.get("/tasks/favorites/fetch")
+async def fetch_favorites_with_token(next: Optional[str] = None):
+    headers = build_headers(config.cookies)
+    service = EhFavoriteService(headers)
+    async with httpx.AsyncClient(timeout=30) as client:
+        result = await service.fetch_page_with_token(client, next_token=next)
+        return {
+            "items": [item.dict() for item in result["items"]],
+            "next": result["next"]
+        }
+
 @app.get("/tasks/favorites/page/{page}")
 async def get_favorites_page(page: int):
     headers = build_headers(config.cookies)

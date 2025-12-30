@@ -56,44 +56,59 @@ const startTask = async () => {
   store.task.message = "Detecting total pages...";
 
   try {
-    const pageRes = await window.api.getFavoritesPages();
-    if (!pageRes || pageRes.error || typeof pageRes.pages !== "number") {
-      throw new Error(pageRes?.error || "Failed to detect total pages");
+    let totalPages = 0;
+    try {
+      const pageRes = await window.api.getFavoritesPages();
+      if (pageRes && typeof pageRes.pages === "number") {
+        totalPages = pageRes.pages;
+        store.addLog({
+          level: "info",
+          message: `Estimated total pages: ${totalPages}`,
+        });
+      }
+    } catch (e) {
+      console.warn("Failed to get total pages estimate", e);
     }
 
-    const totalPages = pageRes.pages;
-    store.addLog({
-      level: "info",
-      message: `Total pages detected: ${totalPages}`,
-    });
-
     const allResults: any[] = [];
+    let nextToken: string | undefined = undefined;
+    let pagesFetched = 0;
+    let hasMore = true;
 
-    for (let p = 0; p < totalPages; p++) {
+    while (hasMore) {
       if (store.task.status !== "running") {
         store.addLog({ level: "warn", message: "Task stopped by user." });
         break;
       }
 
-      store.task.message = `Fetching page ${p + 1} of ${totalPages}...`;
-      store.task.progress = Math.floor((p / totalPages) * 100);
+      store.task.message = `Fetching page ${pagesFetched + 1}${totalPages > 0 ? " of ~" + totalPages : ""}...`;
+      if (totalPages > 0) {
+        store.task.progress = Math.min(
+          Math.floor((pagesFetched / totalPages) * 100),
+          99
+        );
+      } else {
+        store.task.progress = (pagesFetched * 5) % 100; // Fake progress if no total
+      }
 
-      const res = await window.api.fetchFavoritesPage(p);
+      const res = await window.api.fetchFavoritesPage(nextToken);
       if (res && res.items) {
         allResults.push(...res.items);
+        nextToken = res.next;
+        hasMore = !!nextToken;
+        pagesFetched++;
         store.addLog({
           level: "info",
-          message: `Page ${p} fetched: ${res.items.length} items.`,
+          message: `Fetched page ${pagesFetched}${nextToken ? ", next token found" : ", last page reached"}.`,
         });
       } else {
-        store.addLog({
-          level: "error",
-          message: `Failed to fetch page ${p}: ${res?.error || "Unknown error"}`,
-        });
+        const errMsg = res?.error || "Unknown error fetching page";
+        store.addLog({ level: "error", message: errMsg });
+        throw new Error(errMsg);
       }
 
       // Optional: Add a small delay between requests to be gentle
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 800));
     }
 
     if (store.task.status === "running") {
