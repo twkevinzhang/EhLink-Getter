@@ -17,6 +17,16 @@ const activeTab = ref("dashboard");
 const searchQuery = ref("");
 const searchResults = ref<{ title: string; link: string }[]>([]);
 
+// Download Favorites
+const outputPattern = ref("./output/{execute_started_at}_FavoriteList.csv");
+
+// Metadata Mapping
+const mapKeywords = ref("");
+const mapMetadataPath = ref("metadata.json");
+const mapFields = ref(["title", "link"]);
+const mapResults = ref<any[]>([]);
+const mapLoading = ref(false);
+
 onMounted(() => {
   // Listen to sidecar events
   window.api.onLog((log: any) => {
@@ -36,11 +46,47 @@ onMounted(() => {
 const startTask = async () => {
   store.task.status = "running";
   store.task.progress = 0;
-  const res = await window.api.startFavoritesTask();
+  const res = await window.api.startFavoritesTask(outputPattern.value);
   if (!res.success) {
     ElMessage.error(res.error || "Unknown error");
     store.setTaskError(res.error || "Unknown error");
   }
+};
+
+const stopTask = async () => {
+  const res = await window.api.stopFavoritesTask();
+  if (res.success) {
+    ElMessage.warning("Termination signal sent.");
+    store.task.status = "idle";
+    store.task.message = "Terminated by user";
+  } else {
+    ElMessage.error(res.error || "Failed to stop task");
+  }
+};
+
+const handleMetadataMap = async () => {
+  if (!mapKeywords.value.trim()) {
+    ElMessage.warning("Please enter at least one keyword");
+    return;
+  }
+  mapLoading.value = true;
+  const keywords = mapKeywords.value
+    .split("\n")
+    .map((k) => k.trim())
+    .filter((k) => k);
+  const res = await window.api.mapMetadata({
+    keywords,
+    metadata_path: mapMetadataPath.value,
+    fields: mapFields.value,
+  });
+
+  if (res && res.results) {
+    mapResults.value = res.results;
+    ElMessage.success(`Mapped ${res.results.length} results`);
+  } else if (res && res.error) {
+    ElMessage.error(res.error);
+  }
+  mapLoading.value = false;
 };
 
 const saveConfig = async () => {
@@ -95,6 +141,10 @@ const openLink = (url: string) => {
             <el-icon><Monitor /></el-icon>
             <span>Console</span>
           </el-menu-item>
+          <el-menu-item index="mapping">
+            <el-icon><Connection /></el-icon>
+            <span>Mapping Metadata</span>
+          </el-menu-item>
           <el-menu-item index="search">
             <el-icon><Search /></el-icon>
             <span>Search Metadata</span>
@@ -131,6 +181,16 @@ const openLink = (url: string) => {
                 <h3>Download Favorites</h3>
                 <p>Fetch all items from your E-Hentai favorites list.</p>
 
+                <div class="path-input-group">
+                  <span class="input-label">Output Path Pattern:</span>
+                  <el-input
+                    v-model="outputPattern"
+                    placeholder="./output/{execute_started_at}_FavoriteList.csv"
+                    size="small"
+                    class="path-input"
+                  />
+                </div>
+
                 <div
                   v-if="store.task.status !== 'idle'"
                   class="progress-section"
@@ -152,22 +212,33 @@ const openLink = (url: string) => {
                   />
                 </div>
               </div>
-              <el-button
-                type="primary"
-                size="large"
-                :loading="store.task.status === 'running'"
-                @click="startTask"
-                class="start-btn"
-              >
-                <el-icon v-if="store.task.status !== 'running'"
-                  ><VideoPlay
-                /></el-icon>
-                {{
-                  store.task.status === "running"
-                    ? "Processing..."
-                    : "Start Task"
-                }}
-              </el-button>
+              <div class="btn-group">
+                <el-button
+                  v-if="store.task.status === 'running'"
+                  type="danger"
+                  plain
+                  @click="stopTask"
+                  class="stop-btn"
+                >
+                  Stop Task
+                </el-button>
+                <el-button
+                  type="primary"
+                  size="large"
+                  :loading="store.task.status === 'running'"
+                  @click="startTask"
+                  class="start-btn"
+                >
+                  <el-icon v-if="store.task.status !== 'running'"
+                    ><VideoPlay
+                  /></el-icon>
+                  {{
+                    store.task.status === "running"
+                      ? "Processing..."
+                      : "Start Task"
+                  }}
+                </el-button>
+              </div>
             </div>
           </el-card>
 
@@ -192,6 +263,89 @@ const openLink = (url: string) => {
                     @click="openLink(scope.row.link)"
                     >View</el-button
                   >
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </div>
+
+        <div v-if="activeTab === 'mapping'" class="tab-pane">
+          <div class="header-section">
+            <h1>Mapping Metadata</h1>
+            <p class="subtitle">Bulk find links by title keywords</p>
+          </div>
+
+          <el-card class="glass-card mapping-card">
+            <el-form label-position="top">
+              <el-row :gutter="20">
+                <el-col :span="12">
+                  <el-form-item label="Title Keywords (one per line)">
+                    <el-input
+                      v-model="mapKeywords"
+                      type="textarea"
+                      :rows="8"
+                      placeholder="Input titles here..."
+                    />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="Metadata JSON Path">
+                    <el-input
+                      v-model="mapMetadataPath"
+                      placeholder="metadata.json"
+                    />
+                  </el-form-item>
+                  <el-form-item label="Output Fields">
+                    <el-select
+                      v-model="mapFields"
+                      multiple
+                      placeholder="Select fields"
+                      style="width: 100%"
+                    >
+                      <el-option label="Title" value="title" />
+                      <el-option label="Link" value="link" />
+                      <el-option label="GID" value="gid" />
+                      <el-option label="Token" value="token" />
+                    </el-select>
+                  </el-form-item>
+                  <div class="mapping-actions">
+                    <el-button
+                      type="primary"
+                      size="large"
+                      :loading="mapLoading"
+                      @click="handleMetadataMap"
+                      icon="CaretRight"
+                    >
+                      Start Mapping
+                    </el-button>
+                  </div>
+                </el-col>
+              </el-row>
+            </el-form>
+          </el-card>
+
+          <div class="results-section" v-if="mapResults.length > 0">
+            <div class="section-header">
+              <h3>Mapping Results ({{ mapResults.length }})</h3>
+              <el-button size="small" @click="mapResults = []">Clear</el-button>
+            </div>
+            <el-table
+              :data="mapResults"
+              style="width: 100%"
+              height="400"
+              class="glass-table"
+            >
+              <el-table-column
+                v-for="field in mapFields"
+                :key="field"
+                :prop="field"
+                :label="field"
+                show-overflow-tooltip
+              >
+                <template #default="scope" v-if="field === 'link'">
+                  <el-link type="primary" @click="openLink(scope.row[field])">{{
+                    scope.row[field]
+                  }}</el-link>
                 </template>
               </el-table-column>
             </el-table>
@@ -636,6 +790,49 @@ h1 {
   width: 200px;
 }
 
+.path-input-group {
+  margin: 15px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.input-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.path-input {
+  max-width: 400px;
+}
+
+.btn-group {
+  display: flex;
+  gap: 12px;
+}
+
+.stop-btn {
+  height: 50px;
+  border-radius: 12px;
+}
+
+.mapping-card {
+  padding: 20px;
+}
+
+.mapping-actions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 @keyframes pulse {
   0% {
     opacity: 1;
@@ -662,5 +859,15 @@ h1 {
 
 .el-card__header {
   border-bottom: 1px solid var(--glass-border) !important;
+}
+
+.el-select .el-input__wrapper {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.el-tag {
+  background-color: rgba(99, 102, 241, 0.2) !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+  color: #a5b4fc !important;
 }
 </style>

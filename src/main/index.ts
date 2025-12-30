@@ -3,7 +3,6 @@ import { join } from "path";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { spawn, ChildProcess } from "child_process";
 import axios from "axios";
-import path from "path";
 
 let mainWindow: BrowserWindow;
 let pythonProcess: ChildProcess | null = null;
@@ -109,10 +108,33 @@ function createWindow(): void {
 }
 
 // IPC Handlers
-ipcMain.handle("start-favorites-task", async () => {
+ipcMain.handle("start-favorites-task", async (_, outputPath?: string) => {
   try {
-    await axios.post(`${SIDECAR_URL}/tasks/favorites`);
+    await axios.post(`${SIDECAR_URL}/tasks/favorites`, null, {
+      params: { output_path: outputPath },
+    });
     return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("stop-favorites-task", async () => {
+  try {
+    await axios.post(`${SIDECAR_URL}/tasks/favorites/stop`);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("map-metadata", async (_, payload: any) => {
+  try {
+    const response = await axios.post(
+      `${SIDECAR_URL}/tasks/metadata/map`,
+      payload
+    );
+    return response.data;
   } catch (error: any) {
     return { success: false, error: error.message };
   }

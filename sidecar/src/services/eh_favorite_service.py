@@ -8,6 +8,10 @@ class EhFavoriteService:
     def __init__(self, headers: dict):
         self.headers = headers
         self.results = []
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
 
     async def get_latest_page(self, client: httpx.AsyncClient) -> int:
         response = await client.get("https://e-hentai.org/favorites.php", headers=self.headers)
@@ -18,6 +22,8 @@ class EhFavoriteService:
         return int(nav[len(nav) - 2].text)
 
     async def fetch_page(self, client: httpx.AsyncClient, page: int, progress_callback: Callable = None):
+        if self._cancelled:
+            return
         url = f"https://e-hentai.org/favorites.php?page={page}"
         try:
             response = await client.get(url, headers=self.headers)
@@ -39,6 +45,8 @@ class EhFavoriteService:
         ]
 
     async def scrapy(self, progress_callback: Callable = None):
+        self._cancelled = False
+        self.results = []
         async with httpx.AsyncClient() as client:
             total_pages = await self.get_latest_page(client)
             tasks = []
@@ -48,9 +56,23 @@ class EhFavoriteService:
             # Using semaphore to limit concurrency
             sem = asyncio.Semaphore(5)
             async def sem_task(task):
+                if self._cancelled: return
                 async with sem:
                     return await task
             
             await asyncio.gather(*(sem_task(t) for t in tasks))
         
         return self.results
+
+    def save_to_csv(self, file_path: str):
+        import os
+        import csv
+        
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
+        
+        with open(file_path, 'w', encoding='utf-8-sig', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Title', 'Link'])
+            for item in self.results:
+                writer.writerow([item.title, item.link])

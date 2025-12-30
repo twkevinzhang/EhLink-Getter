@@ -19,8 +19,14 @@ class Config(BaseModel):
     metadata_path: str = "metadata.json"
     download_path: str = "output"
 
-# Global state (simplified for now)
+class MetadataMapRequest(BaseModel):
+    keywords: List[str]
+    metadata_path: str
+    fields: List[str]
+
+# Global state
 config = Config()
+current_service: Optional[EhFavoriteService] = None
 
 def log_event(event_type: str, data: dict):
     """Output structured JSON to stdout for Electron to consume"""
@@ -37,9 +43,10 @@ async def update_config(new_config: Config):
     return {"status": "updated", "config": config}
 
 @app.post("/tasks/favorites")
-async def start_favorites_task(background_tasks: BackgroundTasks):
+async def start_favorites_task(background_tasks: BackgroundTasks, output_path: Optional[str] = None):
+    global current_service
     headers = build_headers(config.cookies)
-    service = EhFavoriteService(headers)
+    current_service = EhFavoriteService(headers)
     
     async def run_task():
         log_event("log", {"level": "info", "message": "Starting favorites download task..."})
@@ -50,7 +57,17 @@ async def start_favorites_task(background_tasks: BackgroundTasks):
                     "items_count": len(items)
                 })
             
-            results = await service.scrapy(progress_callback=progress_cb)
+            results = await current_service.scrapy(progress_callback=progress_cb)
+            
+            if output_path:
+                actual_path = output_path
+                import datetime
+                now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                actual_path = actual_path.replace("{execute_started_at}", now)
+                
+                current_service.save_to_csv(actual_path)
+                log_event("log", {"level": "info", "message": f"Results saved to {actual_path}"})
+
             log_event("task_complete", {
                 "task": "favorites",
                 "count": len(results),
@@ -58,9 +75,42 @@ async def start_favorites_task(background_tasks: BackgroundTasks):
             })
         except Exception as e:
             log_event("log", {"level": "error", "message": str(e)})
+        finally:
+            pass # Keep service for a bit if needed, or clear it
 
     background_tasks.add_task(run_task)
     return {"status": "task_started"}
+
+@app.post("/tasks/favorites/stop")
+async def stop_favorites_task():
+    global current_service
+    if current_service:
+        current_service.cancel()
+        log_event("log", {"level": "warn", "message": "Task termination requested by user."})
+        return {"status": "stopping"}
+    return {"status": "no_active_task"}
+
+@app.post("/tasks/metadata/map")
+async def map_metadata(req: MetadataMapRequest):
+    service = MetadataService(req.metadata_path)
+    try:
+        # We use raw=True to get all fields, then filter based on req.fields
+        raw_results = service.find_multiple_links(req.keywords, limit=1000, raw=True)
+        
+        filtered_results = []
+        for item in raw_results:
+            # Reconstruct the link if it was one of the fields, or provide it by default if requested
+            item_filtered = {}
+            for f in req.fields:
+                if f == "link":
+                    item_filtered["link"] = f'https://e-hentai.org/g/{item["gid"]}/{item["token"]}/'
+                elif f in item:
+                    item_filtered[f] = item[f]
+            filtered_results.append(item_filtered)
+            
+        return {"results": filtered_results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/search")
 async def search_metadata(q: str):

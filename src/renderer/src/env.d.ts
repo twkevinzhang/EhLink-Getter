@@ -1,8 +1,12 @@
 import { ElectronAPI } from "@electron-toolkit/preload";
 
 interface SidecarAPI {
-  startFavoritesTask: () => Promise<{ success: boolean; error?: string }>;
+  startFavoritesTask: (
+    outputPath?: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  stopFavoritesTask: () => Promise<{ success: boolean; error?: string }>;
   searchMetadata: (query: string) => Promise<{ results: any[] }>;
+  mapMetadata: (payload: any) => Promise<{ results: any[]; error?: string }>;
   saveConfig: (config: any) => Promise<{ success: boolean; error?: string }>;
   selectDirectory: () => Promise<string | null>;
   openFolder: (path?: string) => Promise<void>;
