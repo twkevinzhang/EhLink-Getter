@@ -3,9 +3,12 @@ import { exposeElectronAPI } from "@electron-toolkit/preload";
 
 // Custom APIs for renderer
 const api = {
-  startFavoritesTask: () => ipcRenderer.invoke("start-favorites-task"),
+  startFavoritesTask: (outputPath?: string) =>
+    ipcRenderer.invoke("start-favorites-task", outputPath),
+  stopFavoritesTask: () => ipcRenderer.invoke("stop-favorites-task"),
   searchMetadata: (query: string) =>
     ipcRenderer.invoke("search-metadata", query),
+  mapMetadata: (payload: any) => ipcRenderer.invoke("map-metadata", payload),
   saveConfig: (config: any) => ipcRenderer.invoke("save-config", config),
   selectDirectory: () => ipcRenderer.invoke("select-directory"),
   openFolder: (path?: string) => ipcRenderer.invoke("open-folder", path),
