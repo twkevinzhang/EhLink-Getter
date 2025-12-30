@@ -7,7 +7,7 @@ from fastapi import FastAPI, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 
-from src.services.eh_favorite_service import EhFavoriteService
+from src.services.eh_scraper_service import EhScraperService
 from src.services.metadata_service import MetadataService
 from src.utilities.header_builder import build_headers
 from src.entities.link_info import LinkInfo
@@ -27,7 +27,7 @@ class MetadataMapRequest(BaseModel):
 
 # Global state
 config = Config()
-current_service: Optional[EhFavoriteService] = None
+current_service: Optional[EhScraperService] = None
 
 def log_event(event_type: str, data: dict):
     """Output structured JSON to stdout for Electron to consume"""
@@ -43,24 +43,24 @@ async def update_config(new_config: Config):
     config = new_config
     return {"status": "updated", "config": config}
 
-@app.get("/tasks/favorites/fetch")
-async def fetch_favorites_with_token(next: Optional[str] = None):
+@app.get("/tasks/fetch")
+async def fetch_page_with_token(url: str, next: Optional[str] = None):
     headers = build_headers(config.cookies)
-    service = EhFavoriteService(headers)
+    service = EhScraperService(headers)
     async with httpx.AsyncClient(timeout=30) as client:
-        result = await service.fetch_page_with_token(client, next_token=next)
+        result = await service.fetch_page_with_token(client, url=url, next_token=next)
         return {
             "items": [item.dict() for item in result["items"]],
             "next": result["next"]
         }
 
-class FavoritesSaveRequest(BaseModel):
+class SaveRequest(BaseModel):
     path: str
     results: List[LinkInfo]
 
-@app.post("/tasks/favorites/save")
-async def save_favorites_task(req: FavoritesSaveRequest):
-    service = EhFavoriteService(build_headers(config.cookies))
+@app.post("/tasks/save")
+async def save_task(req: SaveRequest):
+    service = EhScraperService(build_headers(config.cookies))
     try:
         import datetime
         now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -72,8 +72,8 @@ async def save_favorites_task(req: FavoritesSaveRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/tasks/favorites/stop")
-async def stop_favorites_task():
+@app.post("/tasks/stop")
+async def stop_task():
     global current_service
     if current_service:
         current_service.cancel()
