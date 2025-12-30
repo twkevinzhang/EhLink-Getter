@@ -21,42 +21,50 @@
 
 ### 1. 任務控制台 (Task Console)
 
-這是程式的核心入口，用於下載您的收藏夾列表。
+這是程式的核心入口，提供了兩種抓取模式：
 
 ![任務控制台](./docs/images/dashboard.png)
 
-- **輸出路徑設定**: 您可以自定義下載的檔名格式。例如：`./output/{execute_started_at}_FavoriteList.csv`。
-  - `{execute_started_at}` 會自動替換為當前的執行時間 (YYYYMMDD_HHMMSS)。
-- **開始任務**: 點擊「Start Task」開始抓取。
-- **終止任務**: 在任務執行中，您可以點擊「Stop Task」立即停止。程式會確保清理未完成的快取。
+#### A. 收藏夾抓取 (Download Favorites)
+
+- **功能**: 自動登入並遍歷您的 E-Hentai 收藏夾。
+- **輸出路徑**: 您可以自定義下載的檔名格式，如：`./output/{execute_started_at}_FavoriteList.csv`。
+
+#### B. 任意頁面抓取 (Download Other Page)
+
+- **功能**: 支援抓取任何列表頁面（搜尋結果、標籤列表、特定分類等）。
+- **目標 URL**: 輸入頁面的完整網址（例如 `https://e-hentai.org/?f_cats=96`）。
+- **同步控制**: 當一個任務正在執行時，另一個任務按鈕會自動禁用，確保系統穩定。
+
+- **通用功能**:
+  - **視覺化進度**: 實時顯示目前的抓取狀態與分頁資訊。
+  - **終止任務**: 可隨時點擊「Stop Task」停止抓取，程式會自動處理後續。
+  - **自動存檔**: 抓取結束後，由 Electron 主進程直接生成 CSV，支援 UTF-8 BOM，確保 Excel 開啟不亂碼。
 
 ### 2. 元數據映射 (Mapping Metadata)
 
-如果您有龐大的 `metadata.json` 索引檔，這個功能可以幫助您快速根據「標題關鍵字」找出對應的連結。
+如果您有龐大的 `metadata.json` 索引檔（JSON-L 格式），這個功能可以幫助您快速根據「標題關鍵字」找出對應的連結。
 
 ![元數據映射](./docs/images/mapping.png)
 
+- **高效檢索**: 採用 Node.js 串流技術，即使是數 GB 的檔案也能秒速搜尋。
 - **關鍵字輸入**: 在左側輸入框輸入您要搜尋的標題，一行一個。
-- **設定**: 指定您的 `metadata.json` 路徑，並選擇您想要輸出的欄位（如 Title, Link, GID 等）。
-- **映射結果**: 點擊開始後，結果會直接顯示在下方的表格中，支援直接點擊連結點開網頁。
+- **自定義欄位**: 可選擇輸出的欄位（如 Title, Link, GID 等）。
+- **結果預覽**: 結果會顯示在表格中，點擊連結即可直接開啟瀏覽器查看。
 
 ### 3. 設定頁面 (Settings)
 
-在使用爬蟲功能前，請務必先完成設定。
-
 ![設定頁面](./docs/images/settings.png)
 
-- **Cookie 設定**: 請貼入您的 E-Hentai Session Cookie (包含 `ipb_member_id`, `ipb_pass_hash` 等)。
-- **路徑設定**: 設定預設的下載資料夾與元數據檔案路徑。
-- **代理伺服器**: 若您需要透過 VPN/Proxy 訪問，請在此設定代理 URL。
+- **[暫未實現] 代理伺服器**: 支援設定 HTTP/HTTPS 代理。
 
 ---
 
 ## 🛠️ 常見問題處理
 
-- **Sidecar Offline?**: 確保您的 Python 環境已安裝 `sidecar/requirements.txt` 中的所有套件。
-- **抓取失敗?**: 請檢查 Cookie 是否過期，或代理伺服器是否連通。
-- **找到不到檔案?**: 請確認在設定頁面中填寫的是「絕對路徑」或相對於程式執行檔的正確路徑。
+- **CSV 亂碼?**: 程式已預設加入 UTF-8 BOM，請使用 Excel 2016+ 或任意純文字編輯器開啟。
+- **任務卡住?**: 請檢查網路連線，並確認 Cookie 是否在有效期內。
+- **Sidecar 報錯?**: 確保 Python 環境滿足需求。雖然大部分邏輯已移至 Electron，但爬蟲核心仍需 Python 支援。
 
 ---
 

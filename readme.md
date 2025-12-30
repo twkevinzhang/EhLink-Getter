@@ -1,19 +1,20 @@
 # EhLink-Getter Desktop
 
-A modern desktop application built with Electron, Vue 3, and a Python sidecar for fetching E-Hentai favorite links and searching metadata.
+A modern desktop application built with Electron, Vue 3, and a Python sidecar for fetching E-Hentai gallery links and searching metadata.
 
 ## Features
 
+- **Generic List Scraper**: Support for fetching any E-Hentai list page, including favorites, search results, and tag categories.
+- **Improved Performance**: Metadata search and CSV generation are handled natively by Node.js for maximum speed and compatibility.
 - **Modern UI**: Built with Vue 3, Element Plus, and glassmorphism design.
-- **Sidecar Pattern**: Python-based scraper logic decoupled from the UI.
-- **Real-time Logs**: Stream logs directly from the scraper to the console.
-- **Metadata Search**: Fast local search in metadata JSON indices.
-- **Configuration Management**: Effortlessly manage cookies, proxies, and paths.
+- **Sidecar Scraper**: Python-based scraper logic handles complex web scraping while main process handles data.
+- **Batch Metadata Mapping**: Map large lists of titles to gallery links using your local `metadata.json`.
+- **Excel Friendly**: CSV exports include UTF-8 BOM to ensure correct character display in Excel.
 
 ## Tech Stack
 
-- **Frontend**: Vue 3, Pinia, Element Plus, Vite
-- **Main Process**: Electron, Node.js
+- **Frontend**: Vue 3 (Composition API), Pinia, Element Plus, Vite
+- **Main Process**: Electron, Node.js (Fs streams, readline)
 - **Sidecar**: Python 3.9+, FastAPI, Httpx, BeautifulSoup4
 
 ## Getting Started
@@ -35,7 +36,7 @@ A modern desktop application built with Electron, Vue 3, and a Python sidecar fo
 2. Install Node.js dependencies:
 
    ```bash
-   npm install
+   pnpm install  # or npm install
    ```
 
 3. Install Python dependencies for the sidecar:
@@ -48,7 +49,7 @@ A modern desktop application built with Electron, Vue 3, and a Python sidecar fo
 To start the application in development mode:
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 ### Building & Packaging
@@ -63,6 +64,10 @@ npm run dev
    ```bash
    npm run build:win  # or :mac, :linux
    ```
+
+## Documentation
+
+For detailed usage instructions, please refer to the [User Manual (正體中文)](./USER_MANUAL.zh-TW.md).
 
 ## Legacy Code
 
