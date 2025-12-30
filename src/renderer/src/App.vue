@@ -15,7 +15,7 @@ import {
 const store = useAppStore();
 const activeTab = ref("dashboard");
 const searchQuery = ref("");
-const searchResults = ref([]);
+const searchResults = ref<{ title: string; link: string }[]>([]);
 
 onMounted(() => {
   // Listen to sidecar events
@@ -38,8 +38,8 @@ const startTask = async () => {
   store.task.progress = 0;
   const res = await window.api.startFavoritesTask();
   if (!res.success) {
-    ElMessage.error(res.error);
-    store.setTaskError(res.error);
+    ElMessage.error(res.error || "Unknown error");
+    store.setTaskError(res.error || "Unknown error");
   }
 };
 
@@ -48,16 +48,27 @@ const saveConfig = async () => {
   if (res.success) {
     ElMessage.success("Configuration saved");
   } else {
-    ElMessage.error(res.error);
+    ElMessage.error(res.error || "Unknown error");
   }
 };
 
 const handleSearch = async () => {
   if (!searchQuery.value) return;
   const res = await window.api.searchMetadata(searchQuery.value);
-  if (res.results) {
+  if (res && res.results) {
     searchResults.value = res.results;
   }
+};
+
+const selectDownloadDir = async () => {
+  const path = await window.api.selectDirectory();
+  if (path) {
+    store.config.download_path = path;
+  }
+};
+
+const openDownloadDir = () => {
+  window.api.openFolder(store.config.download_path);
 };
 
 const openLink = (url: string) => {
@@ -78,7 +89,7 @@ const openLink = (url: string) => {
         <el-menu
           :default-active="activeTab"
           class="sidebar-menu"
-          @select="(key) => (activeTab = key)"
+          @select="(key: string) => (activeTab = key)"
         >
           <el-menu-item index="dashboard">
             <el-icon><Monitor /></el-icon>
