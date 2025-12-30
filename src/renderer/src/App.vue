@@ -11,6 +11,7 @@ import {
   Search,
   Connection,
   Loading,
+  CaretRight,
 } from "@element-plus/icons-vue";
 
 const store = useAppStore();
@@ -74,23 +75,28 @@ const handleMetadataMap = async () => {
     return;
   }
   mapLoading.value = true;
-  const keywords = mapKeywords.value
-    .split("\n")
-    .map((k) => k.trim())
-    .filter((k) => k);
-  const res = await window.api.mapMetadata({
-    keywords,
-    metadata_path: mapMetadataPath.value,
-    fields: mapFields.value,
-  });
+  try {
+    const keywords = mapKeywords.value
+      .split("\n")
+      .map((k) => k.trim())
+      .filter((k) => k);
+    const res = await window.api.mapMetadata({
+      keywords,
+      metadata_path: mapMetadataPath.value,
+      fields: mapFields.value,
+    });
 
-  if (res && res.results) {
-    mapResults.value = res.results;
-    ElMessage.success(`Mapped ${res.results.length} results`);
-  } else if (res && res.error) {
-    ElMessage.error(res.error);
+    if (res && res.results) {
+      mapResults.value = res.results;
+      ElMessage.success(`Mapped ${res.results.length} results`);
+    } else if (res && res.error) {
+      ElMessage.error(res.error);
+    }
+  } catch (error: any) {
+    ElMessage.error(error.message || "Request failed");
+  } finally {
+    mapLoading.value = false;
   }
-  mapLoading.value = false;
 };
 
 const saveConfig = async () => {
@@ -411,10 +417,15 @@ const openLink = (url: string) => {
                 :label="field"
                 show-overflow-tooltip
               >
-                <template #default="scope" v-if="field === 'link'">
-                  <el-link type="primary" @click="openLink(scope.row[field])">{{
-                    scope.row[field]
-                  }}</el-link>
+                <template #default="scope">
+                  <el-link
+                    v-if="field === 'link'"
+                    type="primary"
+                    @click="openLink(scope.row[field])"
+                  >
+                    {{ scope.row[field] }}
+                  </el-link>
+                  <span v-else>{{ scope.row[field] }}</span>
                 </template>
               </el-table-column>
             </el-table>

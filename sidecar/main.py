@@ -92,14 +92,20 @@ async def stop_favorites_task():
 
 @app.post("/tasks/metadata/map")
 async def map_metadata(req: MetadataMapRequest):
+    log_event("log", {"level": "info", "message": f"Mapping metadata for {len(req.keywords)} keywords..."})
     service = MetadataService(req.metadata_path)
     try:
-        # We use raw=True to get all fields, then filter based on req.fields
-        raw_results = service.find_multiple_links(req.keywords, limit=1000, raw=True)
+        import anyio
+        # Run synchronous file I/O in a separate thread to avoid blocking the event loop
+        raw_results = await anyio.to_thread.run_sync(
+            service.find_multiple_links, 
+            req.keywords, 
+            1000, 
+            True
+        )
         
         filtered_results = []
         for item in raw_results:
-            # Reconstruct the link if it was one of the fields, or provide it by default if requested
             item_filtered = {}
             for f in req.fields:
                 if f == "link":
@@ -108,8 +114,10 @@ async def map_metadata(req: MetadataMapRequest):
                     item_filtered[f] = item[f]
             filtered_results.append(item_filtered)
             
+        log_event("log", {"level": "info", "message": f"Filtered {len(filtered_results)} results for metadata mapping."})
         return {"results": filtered_results}
     except Exception as e:
+        log_event("log", {"level": "error", "message": f"Metadata mapping error: {str(e)}"})
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/search")

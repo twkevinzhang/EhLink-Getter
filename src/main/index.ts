@@ -132,7 +132,8 @@ ipcMain.handle("map-metadata", async (_, payload: any) => {
   try {
     const response = await axios.post(
       `${SIDECAR_URL}/tasks/metadata/map`,
-      payload
+      payload,
+      { timeout: 300000 } // 5 minutes timeout
     );
     return response.data;
   } catch (error: any) {
@@ -144,6 +145,7 @@ ipcMain.handle("search-metadata", async (_, query: string) => {
   try {
     const response = await axios.get(`${SIDECAR_URL}/search`, {
       params: { q: query },
+      timeout: 300000, // 5 minutes timeout
     });
     return response.data;
   } catch (error: any) {
