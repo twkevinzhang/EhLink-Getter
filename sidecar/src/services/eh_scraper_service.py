@@ -47,16 +47,3 @@ class EhScraperService:
                 
         return {"items": items, "next": new_token}
 
-    def save_to_csv(self, file_path: str, results: List[LinkInfo] = None):
-        import os
-        import csv
-        
-        # Ensure directory exists
-        os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
-        
-        data = results if results is not None else self.results
-        with open(file_path, 'w', encoding='utf-8-sig', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(['Title', 'Link'])
-            for item in data:
-                writer.writerow([item.title, item.link])

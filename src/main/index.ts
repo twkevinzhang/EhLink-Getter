@@ -1,8 +1,10 @@
 import { app, shell, BrowserWindow, ipcMain } from "electron";
-import { join } from "path";
+import { join, dirname } from "path";
+import * as fs from "fs";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { spawn, ChildProcess } from "child_process";
 import axios from "axios";
+import { MetadataService } from "./services/metadata_service";
 
 let mainWindow: BrowserWindow;
 let pythonProcess: ChildProcess | null = null;
@@ -130,12 +132,26 @@ ipcMain.handle("stop-task", async () => {
 
 ipcMain.handle("map-metadata", async (_, payload: any) => {
   try {
-    const response = await axios.post(
-      `${SIDECAR_URL}/tasks/metadata/map`,
-      payload,
-      { timeout: 30000 } // 30 seconds timeout
+    const service = new MetadataService(payload.metadata_path);
+    const rawResults = await service.findMultipleLinks(
+      payload.keywords,
+      1000,
+      true
     );
-    return response.data;
+
+    const filteredResults = rawResults.map((item) => {
+      const itemFiltered: any = {};
+      for (const field of payload.fields) {
+        if (field === "link") {
+          itemFiltered.link = `https://e-hentai.org/g/${item.gid}/${item.token}/`;
+        } else if (item[field] !== undefined) {
+          itemFiltered[field] = item[field];
+        }
+      }
+      return itemFiltered;
+    });
+
+    return { results: filteredResults };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -158,8 +174,38 @@ ipcMain.handle(
   "save-csv",
   async (_, payload: { path: string; results: any[] }) => {
     try {
-      const response = await axios.post(`${SIDECAR_URL}/tasks/save`, payload);
-      return response.data;
+      const csvContent = [
+        "\ufeffTitle,Link", // Add UTF-8 BOM for Excel compatibility
+        ...payload.results.map((item) => {
+          // Escape double quotes and wrap in quotes
+          const escapedTitle = `"${(item.title || "").replace(/"/g, '""')}"`;
+          const escapedLink = `"${(item.link || "").replace(/"/g, '""')}"`;
+          return `${escapedTitle},${escapedLink}`;
+        }),
+      ].join("\n");
+
+      // Replace {execute_started_at} if present (though frontend might have handled it)
+      let actualPath = payload.path;
+      if (actualPath.includes("{execute_started_at}")) {
+        const now = new Date();
+        const timestamp =
+          now.getFullYear() +
+          String(now.getMonth() + 1).padStart(2, "0") +
+          String(now.getDate()).padStart(2, "0") +
+          "_" +
+          String(now.getHours()).padStart(2, "0") +
+          String(now.getMinutes()).padStart(2, "0") +
+          String(now.getSeconds()).padStart(2, "0");
+        actualPath = actualPath.replace("{execute_started_at}", timestamp);
+      }
+
+      // Ensure directory exists
+      if (!fs.existsSync(join(dirname(actualPath)))) {
+        fs.mkdirSync(join(dirname(actualPath)), { recursive: true });
+      }
+
+      fs.writeFileSync(actualPath, csvContent, "utf8");
+      return { status: "saved", path: actualPath };
     } catch (error: any) {
       return { success: false, error: error.message };
     }
@@ -168,11 +214,14 @@ ipcMain.handle(
 
 ipcMain.handle("search-metadata", async (_, query: string) => {
   try {
-    const response = await axios.get(`${SIDECAR_URL}/search`, {
-      params: { q: query },
-      timeout: 30000, // 30 seconds timeout
-    });
-    return response.data;
+    // We need the metadata path from state... actually App.vue passes it in some calls,
+    // but searchMetadata in SidecarAPI doesn't take it currently.
+    // In metadata_service.py it used config.metadata_path.
+    // For now I'll use a hardcoded default or handle it better.
+    // MapMetadata takes it, so let's assume metadata.json in current dir as default.
+    const service = new MetadataService("metadata.json");
+    const results = await service.findLinks(query);
+    return { results };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
