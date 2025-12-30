@@ -10,7 +10,6 @@ const api = {
     ipcRenderer.invoke("search-metadata", query),
   mapMetadata: (payload: any) => ipcRenderer.invoke("map-metadata", payload),
   saveConfig: (config: any) => ipcRenderer.invoke("save-config", config),
-  getFavoritesPages: () => ipcRenderer.invoke("get-favorites-pages"),
   fetchFavoritesPage: (nextToken?: string) =>
     ipcRenderer.invoke("fetch-favorites-page", nextToken),
   saveFavoritesCSV: (payload: { path: string; results: any[] }) =>

@@ -23,9 +23,7 @@ const searchResults = ref<{ title: string; link: string }[]>([]);
 const outputPattern = ref("./output/{execute_started_at}_FavoriteList.csv");
 
 // Metadata Mapping
-const mapKeywords = ref(
-  "(C71) [Arisan-Antenna (Koari)] Eat The Rich! (Sukatto Golf Pangya)"
-);
+const mapKeywords = ref("");
 const mapMetadataPath = ref("metadata.json");
 const mapFields = ref(["title", "link"]);
 const mapResults = ref<any[]>([]);
@@ -53,23 +51,9 @@ const startTask = async () => {
 
   store.task.status = "running";
   store.task.progress = 0;
-  store.task.message = "Detecting total pages...";
+  store.task.message = "Initializing...";
 
   try {
-    let totalPages = 0;
-    try {
-      const pageRes = await window.api.getFavoritesPages();
-      if (pageRes && typeof pageRes.pages === "number") {
-        totalPages = pageRes.pages;
-        store.addLog({
-          level: "info",
-          message: `Estimated total pages: ${totalPages}`,
-        });
-      }
-    } catch (e) {
-      console.warn("Failed to get total pages estimate", e);
-    }
-
     const allResults: any[] = [];
     let nextToken: string | undefined = undefined;
     let pagesFetched = 0;
@@ -81,15 +65,8 @@ const startTask = async () => {
         break;
       }
 
-      store.task.message = `Fetching page ${pagesFetched + 1}${totalPages > 0 ? " of ~" + totalPages : ""}...`;
-      if (totalPages > 0) {
-        store.task.progress = Math.min(
-          Math.floor((pagesFetched / totalPages) * 100),
-          99
-        );
-      } else {
-        store.task.progress = (pagesFetched * 5) % 100; // Fake progress if no total
-      }
+      store.task.message = `Fetching page ${pagesFetched + 1}...`;
+      store.task.progress = (pagesFetched * 5) % 100; // Visual movement only
 
       const res = await window.api.fetchFavoritesPage(nextToken);
       if (res && res.items) {

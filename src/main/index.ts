@@ -140,16 +140,6 @@ ipcMain.handle("map-metadata", async (_, payload: any) => {
     return { success: false, error: error.message };
   }
 });
-
-ipcMain.handle("get-favorites-pages", async () => {
-  try {
-    const response = await axios.get(`${SIDECAR_URL}/tasks/favorites/pages`);
-    return response.data;
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-});
-
 ipcMain.handle("fetch-favorites-page", async (_, nextToken?: string) => {
   try {
     const response = await axios.get(`${SIDECAR_URL}/tasks/favorites/fetch`, {
