@@ -142,3 +142,11 @@ dmypy.json
 .pytype/
 cookies.txt
 node_modules
+out
+dist
+.DS_Store
+*.local
+.vscode
+.python-version
+.env
+.agent
