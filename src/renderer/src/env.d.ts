@@ -10,8 +10,8 @@ interface SidecarAPI {
   saveConfig: (config: any) => Promise<{ success: boolean; error?: string }>;
   getFavoritesPages: () => Promise<{ pages: number; error?: string }>;
   fetchFavoritesPage: (
-    page: number
-  ) => Promise<{ items: any[]; error?: string }>;
+    nextToken?: string
+  ) => Promise<{ items: any[]; next?: string; error?: string }>;
   saveFavoritesCSV: (payload: {
     path: string;
     results: any[];

@@ -64,6 +64,33 @@ class EhFavoriteService:
         
         return self.results
 
+    async def fetch_page_with_token(self, client: httpx.AsyncClient, next_token: str = None) -> dict:
+        url = "https://e-hentai.org/favorites.php"
+        params = {}
+        if next_token:
+            params["next"] = next_token
+        
+        response = await client.get(url, params=params, headers=self.headers, follow_redirects=True, timeout=30)
+        if response.status_code != 200:
+            return {"items": [], "next": None}
+            
+        soup = BeautifulSoup(response.text, 'html.parser')
+        items = self.parse_list(soup)
+        
+        # Extract next token from a#unext
+        next_button = soup.select_one("a#unext")
+        new_token = None
+        if next_button and next_button.get("href"):
+            href = next_button.get("href")
+            import urllib.parse as urlparse
+            from urllib.parse import parse_qs
+            parsed = urlparse.urlparse(href)
+            qs = parse_qs(parsed.query)
+            if "next" in qs:
+                new_token = qs["next"][0]
+                
+        return {"items": items, "next": new_token}
+
     async def fetch_page_standalone(self, client: httpx.AsyncClient, page: int) -> List[LinkInfo]:
         url = f"https://e-hentai.org/favorites.php?page={page}"
         response = await client.get(url, headers=self.headers, follow_redirects=True, timeout=30)

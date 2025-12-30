@@ -150,11 +150,11 @@ ipcMain.handle("get-favorites-pages", async () => {
   }
 });
 
-ipcMain.handle("fetch-favorites-page", async (_, page: number) => {
+ipcMain.handle("fetch-favorites-page", async (_, nextToken?: string) => {
   try {
-    const response = await axios.get(
-      `${SIDECAR_URL}/tasks/favorites/page/${page}`
-    );
+    const response = await axios.get(`${SIDECAR_URL}/tasks/favorites/fetch`, {
+      params: { next: nextToken },
+    });
     return response.data;
   } catch (error: any) {
     return { success: false, error: error.message };
