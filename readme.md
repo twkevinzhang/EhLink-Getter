@@ -57,12 +57,12 @@ pnpm run dev
 1. Build the Python sidecar:
 
    ```bash
-   npm run build:python
+   pnpm run build:python
    ```
 
 2. Build the Electron application:
    ```bash
-   npm run build:win  # or :mac, :linux
+   pnpm run build:win  # or :mac, :linux
    ```
 
 ## Documentation
