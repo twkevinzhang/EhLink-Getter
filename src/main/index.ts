@@ -23,7 +23,7 @@ function startSidecar() {
     pythonExecutable = join(
       process.resourcesPath,
       "sidecar",
-      process.platform === "win32" ? "eh-sidecar.exe" : "eh-sidecar"
+      process.platform === "win32" ? "sidecar.exe" : "sidecar"
     );
     scriptPath = ""; // Not needed for binary
   }
