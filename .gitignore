@@ -151,3 +151,5 @@ dist
 .env
 .agent
 output
+*.tsbuildinfo
+dist_electron
