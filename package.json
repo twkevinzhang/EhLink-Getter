@@ -1,6 +1,6 @@
 {
   "name": "ehlink-getter",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "EhLink-Getter Desktop App",
   "main": "./out/main/index.js",
   "author": "EhLink-Getter team",
