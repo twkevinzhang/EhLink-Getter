@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      new_tag: ${{ steps.bump_version.outputs.new_tag }}
 
     steps:
       - uses: actions/checkout@v3
@@ -45,10 +47,20 @@ jobs:
           fi
 
       - name: Bump version
+        id: bump_version
         run: |
           pnpm version ${{ steps.version_type.outputs.type }} -m "chore: bump version to %s"
+          NEW_TAG=$(git describe --tags --abbrev=0)
+          echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
 
       - name: Push changes
         run: |
           git push
           git push --tags
+
+  # 調用 release workflow
+  call-release:
+    needs: bump
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.bump.outputs.new_tag }}
