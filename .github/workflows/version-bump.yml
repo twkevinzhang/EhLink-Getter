@@ -64,3 +64,4 @@ jobs:
     uses: ./.github/workflows/release.yml
     with:
       tag: ${{ needs.bump.outputs.new_tag }}
+    secrets: inherit
