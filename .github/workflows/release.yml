@@ -4,52 +4,9 @@ on:
   push:
     tags:
       - "v*.*.*"
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Release version (e.g., 0.1.0)"
-        required: true
 
 jobs:
-  version-and-tag:
-    # 只在手動觸發時執行
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    outputs:
-      tag: ${{ steps.create_tag.outputs.tag }}
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 20
-
-      - uses: pnpm/action-setup@v4
-
-      - name: Update version
-        run: |
-          pnpm version ${{ github.event.inputs.version }} --no-git-tag-version
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json
-          git commit -m "chore: bump version to ${{ github.event.inputs.version }}"
-
-      - name: Create and push tag
-        id: create_tag
-        run: |
-          TAG="v${{ github.event.inputs.version }}"
-          git tag $TAG
-          git push origin main
-          git push origin $TAG
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-
   release:
-    # 當 tag push 時直接執行,或等待 version-and-tag 完成
-    if: always() && (github.event_name == 'push' || needs.version-and-tag.result == 'success')
-    needs: [version-and-tag]
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write

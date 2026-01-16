@@ -1,19 +1,15 @@
 name: Version Bump
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Version bump type"
-        required: true
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
+  pull_request:
+    types: [closed]
+    branches:
+      - master
 
 jobs:
   bump:
+    # 只在 PR 被合併時執行（不是關閉）
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -22,6 +18,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          ref: master
 
       - uses: actions/setup-node@v3
         with:
@@ -35,9 +32,21 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Determine version bump type
+        id: version_type
+        run: |
+          # 根據 PR label 決定版本類型，默認為 patch
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'major') }}" == "true" ]]; then
+            echo "type=major" >> $GITHUB_OUTPUT
+          elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'minor') }}" == "true" ]]; then
+            echo "type=minor" >> $GITHUB_OUTPUT
+          else
+            echo "type=patch" >> $GITHUB_OUTPUT
+          fi
+
       - name: Bump version
         run: |
-          pnpm version ${{ github.event.inputs.version }} -m "chore: bump version to %s"
+          pnpm version ${{ steps.version_type.outputs.type }} -m "chore: bump version to %s"
 
       - name: Push changes
         run: |
