@@ -16,6 +16,12 @@ let isQuitting = false;
 function startSidecar() {
   const isDev = is.dev;
   let pythonExecutable = "python";
+  if (isDev) {
+    const venvPython = join(app.getAppPath(), ".venv", "bin", "python");
+    if (fs.existsSync(venvPython)) {
+      pythonExecutable = venvPython;
+    }
+  }
   let scriptPath = join(app.getAppPath(), "sidecar", "main.py");
 
   if (!isDev) {
@@ -23,7 +29,7 @@ function startSidecar() {
     pythonExecutable = join(
       process.resourcesPath,
       "sidecar",
-      process.platform === "win32" ? "sidecar.exe" : "sidecar"
+      process.platform === "win32" ? "sidecar.exe" : "sidecar",
     );
     scriptPath = ""; // Not needed for binary
   }
@@ -110,15 +116,17 @@ function createWindow(): void {
 }
 
 // IPC Handlers
-ipcMain.handle("start-favorites-task", async (_, outputPath?: string) => {
-  try {
-    await axios.post(`${SIDECAR_URL}/tasks/favorites`, null, {
-      params: { output_path: outputPath },
+ipcMain.handle("select-save-path", async () => {
+  const { canceled, filePath } =
+    await require("electron").dialog.showSaveDialog(mainWindow, {
+      title: "Select Output CSV Path",
+      defaultPath: "ScrapedList.csv",
+      filters: [{ name: "CSV Files", extensions: ["csv"] }],
     });
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  if (!canceled) {
+    return filePath;
   }
+  return null;
 });
 
 ipcMain.handle("stop-task", async () => {
@@ -136,7 +144,7 @@ ipcMain.handle("map-metadata", async (_, payload: any) => {
     const rawResults = await service.findMultipleLinks(
       payload.keywords,
       1000,
-      true
+      true,
     );
 
     const filteredResults = rawResults.map((item) => {
@@ -167,7 +175,7 @@ ipcMain.handle(
     } catch (error: any) {
       return { success: false, error: error.message };
     }
-  }
+  },
 );
 
 ipcMain.handle(
@@ -209,7 +217,7 @@ ipcMain.handle(
     } catch (error: any) {
       return { success: false, error: error.message };
     }
-  }
+  },
 );
 
 ipcMain.handle("search-metadata", async (_, query: string) => {

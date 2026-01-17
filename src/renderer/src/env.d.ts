@@ -14,6 +14,7 @@ interface SidecarAPI {
     results: any[];
   }) => Promise<{ status: string; path: string; error?: string }>;
   selectDirectory: () => Promise<string | null>;
+  selectSavePath: () => Promise<string | null>;
   openFolder: (path?: string) => Promise<void>;
   onLog: (callback: (log: any) => void) => void;
   onProgress: (callback: (data: any) => void) => void;
