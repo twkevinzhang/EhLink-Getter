@@ -16,5 +16,16 @@ def build_headers(cookies: str = "") -> Dict[str, str]:
         'Connection': 'keep-alive'
     }
     if cookies:
-        headers['Cookie'] = cookies
+        cookie_str = cookies
+        # 嘗試解析 JSON 格式 (例如從瀏覽器 extension 匯出的格式)
+        try:
+            import json
+            data = json.loads(cookies)
+            if isinstance(data, list):
+                # 轉換為 key=value; key2=value2 格式
+                cookie_str = "; ".join([f"{c['name']}={c['value']}" for c in data if 'name' in c and 'value' in c])
+        except Exception:
+            # 保持原始字串 (可能是傳統的 key=value 格式)
+            pass
+        headers['Cookie'] = cookie_str
     return headers

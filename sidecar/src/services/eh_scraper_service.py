@@ -13,13 +13,43 @@ class EhScraperService:
         self._cancelled = True
 
     def parse_list(self, soup: BeautifulSoup) -> List[LinkInfo]:
-        return [
-            LinkInfo(
-                title=title_element.text,
-                link=title_element.parent.get("href")
-            )
-            for title_element in soup.select("table.itg.gltm div.glink")
-        ]
+        """Parse gallery list with fallback selectors for different EH views"""
+        results = []
+        
+        # 嘗試多種常見的選擇器
+        # 1. 之前使用的 table.itg.gltm div.glink (Minimal+, Compact)
+        # 2. table.itg.gltc div.glink (Extended)
+        # 3. div.gl1t a (Thumbnail view)
+        # 4. 通用的 .glink
+        
+        glinks = soup.select("div.glink")
+        if not glinks:
+            # 嘗試縮圖模式的選擇器
+            glinks = soup.select("div.glpt") # 這是分頁導航，不是。
+            # 更通用的搜尋：含有 /g/ 的連結
+            glinks = [a for a in soup.find_all("a") if "/g/" in a.get("href", "") and a.find_all(True, recursive=False) == []]
+
+        for element in soup.select("div.glink"):
+            # 尋找最近的 <a> 標籤
+            a_tag = element.find_parent("a")
+            if a_tag and a_tag.get("href"):
+                results.append(LinkInfo(
+                    title=element.text.strip(),
+                    link=a_tag.get("href")
+                ))
+        
+        # 如果還是空的，嘗試另一種常見結構 (Minimal 視圖)
+        if not results:
+            for td in soup.select("td.gl3c.glname"):
+                a_tag = td.select_one("a")
+                div_glink = td.select_one("div.glink")
+                if a_tag and div_glink:
+                    results.append(LinkInfo(
+                        title=div_glink.text.strip(),
+                        link=a_tag.get("href")
+                    ))
+
+        return results
 
     async def fetch_page_with_token(self, client: httpx.AsyncClient, url: str, next_token: str = None) -> dict:
         params = {}
