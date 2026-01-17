@@ -10,22 +10,23 @@
     "typecheck:node": "tsc --p tsconfig.node.json --noEmit",
     "typecheck:web": "vue-tsc --p tsconfig.web.json --noEmit",
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
+    "build": "electron-vite build",
+    "postinstall": "electron-builder install-app-deps",
     "start": "electron-vite preview",
     "dev": "electron-vite dev"
   },
   "dependencies": {
-    "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^3.0.0",
-    "@element-plus/icons-vue": "^2.3.2",
     "axios": "^1.6.2",
-    "element-plus": "^2.4.4",
-    "pinia": "^2.1.7",
-    "vue": "^3.3.11"
+    "combined-stream": "^1.0.8",
+    "form-data": "^4.0.5"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^2.0.0",
     "@electron-toolkit/eslint-config-ts": "^2.0.0",
+    "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/tsconfig": "^1.0.1",
+    "@element-plus/icons-vue": "^2.3.2",
     "@rushstack/eslint-patch": "^1.6.0",
     "@types/node": "^20.10.4",
     "@vitejs/plugin-vue": "^4.5.1",
@@ -35,14 +36,17 @@
     "electron": "^28.0.0",
     "electron-builder": "^24.9.1",
     "electron-vite": "^2.0.0",
+    "element-plus": "^2.4.4",
     "eslint": "^8.55.0",
     "eslint-plugin-vue": "^9.19.2",
     "less": "^4.2.0",
+    "pinia": "^2.1.7",
     "postcss": "^8.5.6",
     "prettier": "^3.1.0",
     "tailwindcss": "3.4.17",
     "typescript": "^5.9.3",
     "vite": "^5.0.7",
+    "vue": "^3.3.11",
     "vue-tsc": "^3.2.1"
   },
   "packageManager": "pnpm@10.8.1+sha512.c50088ba998c67b8ca8c99df8a5e02fd2ae2e2b29aaf238feaa9e124248d3f48f9fb6db2424949ff901cffbb5e0f0cc1ad6aedb602cd29450751d11c35023677"

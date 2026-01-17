@@ -96,6 +96,10 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
+      - name: Force Hoisted node_modules for Electron Builder # for issue https://github.com/electron-userland/electron-builder/issues/6289
+        run: |
+          echo "node-linker=hoisted" > .npmrc
+
       - name: Install Node Dependencies
         run: pnpm install
 
