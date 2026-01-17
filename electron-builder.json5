@@ -1,0 +1,32 @@
+{
+  appId: "dev.twkevinzhang.ehlinkgetter",
+  productName: "EhLink-Getter",
+  directories: {
+    output: "dist/electron"
+  },
+  files: [
+    "out/**/*",
+    "node_modules/**/*",
+    "package.json"
+  ],
+  extraResources: [
+    {
+      from: "dist/sidecar",
+      to: "sidecar",
+      filter: ["**/*"]
+    }
+  ],
+  mac: {
+    target: ["dmg", "zip"]
+  },
+  win: {
+    target: "nsis"
+  },
+  publish: [
+    {
+      provider: "github",
+      owner: "twkevinzhang",
+      repo: "EhLink-Getter"
+    }
+  ]
+}

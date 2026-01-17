@@ -1,6 +1,6 @@
 {
   "name": "ehlink-getter",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "EhLink-Getter Desktop App",
   "main": "./out/main/index.js",
   "author": "EhLink-Getter team",
@@ -11,50 +11,7 @@
     "typecheck:web": "vue-tsc --p tsconfig.web.json --noEmit",
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
     "start": "electron-vite preview",
-    "dev": "electron-vite dev",
-    "build:electron": "pnpm run typecheck && electron-vite build",
-    "build:python": "python -m PyInstaller sidecar/main.py --noconfirm --onedir --console --name sidecar",
-    "build": "pnpm run build:electron && pnpm run build:python",
-    "publish:mac": "electron-builder --mac",
-    "publish:win": "electron-builder --win",
-    "release:patch": "pnpm version patch -m 'chore: release v%s' && git push --follow-tags",
-    "release:minor": "pnpm version minor -m 'chore: release v%s' && git push --follow-tags",
-    "release:major": "pnpm version major -m 'chore: release v%s' && git push --follow-tags"
-  },
-  "build": {
-    "appId": "dev.twkevinzhang.ehlinkgetter",
-    "productName": "EhLink-Getter",
-    "directories": {
-      "output": "dist/electron"
-    },
-    "files": [
-      "out/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": "dist/sidecar",
-        "to": "sidecar",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ],
-    "win": {
-      "target": "nsis"
-    },
-    "mac": {
-      "target": [
-        "dmg",
-        "zip"
-      ]
-    },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "twkevinzhang",
-        "repo": "EhLink-Getter"
-      }
-    ]
+    "dev": "electron-vite dev"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.1",
