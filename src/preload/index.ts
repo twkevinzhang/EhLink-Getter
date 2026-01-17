@@ -13,6 +13,7 @@ const api = {
   saveCSV: (payload: { path: string; results: any[] }) =>
     ipcRenderer.invoke("save-csv", JSON.parse(JSON.stringify(payload))),
   selectDirectory: () => ipcRenderer.invoke("select-directory"),
+  selectSavePath: () => ipcRenderer.invoke("select-save-path"),
   openFolder: (path?: string) => ipcRenderer.invoke("open-folder", path),
   onLog: (callback: any) =>
     ipcRenderer.on("python-log", (_event, value) => callback(value)),
