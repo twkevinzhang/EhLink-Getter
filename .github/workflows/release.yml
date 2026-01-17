@@ -1,4 +1,4 @@
-name: Build/release Electron app
+name: Build and Release App
 
 on:
   push:
@@ -6,70 +6,90 @@ on:
       - "v*.*.*"
   workflow_dispatch:
     inputs:
-      version:
-        description: "Release version (e.g., 0.1.0)"
+      bump_type:
+        description: "版本迭代類型"
         required: true
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
 
 jobs:
-  version-and-tag:
-    # 只在手動觸發時執行
+  # --------------------------------------------------
+  # 1. Bump Version Job
+  # --------------------------------------------------
+  bump:
+    name: 🏷️ Bump Version
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
-      tag: ${{ steps.create_tag.outputs.tag }}
-
+      new_tag: ${{ steps.bump_step.outputs.tag }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - uses: pnpm/action-setup@v4
 
-      - name: Update version
+      - name: 🆙 Bump version
+        id: bump_step
         run: |
-          pnpm version ${{ github.event.inputs.version }} --no-git-tag-version
+          pnpm version ${{ github.event.inputs.bump_type }} --no-git-tag-version
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: 💾 Commit version bump
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add package.json
-          git commit -m "chore: bump version to ${{ github.event.inputs.version }}"
+          git commit -m "chore: bump version to ${{ steps.bump_step.outputs.tag }}"
 
-      - name: Create and push tag
-        id: create_tag
+      - name: 🏷️ Create and push tag
         run: |
-          TAG="v${{ github.event.inputs.version }}"
+          TAG=${{ steps.bump_step.outputs.tag }}
           git tag $TAG
-          git push origin main
+          git push origin ${{ github.ref_name }}
           git push origin $TAG
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-  release:
-    # 當 tag push 時直接執行,或等待 version-and-tag 完成
-    if: always() && (github.event_name == 'push' || needs.version-and-tag.result == 'success')
-    needs: [version-and-tag]
+  # --------------------------------------------------
+  # 2. Build Job (Matrix for macOS & Windows)
+  # --------------------------------------------------
+  build:
+    name: 🏗️ Build (${{ matrix.os }})
+    needs: [bump]
+    # 如果是 push tag 觸發則直接跑；如果是 manual 觸發則等 bump 成功
+    if: always() && (github.event_name == 'push' || needs.bump.result == 'success')
     runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
     permissions:
       contents: write
-
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    strategy:
-      matrix:
-        os: [macos-latest, windows-latest]
-
     steps:
-      - name: Check out Git repository
-        uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref }}
+          # 如果是手動觸發，使用 bump job 產出的 tag；如果是 push 觸發，使用 github.ref
+          ref: ${{ github.event_name == 'workflow_dispatch' && needs.bump.outputs.new_tag || github.ref }}
 
       - name: Install Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
@@ -90,13 +110,88 @@ jobs:
           pip install -r sidecar/requirements.txt
           pip install pyinstaller
 
-      - name: Build
-        run: pnpm run build
+      - name: Build App Assets
+        run: |
+          pnpm run typecheck && pnpm exec electron-vite build
+          python -m PyInstaller sidecar/main.py --noconfirm --onedir --console --name sidecar
 
-      - name: Build and publish Electron App (macOS)
-        if: startsWith(matrix.os, 'macos-latest')
-        run: pnpm run publish:mac -- --publish always
+      - name: Package Electron App (macOS)
+        if: matrix.os == 'macos-latest'
+        run: pnpm exec electron-builder --mac --publish never
 
-      - name: Build and publish Electron App (Windows)
-        if: startsWith(matrix.os, 'windows-latest')
-        run: pnpm run publish:win -- --publish always
+      - name: Package Electron App (Windows)
+        if: matrix.os == 'windows-latest'
+        run: pnpm exec electron-builder --win --publish never
+
+      - name: Debug Directory Structure
+        if: matrix.os == 'macos-latest'
+        run: |
+          echo "Current directory content:"
+          ls -F
+          echo "Dist directory content (if exists):"
+          ls -R dist || echo "dist folder not found"
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-assets-${{ matrix.os }}
+          path: |
+            dist/**/*.dmg
+            dist/**/*.exe
+            dist/**/*.zip
+          if-no-files-found: error
+
+  # --------------------------------------------------
+  # 3. Release Job (Create Draft Release)
+  # --------------------------------------------------
+  release:
+    name: 🚀 Create Draft Release
+    needs: [bump, build]
+    if: always() && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Determine Tag Name
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "tag=${{ needs.bump.outputs.new_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+          merge-multiple: true # 將所有 OS 的檔案合併到同一個路徑
+
+      - name: List files for debugging
+        run: ls -R ./artifacts
+
+      - name: Create Draft Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: Release ${{ steps.vars.outputs.tag }}
+          draft: true
+          prerelease: false
+          files: |
+            ./artifacts/*.dmg
+            ./artifacts/*.exe
+            ./artifacts/*.zip
+          body: |
+            ## EhLink-Getter Release ${{ steps.vars.outputs.tag }}
+
+            ### 📦 安裝包下載
+            - **macOS**: `.dmg` 或 `.zip`
+            - **Windows**: `.exe` (NSIS Installer)
+
+            ---
+            *此發布由 GitHub Actions 自動產生。*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
