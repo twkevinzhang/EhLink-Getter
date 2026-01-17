@@ -2,31 +2,37 @@
   appId: "dev.twkevinzhang.ehlinkgetter",
   productName: "EhLink-Getter",
   directories: {
-    output: "dist/electron"
+    output: "dist/electron",
   },
   files: [
     "out/**/*",
-    "node_modules/**/*",
-    "package.json"
+    "package.json",
+    {
+      from: "node_modules",
+      to: "node_modules",
+      filter: ["**/*"],
+    },
   ],
+  asar: true,
+  asarUnpack: ["resources/sidecar/**"],
   extraResources: [
     {
       from: "dist/sidecar",
       to: "sidecar",
-      filter: ["**/*"]
-    }
+      filter: ["**/*"],
+    },
   ],
-  mac: {
-    target: ["dmg", "zip"]
-  },
   win: {
-    target: "nsis"
+    target: ["portable"],
+  },
+  mac: {
+    target: ["dmg", "zip"],
   },
   publish: [
     {
       provider: "github",
       owner: "twkevinzhang",
-      repo: "EhLink-Getter"
-    }
-  ]
+      repo: "EhLink-Getter",
+    },
+  ],
 }
