@@ -11,7 +11,7 @@ const activeTab = ref("settings");
 </script>
 
 <template>
-  <div class="task-manager-view h-full flex flex-col">
+  <div class="task-manager-view h-full flex flex-col overflow-y-auto">
     <el-tabs v-model="activeTab" class="eh-tabs">
       <el-tab-pane label="Settings" name="settings">
         <SettingsTab />
