@@ -21,6 +21,9 @@ onMounted(() => {
   window.api.onLog((log: any) => {
     store.addLog(log);
   });
+  window.api.onProgress((progress: any) => {
+    store.updateDownloadProgress(progress);
+  });
 });
 </script>
 
