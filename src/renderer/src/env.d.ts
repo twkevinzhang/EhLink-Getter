@@ -1,6 +1,7 @@
 import { ElectronAPI } from "@electron-toolkit/preload";
 
 interface SidecarAPI {
+getConfig: () => Promise<any>;
   stopTask: () => Promise<{ success: boolean; error?: string }>;
   searchMetadata: (query: string) => Promise<{ results: any[] }>;
   mapMetadata: (payload: any) => Promise<{ results: any[]; error?: string }>;

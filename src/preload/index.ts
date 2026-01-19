@@ -3,6 +3,7 @@ import { exposeElectronAPI } from "@electron-toolkit/preload";
 
 // Custom APIs for renderer
 const api = {
+getConfig: () => ipcRenderer.invoke("get-config"),
   stopTask: () => ipcRenderer.invoke("stop-task"),
   searchMetadata: (query: string) =>
     ipcRenderer.invoke("search-metadata", query),

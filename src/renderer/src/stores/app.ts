@@ -21,27 +21,28 @@ interface DownloadJob {
   mode: "running" | "paused" | "error";
 }
 
-export const useAppStore = defineStore("app", {
-  state: () => ({
-    logs: [] as LogEntry[],
-    config: {
+export const useAppStore = defineStore("app", () => {
+  // State
+  const     logs = ref<LogEntry[]>([]);
+  const     config = reactive({
       cookies: "",
       proxies: [] as string[],
+tasks_path: "tasks.json",
       metadata_path: "metadata.json",
       download_path: "output",
       scan_thread_cnt: 3,
       download_thread_cnt: 5,
       storage_strategy: "logical" as "logical" | "traditional",
-    },
-    fetchingJobs: [] as ScraperJob[],
-    fetchedTasks: [] as any[], // Ready to download
-    downloadingJobs: [] as DownloadJob[],
-    completedTasks: [] as any[],
-    libraryGalleries: [] as any[],
-  }),
-  actions: {
-    addLog(log: any) {
-      this.logs.unshift({
+    });
+  const fetchingJobs = ref<ScraperJob[]>([]);
+  const fetchedTasks = ref<any[]>([]);
+  const downloadingJobs = ref<DownloadJob[]>([]);
+  const completedTasks = ref<any[]>([]);
+  const libraryGalleries = ref<any[]>([]);
+
+  // Actions
+  function addLog(log: any) {
+    const entry = {
         ...log,
         timestamp: new Date().toLocaleTimeString(),
       });

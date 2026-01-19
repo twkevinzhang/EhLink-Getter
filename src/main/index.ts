@@ -5,9 +5,13 @@ import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { spawn, ChildProcess } from "child_process";
 import axios from "axios";
 import { MetadataService } from "./services/metadata_service";
+import { ConfigService } from "./services/config_service";
 
 let mainWindow: BrowserWindow;
 let pythonProcess: ChildProcess | null = null;
+const configService = new ConfigService();
+let currentConfig = configService.loadConfig();
+
 const SIDECAR_PORT = 8000;
 const SIDECAR_URL = `http://127.0.0.1:${SIDECAR_PORT}`;
 
@@ -120,7 +124,7 @@ ipcMain.handle("select-save-path", async () => {
   const { canceled, filePath } =
     await require("electron").dialog.showSaveDialog(mainWindow, {
       title: "Select Output CSV Path",
-      defaultPath: "ScrapedList.csv",
+      defaultPath: "gallery-links.csv",
       filters: [{ name: "CSV Files", extensions: ["csv"] }],
     });
   if (!canceled) {
@@ -177,6 +181,21 @@ ipcMain.handle(
     }
   },
 );
+
+ipcMain.handle("save-json", async (_, payload: { path: string; data: any }) => {
+  try {
+    const actualPath = payload.path;
+    // Ensure directory exists
+    if (!fs.existsSync(join(dirname(actualPath)))) {
+      fs.mkdirSync(join(dirname(actualPath)), { recursive: true });
+    }
+
+    fs.writeFileSync(actualPath, JSON.stringify(payload.data, null, 2), "utf8");
+    return { status: "saved", path: actualPath };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
 
 ipcMain.handle(
   "save-csv",
@@ -235,14 +254,35 @@ ipcMain.handle("search-metadata", async (_, query: string) => {
   }
 });
 
+ipcMain.handle("get-config", async () => {
+  return currentConfig;
+});
+
 ipcMain.handle("save-config", async (_, config: any) => {
   try {
+    currentConfig = config;
+    configService.saveConfig(config);
     await axios.post(`${SIDECAR_URL}/config`, config);
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
 });
+
+ipcMain.handle(
+  "start-download",
+  async (_, payload: { jobId: string; images: any[] }) => {
+    try {
+      await axios.post(`${SIDECAR_URL}/job/start`, {
+        job_id: payload.jobId,
+        images: payload.images,
+      });
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  },
+);
 
 ipcMain.handle("open-folder", async (_, folderPath: string) => {
   if (folderPath) {
@@ -279,6 +319,21 @@ app.whenReady().then(() => {
 
   startSidecar();
   createWindow();
+
+  // Sync config to sidecar once it's up
+  const syncConfig = async (retries = 5) => {
+    try {
+      await axios.post(`${SIDECAR_URL}/config`, currentConfig);
+      console.log("Config synced to sidecar");
+    } catch (e) {
+      if (retries > 0) {
+        setTimeout(() => syncConfig(retries - 1), 2000);
+      } else {
+        console.error("Failed to sync config to sidecar after retries");
+      }
+    }
+  };
+  syncConfig();
 
   app.on("activate", function () {
     // On macOS it's common to re-create a window in the app when the
