@@ -2,9 +2,7 @@
   "mcpServers": {
     "dart-mcp-server": {
       "command": "dart",
-      "args": [
-        "mcp-server"
-      ],
+      "args": ["mcp-server"],
       "env": {}
     },
     "chrome-devtools": {
@@ -17,10 +15,7 @@
     },
     "context7": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@upstash/context7-mcp"
-      ]
+      "args": ["-y", "@upstash/context7-mcp"]
     },
     "serena": {
       "type": "stdio",
@@ -37,12 +32,17 @@
       ],
       "env": {}
     },
+    "plantuml": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["plantuml-mcp-server"],
+      "env": {
+        "PLANTUML_SERVER_URL": "https://www.plantuml.com/plantuml"
+      }
+    },
     "sequential-thinking": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-sequential-thinking"
-      ],
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
       "env": {}
     }
   }
