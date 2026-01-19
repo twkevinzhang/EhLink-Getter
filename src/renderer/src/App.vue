@@ -25,61 +25,69 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="h-screen w-screen flex bg-eh-bg text-eh-text overflow-hidden">
-    <el-container class="h-full">
-      <!-- Sidebar -->
-      <el-aside
-        width="240px"
-        class="bg-eh-sidebar border-r border-eh-border flex flex-col"
-      >
-        <div class="p-7 px-6 flex items-center gap-3">
-          <div
-            class="w-8 h-8 bg-eh-border rounded-lg flex items-center justify-center font-bold text-eh-text"
-          >
-            Eh
-          </div>
-          <span class="text-xl font-bold tracking-tight text-eh-text"
-            >EhLink Getter</span
-          >
-        </div>
-
-        <el-menu
-          :default-active="activeTab"
-          class="!bg-transparent !border-r-0 flex-1"
-          @select="(key: string) => (activeTab = key)"
+  <div
+    class="h-screen w-screen flex flex-col bg-eh-bg text-eh-muted overflow-hidden p-2"
+  >
+    <!-- Main Decorative Border Container -->
+    <div
+      class="flex-1 flex border border-eh-border rounded-sm overflow-hidden bg-eh-bg shadow-[0_0_10px_rgba(0,0,0,0.1)]"
+    >
+      <el-container class="h-full">
+        <!-- Sidebar -->
+        <el-aside
+          width="200px"
+          class="bg-eh-sidebar border-r border-eh-border flex flex-col"
         >
-          <el-menu-item
-            index="task-manager"
-            class="!h-[50px] !m-1 !mx-3 !rounded-lg"
+          <!-- logo / title area -->
+          <div
+            class="p-4 border-b border-eh-border bg-eh-panel flex flex-col items-center gap-1"
           >
-            <el-icon><Monitor /></el-icon>
-            <span>Task Manager</span>
-          </el-menu-item>
-          <el-menu-item
-            index="library"
-            class="!h-[50px] !m-1 !mx-3 !rounded-lg"
-          >
-            <el-icon><Search /></el-icon>
-            <span>Library</span>
-          </el-menu-item>
-        </el-menu>
-
-        <div class="p-5 border-t border-eh-border">
-          <div class="flex items-center gap-2 text-[0.8rem] text-eh-muted">
             <div
-              class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981]"
-            ></div>
-            <span>Sidecar: Online</span>
+              class="text-[10px] uppercase tracking-widest text-eh-text font-bold"
+            >
+              E-Hentai
+            </div>
+            <div
+              class="font-serif italic text-eh-text text-xl border-y border-eh-border px-2 py-1 my-1"
+            >
+              Link Getter
+            </div>
           </div>
-        </div>
-      </el-aside>
 
-      <!-- Main Content -->
-      <el-main class="p-10 flex-1 relative bg-eh-bg">
-        <TaskManager v-if="activeTab === 'task-manager'" />
-        <Library v-if="activeTab === 'library'" />
-      </el-main>
-    </el-container>
+          <el-menu
+            :default-active="activeTab"
+            class="!bg-transparent !border-r-0 flex-1 pt-4"
+            @select="(key: string) => (activeTab = key)"
+          >
+            <el-menu-item index="task-manager" class="eh-menu-item">
+              <el-icon><Monitor /></el-icon>
+              <span>Task Manager</span>
+            </el-menu-item>
+            <el-menu-item index="library" class="eh-menu-item">
+              <el-icon><Search /></el-icon>
+              <span>Library</span>
+            </el-menu-item>
+          </el-menu>
+
+          <div class="p-4 border-t border-eh-border bg-eh-panel">
+            <div
+              class="flex items-center gap-2 text-[0.7rem] text-eh-text font-bold"
+            >
+              <div
+                class="w-1.5 h-1.5 rounded-full bg-eh-accent shadow-[0_0_5px_#f11d1d] animate-pulse"
+              ></div>
+              <span>SIDECAR: ONLINE</span>
+            </div>
+          </div>
+        </el-aside>
+
+        <!-- Main Content -->
+        <el-main class="p-6 flex-1 relative bg-eh-bg overflow-y-auto">
+          <TaskManager v-if="activeTab === 'task-manager'" />
+          <Library v-if="activeTab === 'library'" />
+        </el-main>
+      </el-container>
+    </div>
   </div>
 </template>
 

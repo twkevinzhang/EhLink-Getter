@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { Search } from "@element-plus/icons-vue";
 
 const searchTag = ref("");
 const ratings = ref(0);
@@ -37,28 +38,55 @@ const galleries = ref([
     </el-card>
 
     <div class="gallery-grid flex-1 overflow-y-auto">
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
-        <el-card
+      <div class="flex flex-col gap-3">
+        <div
           v-for="g in galleries"
           :key="g.id"
-          :body-style="{ padding: '0px' }"
-          class="hover:border-eh-accent transition-colors"
+          class="eh-panel-card flex overflow-hidden hover:border-eh-accent transition-colors cursor-pointer"
         >
+          <!-- Thumbnail Section -->
           <div
-            class="aspect-[2/3] bg-eh-bg flex items-center justify-center text-eh-muted"
+            class="w-[120px] aspect-[2/3] bg-eh-panel border-r border-eh-border flex items-center justify-center text-eh-muted shrink-0"
           >
-            <span>[ Thumb ]</span>
+            <span class="text-[10px] text-center px-1">[ Thumbnail ]</span>
           </div>
-          <div class="p-4">
-            <div class="font-bold truncate">{{ g.title }}</div>
+
+          <!-- Metadata Section -->
+          <div class="flex-1 p-3 flex flex-col gap-2">
+            <div class="flex items-start justify-between gap-4">
+              <span
+                class="font-bold text-eh-text hover:underline text-sm leading-tight"
+                >{{ g.title }}</span
+              >
+              <div class="cat-badge bg-eh-cat-doujinshi">Doujinshi</div>
+            </div>
+
+            <div class="flex flex-wrap gap-2 mt-auto">
+              <span
+                class="text-[11px] px-1 bg-eh-sidebar border border-eh-border rounded-sm text-eh-muted"
+                >artist: suzuki nago</span
+              >
+              <span
+                class="text-[11px] px-1 bg-eh-sidebar border border-eh-border rounded-sm text-eh-muted"
+                >language: chinese</span
+              >
+              <span
+                class="text-[11px] px-1 bg-eh-sidebar border border-eh-border rounded-sm text-eh-muted"
+                >translated</span
+              >
+            </div>
+
             <div
-              class="flex items-center justify-between mt-2 text-xs text-eh-muted"
+              class="flex items-center justify-between text-[11px] text-eh-muted mt-1"
             >
-              <el-rate v-model="g.rating" disabled />
-              <span>{{ g.language }}</span>
+              <div class="flex items-center gap-2">
+                <el-rate v-model="g.rating" disabled size="small" />
+                <span>{{ g.rating }} stars</span>
+              </div>
+              <span class="font-mono">2026-01-19 11:40</span>
             </div>
           </div>
-        </el-card>
+        </div>
       </div>
     </div>
 

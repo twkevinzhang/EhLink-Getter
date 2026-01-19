@@ -4,32 +4,45 @@
 
 @layer base {
   body {
-    @apply m-0 font-sans bg-eh-bg text-eh-text overflow-hidden;
+    @apply m-0 font-sans bg-eh-bg text-eh-muted overflow-hidden;
   }
 }
 
 @layer components {
-  /* Mimic EH Table Headers */
+  /* EH Style Panel with Red Border */
+  .eh-panel-card {
+    @apply bg-eh-panel border border-eh-border rounded-sm shadow-sm;
+  }
+
+  /* EH Table Header Style */
   .eh-header {
-    @apply bg-eh-panel text-eh-muted border-b border-eh-border font-bold;
+    @apply bg-eh-sidebar text-eh-text border-b border-eh-border font-bold py-1 px-2;
   }
 }
 
-/* Custom keyframes for status indicators */
-@keyframes pulse-custom {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-.animate-pulse-custom {
-  animation: pulse-custom 1s infinite;
-}
-
-/* Element Plus Global Overrides */
+/* Element Plus Classic EH Overrides */
 :root {
-  --el-color-primary: #ffae00;
-  --el-bg-color: #34353b;
-  --el-fill-color-blank: #34353b;
-  --el-text-color-primary: #f1f1f1;
+  --el-color-primary: #5c0d11;
+  --el-bg-color: #edeae0;
+  --el-fill-color-blank: #edeae0;
+  --el-text-color-primary: #444444;
   --el-border-color: #5c0d11;
+}
+
+/* Sidebar Specific */
+.el-menu {
+  @apply !border-r-0;
+}
+
+.el-menu-item {
+  @apply !text-eh-muted;
+}
+
+.el-menu-item.is-active {
+  @apply !text-eh-text !font-bold !bg-white/30;
+}
+
+/* Category Badges Styling */
+.cat-badge {
+  @apply px-2 py-0.5 rounded-sm text-white text-[11px] font-bold shadow-sm;
 }

@@ -19,10 +19,12 @@ const handleBrowse = async () => {
 
 <template>
   <div class="p-4 flex flex-col gap-6">
-    <div class="section">
-      <div class="font-bold mb-2">Core Configuration</div>
-      <div class="flex flex-col gap-1">
-        <label class="text-xs text-eh-muted">tasks.json Path:</label>
+    <div class="eh-panel-card overflow-hidden">
+      <div class="eh-header">Core Configuration</div>
+      <div class="p-4 flex flex-col gap-3">
+        <label class="text-xs text-eh-muted font-bold uppercase"
+          >tasks.json Path:</label
+        >
         <div class="flex gap-2">
           <el-input v-model="tasksPath" class="flex-1" />
           <el-button small @click="handleBrowse">Browse</el-button>
@@ -30,19 +32,21 @@ const handleBrowse = async () => {
       </div>
     </div>
 
-    <div class="section">
-      <div class="font-bold mb-2">Storage Strategy</div>
-      <el-radio-group v-model="storageStrategy">
-        <el-radio value="logical">Logical (Hashed)</el-radio>
-        <el-radio value="traditional">Traditional</el-radio>
-      </el-radio-group>
+    <div class="eh-panel-card overflow-hidden">
+      <div class="eh-header">Storage Strategy</div>
+      <div class="p-4">
+        <el-radio-group v-model="storageStrategy">
+          <el-radio value="logical">Logical (Hashed)</el-radio>
+          <el-radio value="traditional">Traditional</el-radio>
+        </el-radio-group>
+      </div>
     </div>
 
-    <div class="section">
-      <div class="font-bold mb-2">Request Management</div>
-      <div class="flex flex-col gap-4">
+    <div class="eh-panel-card overflow-hidden">
+      <div class="eh-header">Request Management</div>
+      <div class="p-4 flex flex-col gap-4">
         <div class="flex flex-col gap-1">
-          <label class="text-xs text-eh-muted"
+          <label class="text-xs text-eh-muted font-bold uppercase"
             >Proxy Pool (one per line):</label
           >
           <el-input
@@ -52,27 +56,33 @@ const handleBrowse = async () => {
             placeholder="proto://host:port"
           />
         </div>
-        <div class="flex gap-6">
+        <div class="flex gap-10">
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-eh-muted">Scan Threads:</label>
+            <label class="text-xs text-eh-muted font-bold uppercase"
+              >Scan Threads:</label
+            >
             <el-input-number v-model="scanThreads" :min="1" :max="10" />
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-eh-muted">Download Threads:</label>
+            <label class="text-xs text-eh-muted font-bold uppercase"
+              >Download Threads:</label
+            >
             <el-input-number v-model="downloadThreads" :min="1" :max="20" />
           </div>
         </div>
       </div>
     </div>
 
-    <div class="mt-4">
-      <el-button type="primary" class="w-full">Save Changes</el-button>
+    <div class="mt-4 pt-4 border-t border-eh-border">
+      <el-button
+        type="primary"
+        class="w-full !rounded-none !h-10 font-bold uppercase tracking-widest"
+        >Save Changes</el-button
+      >
     </div>
   </div>
 </template>
 
 <style scoped>
-.section {
-  @apply border-b border-eh-border pb-4;
-}
+/* Scoped overrides if needed */
 </style>
