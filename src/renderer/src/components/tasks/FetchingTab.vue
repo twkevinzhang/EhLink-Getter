@@ -1,20 +1,62 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { useAppStore } from "../../stores/app";
+import { storeToRefs } from "pinia";
+import { ElMessage, ElMessageBox } from "element-plus";
 
-const activeScrapers = ref([
-  {
-    id: 1,
-    link: "https://e-hentai.org/?f_search=guigu",
-    progress: 40,
-    status: "Parsing Page 2/5",
-  },
-  {
-    id: 2,
-    link: "https://exhentai.org/?f_search=collection",
-    progress: 100,
-    status: "Finished",
-  },
-]);
+const store = useAppStore();
+const { fetchingJobs } = storeToRefs(store);
+
+const handlePause = async (jobId: string) => {
+  await store.pauseFetching(jobId);
+  ElMessage.success("Task paused");
+};
+
+const handleResume = async (jobId: string) => {
+  await store.resumeFetching(jobId);
+  ElMessage.success("Task resumed");
+};
+
+const handleDelete = async (jobId: string) => {
+  try {
+    await ElMessageBox.confirm(
+      "Are you sure you want to delete this task?",
+      "Warning",
+      {
+        type: "warning",
+      },
+    );
+    store.deleteFetchingJob(jobId);
+    ElMessage.success("Task deleted");
+  } catch (e) {
+    // User cancelled dialog
+  }
+};
+
+const getStateLabel = (state: string) => {
+  switch (state) {
+    case "waiting":
+      return "等待中";
+    case "fetching":
+      return "爬取中";
+    case "paused":
+      return "已暫停";
+    default:
+      return state;
+  }
+};
+
+const getStateColor = (state: string) => {
+  switch (state) {
+    case "waiting":
+      return "text-gray-500";
+    case "fetching":
+      return "text-blue-600";
+    case "paused":
+      return "text-orange-500";
+    default:
+      return "text-gray-500";
+  }
+};
 </script>
 
 <template>
@@ -25,32 +67,87 @@ const activeScrapers = ref([
         class="p-4 flex-1 overflow-y-auto flex flex-col gap-3 bg-eh-panel/30"
       >
         <div
-          v-for="job in activeScrapers"
+          v-for="job in fetchingJobs"
           :key="job.id"
           class="eh-panel-card p-3 !bg-white/40"
         >
           <div class="flex flex-col gap-2">
-            <div class="text-[11px] text-eh-muted truncate font-mono">
-              {{ job.link }}
+            <!-- Header with state badge -->
+            <div class="flex items-center justify-between">
+              <div class="text-[11px] text-eh-muted truncate font-mono flex-1">
+                {{ job.link }}
+              </div>
+              <span
+                :class="[
+                  'text-[10px] font-bold px-2 py-0.5 rounded',
+                  getStateColor(job.state),
+                ]"
+              >
+                {{ getStateLabel(job.state) }}
+              </span>
             </div>
+
+            <!-- Progress bar and status -->
             <div class="flex items-center gap-4">
               <el-progress :percentage="job.progress" class="flex-1" />
               <span
-                class="text-[11px] w-24 text-right font-bold text-eh-text"
+                class="text-[11px] w-32 text-right font-bold text-eh-text"
                 >{{ job.status }}</span
               >
             </div>
+
+            <!-- Stats -->
+            <div class="flex gap-4 text-[10px] text-eh-muted">
+              <span>頁數: {{ job.currentPage }}</span>
+              <span>項目: {{ job.totalItems }}</span>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="flex gap-2 mt-2">
+              <!-- Pause button (only when fetching) -->
+              <el-button
+                v-if="job.state === 'fetching'"
+                @click="handlePause(job.id)"
+                size="small"
+                type="warning"
+                plain
+                class="flex-1"
+              >
+                暫停
+              </el-button>
+
+              <!-- Resume button (only when paused) -->
+              <el-button
+                v-if="job.state === 'paused'"
+                @click="handleResume(job.id)"
+                size="small"
+                type="primary"
+                class="flex-1"
+              >
+                恢復
+              </el-button>
+
+              <!-- Delete button (disabled when fetching) -->
+              <el-button
+                @click="handleDelete(job.id)"
+                :disabled="job.state === 'fetching'"
+                size="small"
+                type="danger"
+                plain
+                class="flex-1"
+              >
+                刪除
+              </el-button>
+            </div>
           </div>
         </div>
+        <div
+          v-if="fetchingJobs.length === 0"
+          class="text-center py-10 text-eh-muted text-xs italic"
+        >
+          No active scraping jobs
+        </div>
       </div>
-    </div>
-    <div class="flex gap-2">
-      <el-button
-        type="danger"
-        plain
-        class="flex-1 !rounded-none !h-10 uppercase tracking-widest font-bold"
-        >Cancel Selected</el-button
-      >
     </div>
   </div>
 </template>
