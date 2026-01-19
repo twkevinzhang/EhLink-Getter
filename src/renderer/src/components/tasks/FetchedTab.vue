@@ -56,6 +56,28 @@ const toggleGallery = (taskId: string, galleryId: string) => {
   }
 };
 
+// Select All Logic
+const isAllSelected = (taskId: string, galleries: Gallery[]) => {
+  const selected = selectedGalleries.value[taskId];
+  return selected && galleries.every((g) => selected.has(g.id));
+};
+
+const isIndeterminate = (taskId: string, galleries: Gallery[]) => {
+  const selected = selectedGalleries.value[taskId];
+  if (!selected || selected.size === 0) return false;
+  return selected.size < galleries.length;
+};
+
+const toggleSelectAll = (taskId: string, galleries: Gallery[]) => {
+  if (isAllSelected(taskId, galleries)) {
+    // Unselect all
+    selectedGalleries.value[taskId] = new Set();
+  } else {
+    // Select all
+    selectedGalleries.value[taskId] = new Set(galleries.map((g) => g.id));
+  }
+};
+
 // Browse for folder
 const handleBrowse = async () => {
   try {
@@ -124,6 +146,22 @@ const handleAddAllToQueue = async () => {
               </div>
             </template>
             <div class="ml-6 flex flex-col gap-1 mt-2">
+              <!-- Select All Checkbox -->
+              <div
+                class="flex items-center gap-2 text-[11px] border-l-2 border-eh-accent pl-2 py-1 mb-1 bg-eh-panel/20"
+              >
+                <el-checkbox
+                  :model-value="isAllSelected(task.id, task.galleries)"
+                  :indeterminate="isIndeterminate(task.id, task.galleries)"
+                  @change="toggleSelectAll(task.id, task.galleries)"
+                  size="small"
+                />
+                <span class="font-bold text-eh-accent uppercase tracking-wider"
+                  >Select All</span
+                >
+              </div>
+
+              <!-- Gallery Items -->
               <div
                 v-for="g in task.galleries"
                 :key="g.id"
@@ -137,8 +175,8 @@ const handleAddAllToQueue = async () => {
                 <span
                   :class="[
                     isGallerySelected(task.id, g.id)
-                      ? 'text-eh-muted'
-                      : 'text-gray-400 line-through',
+                      ? 'text-eh-text'
+                      : 'text-eh-muted line-through opacity-60',
                   ]"
                 >
                   {{ g.title }}
