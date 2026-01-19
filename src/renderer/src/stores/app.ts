@@ -17,6 +17,7 @@ interface ScraperJob {
   totalItems: number;
   nextToken?: string;
   allItems: any[];
+  tasksPath?: string;
 }
 
 interface DownloadJob {
@@ -93,6 +94,7 @@ export const useAppStore = defineStore("app", () => {
       totalItems: 0,
       nextToken: undefined,
       allItems: [],
+      tasksPath: tasksPath || config.tasks_path,
     };
     fetchingJobs.value.unshift(newJob);
 
@@ -184,9 +186,11 @@ export const useAppStore = defineStore("app", () => {
           isFirstPage = false;
 
           // Update tasksPath/tasks.json after each page
-          if (config.tasks_path) {
+          const savePath =
+            fetchingJobs.value[currentJobIdx]?.tasksPath || config.tasks_path;
+          if (savePath) {
             await window.api.saveJSON({
-              path: config.tasks_path,
+              path: savePath,
               data: JSON.parse(JSON.stringify(allItems)),
             });
           }
@@ -279,10 +283,11 @@ export const useAppStore = defineStore("app", () => {
           allItems = [...allItems, ...result.items];
           nextToken = result.next;
 
-          if (config.tasks_path) {
+          const savePath = job.tasksPath || config.tasks_path;
+          if (savePath) {
             // Serialize to ensure IPC compatibility
             await window.api.saveJSON({
-              path: config.tasks_path,
+              path: savePath,
               data: JSON.parse(JSON.stringify(allItems)),
             });
           }
@@ -326,6 +331,39 @@ export const useAppStore = defineStore("app", () => {
           message: `Deleted fetch job: ${jobId}`,
         });
       }
+    }
+  }
+
+  async function loadExistingTasks(path: string, url: string = "") {
+    if (!path) return;
+
+    // Check if already in jobs
+    const exists = fetchingJobs.value.some((j) => j.tasksPath === path);
+    if (exists) return;
+
+    try {
+      const result = await window.api.readJSON({ path });
+      if (result && result.success && Array.isArray(result.data)) {
+        const jobId = `imported-${Date.now()}`;
+        const newJob: ScraperJob = {
+          id: jobId,
+          link: url || "Imported Task",
+          progress: 100,
+          status: `Imported ${result.data.length} items`,
+          state: "paused",
+          currentPage: 0,
+          totalItems: result.data.length,
+          allItems: result.data,
+          tasksPath: path,
+        };
+        fetchingJobs.value.unshift(newJob);
+        addLog({
+          level: "info",
+          message: `Loaded ${result.data.length} tasks from ${path}`,
+        });
+      }
+    } catch (e) {
+      console.error("Failed to load tasks:", e);
     }
   }
 
@@ -406,5 +444,6 @@ export const useAppStore = defineStore("app", () => {
     cancelFetching,
     clearFinishedJobs,
     updateDownloadProgress,
+    loadExistingTasks,
   };
 });

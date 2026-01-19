@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { CaretRight } from "@element-plus/icons-vue";
 import { useAppStore } from "../../stores/app";
 import { ElMessage } from "element-plus";
@@ -17,8 +17,19 @@ const handleTasksPathBrowse = async () => {
   const path = await window.api.selectDirectory();
   if (path) {
     tasksPath.value = path + "/tasks.json";
+    // loadExistingTasks will be triggered by watch
   }
 };
+
+watch(
+  tasksPath,
+  (newPath) => {
+    if (newPath) {
+      store.loadExistingTasks(newPath, pageLink.value);
+    }
+  },
+  { immediate: true },
+);
 
 const handleStartFetch = async () => {
   if (!pageLink.value) {
