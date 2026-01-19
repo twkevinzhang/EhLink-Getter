@@ -1,22 +1,22 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { useAppStore } from "../../stores/app";
+import { storeToRefs } from "pinia";
+import { ElMessage } from "element-plus";
 
-const activeDownloads = ref([
-  {
-    id: 1,
-    title: "[Artist] Manga Name",
-    progress: 40,
-    status: "Downloading: 01.jpg",
-    mode: "running",
-  },
-  {
-    id: 2,
-    title: "[Cosplay] Title",
-    progress: 0,
-    status: "Paused",
-    mode: "paused",
-  },
-]);
+const store = useAppStore();
+const { downloadingJobs } = storeToRefs(store);
+
+const handlePauseAll = () => {
+  store.cancelFetching(""); // Reusing stop generic for now
+  ElMessage.info("Pause command sent");
+};
+
+const handleClear = () => {
+  const countBefore = downloadingJobs.value.length;
+  store.clearFinishedJobs();
+  const countAfter = downloadingJobs.value.length;
+  ElMessage.success(`Cleared ${countBefore - countAfter} jobs`);
+};
 </script>
 
 <template>
@@ -27,7 +27,7 @@ const activeDownloads = ref([
         class="p-4 flex-1 overflow-y-auto flex flex-col gap-3 bg-eh-panel/30"
       >
         <div
-          v-for="dl in activeDownloads"
+          v-for="dl in downloadingJobs"
           :key="dl.id"
           class="eh-panel-card p-4 !bg-white/40"
         >
@@ -55,12 +55,19 @@ const activeDownloads = ref([
             </div>
           </div>
         </div>
+        <div
+          v-if="downloadingJobs.length === 0"
+          class="text-center py-10 text-eh-muted text-xs italic"
+        >
+          No active downloads
+        </div>
       </div>
     </div>
     <div class="flex gap-2">
       <el-button
         plain
         class="flex-1 !rounded-none !h-10 font-bold uppercase tracking-widest border-eh-border text-eh-text"
+        @click="handlePauseAll"
         >Pause All</el-button
       >
       <el-button
@@ -72,7 +79,8 @@ const activeDownloads = ref([
         danger
         plain
         class="flex-1 !rounded-none !h-10 font-bold uppercase tracking-widest"
-        >Clear Failed</el-button
+        @click="handleClear"
+        >Clear Finished</el-button
       >
     </div>
   </div>
