@@ -192,6 +192,19 @@ ipcMain.handle("save-json", async (_, payload: { path: string; data: any }) => {
   }
 });
 
+ipcMain.handle("read-json", async (_, payload: { path: string }) => {
+  try {
+    const actualPath = payload.path;
+    if (!fs.existsSync(actualPath)) {
+      return { success: false, error: "File not found", code: "ENOENT" };
+    }
+    const content = fs.readFileSync(actualPath, "utf8");
+    return { success: true, data: JSON.parse(content) };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle(
   "save-csv",
   async (_, payload: { path: string; results: any[] }) => {

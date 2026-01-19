@@ -101,14 +101,33 @@ export const useAppStore = defineStore("app", () => {
         throw new Error("IPC API not ready");
       }
 
-      const jobIdx = fetchingJobs.value.findIndex((j) => j.id === jobId);
-      if (jobIdx === -1) return;
-
-      fetchingJobs.value[jobIdx].state = "fetching";
       let nextToken: string | undefined = undefined;
       let allItems: any[] = [];
       let pageCount = 0;
       let isFirstPage = true;
+
+      // Import existing tasks if file exists
+      if (config.tasks_path) {
+        const readResult = await window.api.readJSON({
+          path: config.tasks_path,
+        });
+        if (
+          readResult &&
+          readResult.success &&
+          Array.isArray(readResult.data)
+        ) {
+          allItems = readResult.data;
+          addLog({
+            level: "info",
+            message: `Imported ${allItems.length} existing tasks from ${config.tasks_path}`,
+          });
+        }
+      }
+
+      const jobIdx = fetchingJobs.value.findIndex((j) => j.id === jobId);
+      if (jobIdx === -1) return;
+
+      fetchingJobs.value[jobIdx].state = "fetching";
 
       while (isFirstPage || nextToken) {
         pageCount++;

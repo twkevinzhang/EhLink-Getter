@@ -14,6 +14,8 @@ const api = {
     ipcRenderer.invoke("save-csv", JSON.parse(JSON.stringify(payload))),
   saveJSON: (payload: { path: string; data: any }) =>
     ipcRenderer.invoke("save-json", JSON.parse(JSON.stringify(payload))),
+  readJSON: (payload: { path: string }) =>
+    ipcRenderer.invoke("read-json", payload),
   startDownload: (payload: { jobId: string; images: any[] }) =>
     ipcRenderer.invoke("start-download", payload),
   selectDirectory: () => ipcRenderer.invoke("select-directory"),

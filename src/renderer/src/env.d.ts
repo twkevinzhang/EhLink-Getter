@@ -17,6 +17,14 @@ interface SidecarAPI {
     path: string;
     data: any;
   }) => Promise<{ status: string; path: string; error?: string }>;
+  readJSON: (payload: {
+    path: string;
+  }) => Promise<{
+    success: boolean;
+    data?: any;
+    error?: string;
+    code?: string;
+  }>;
   startDownload: (payload: {
     jobId: string;
     images: any[];
