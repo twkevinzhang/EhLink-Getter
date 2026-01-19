@@ -46,6 +46,7 @@ export const useAppStore = defineStore("app", () => {
   const downloadingJobs = ref<DownloadJob[]>([]);
   const completedTasks = ref<any[]>([]);
   const libraryGalleries = ref<any[]>([]);
+  const sidecarOnline = ref(false);
 
   // Actions
   function addLog(log: any) {
@@ -414,6 +415,17 @@ export const useAppStore = defineStore("app", () => {
     );
   }
 
+  async function checkSidecarHealth() {
+    if (window.api && window.api.checkSidecarHealth) {
+      try {
+        const result = await window.api.checkSidecarHealth();
+        sidecarOnline.value = result.success;
+      } catch (e) {
+        sidecarOnline.value = false;
+      }
+    }
+  }
+
   async function initConfig() {
     if (window.api && window.api.getConfig) {
       const savedConfig = await window.api.getConfig();
@@ -421,6 +433,9 @@ export const useAppStore = defineStore("app", () => {
         Object.assign(config, savedConfig);
       }
     }
+    // Start health check polling
+    checkSidecarHealth();
+    setInterval(checkSidecarHealth, 5000);
   }
 
   // Initialize
@@ -445,5 +460,7 @@ export const useAppStore = defineStore("app", () => {
     clearFinishedJobs,
     updateDownloadProgress,
     loadExistingTasks,
+    sidecarOnline,
+    checkSidecarHealth,
   };
 });

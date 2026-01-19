@@ -77,9 +77,16 @@ onMounted(() => {
               class="flex items-center gap-2 text-[0.7rem] text-eh-text font-bold"
             >
               <div
-                class="w-1.5 h-1.5 rounded-full bg-eh-accent shadow-[0_0_5px_#f11d1d] animate-pulse"
+                class="w-1.5 h-1.5 rounded-full"
+                :class="{
+                  'bg-green-500 animate-pulse shadow-[0_0_5px_#22c55e]':
+                    store.sidecarOnline,
+                  'bg-red-500 shadow-[0_0_5px_#ef4444]': !store.sidecarOnline,
+                }"
               ></div>
-              <span>SIDECAR: ONLINE</span>
+              <span>
+                SIDECAR: {{ store.sidecarOnline ? "ONLINE" : "OFFLINE" }}
+              </span>
             </div>
           </div>
         </el-aside>

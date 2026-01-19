@@ -4,6 +4,7 @@ import { exposeElectronAPI } from "@electron-toolkit/preload";
 // Custom APIs for renderer
 const api = {
   getConfig: () => ipcRenderer.invoke("get-config"),
+  checkSidecarHealth: () => ipcRenderer.invoke("check-sidecar-health"),
   searchMetadata: (query: string) =>
     ipcRenderer.invoke("search-metadata", query),
   mapMetadata: (payload: any) => ipcRenderer.invoke("map-metadata", payload),

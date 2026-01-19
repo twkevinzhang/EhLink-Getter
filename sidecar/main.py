@@ -23,6 +23,11 @@ class Config(BaseModel):
 config = Config()
 proxy_manager = ProxyManager([])
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint to verify sidecar status"""
+    return {"status": "ok"}
+
 @app.post("/config")
 async def update_config(new_config: Config):
     """Update configuration - stateless, only stores config for current session"""

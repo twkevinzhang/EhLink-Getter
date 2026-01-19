@@ -2,6 +2,7 @@ import { ElectronAPI } from "@electron-toolkit/preload";
 
 interface SidecarAPI {
   getConfig: () => Promise<any>;
+  checkSidecarHealth: () => Promise<{ success: boolean }>;
   searchMetadata: (query: string) => Promise<{ results: any[] }>;
   mapMetadata: (payload: any) => Promise<{ results: any[]; error?: string }>;
   saveConfig: (config: any) => Promise<{ success: boolean; error?: string }>;
@@ -17,9 +18,7 @@ interface SidecarAPI {
     path: string;
     data: any;
   }) => Promise<{ status: string; path: string; error?: string }>;
-  readJSON: (payload: {
-    path: string;
-  }) => Promise<{
+  readJSON: (payload: { path: string }) => Promise<{
     success: boolean;
     data?: any;
     error?: string;

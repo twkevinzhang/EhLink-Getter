@@ -177,6 +177,17 @@ ipcMain.handle(
   },
 );
 
+ipcMain.handle("check-sidecar-health", async () => {
+  try {
+    const response = await axios.get(`${SIDECAR_URL}/health`, {
+      timeout: 2000,
+    });
+    return { success: response.data.status === "ok" };
+  } catch (error) {
+    return { success: false };
+  }
+});
+
 ipcMain.handle("save-json", async (_, payload: { path: string; data: any }) => {
   try {
     const actualPath = payload.path;
