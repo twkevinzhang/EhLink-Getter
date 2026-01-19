@@ -3,8 +3,7 @@ import { exposeElectronAPI } from "@electron-toolkit/preload";
 
 // Custom APIs for renderer
 const api = {
-getConfig: () => ipcRenderer.invoke("get-config"),
-  stopTask: () => ipcRenderer.invoke("stop-task"),
+  getConfig: () => ipcRenderer.invoke("get-config"),
   searchMetadata: (query: string) =>
     ipcRenderer.invoke("search-metadata", query),
   mapMetadata: (payload: any) => ipcRenderer.invoke("map-metadata", payload),
@@ -13,6 +12,10 @@ getConfig: () => ipcRenderer.invoke("get-config"),
     ipcRenderer.invoke("fetch-page", payload),
   saveCSV: (payload: { path: string; results: any[] }) =>
     ipcRenderer.invoke("save-csv", JSON.parse(JSON.stringify(payload))),
+  saveJSON: (payload: { path: string; data: any }) =>
+    ipcRenderer.invoke("save-json", JSON.parse(JSON.stringify(payload))),
+  startDownload: (payload: { jobId: string; images: any[] }) =>
+    ipcRenderer.invoke("start-download", payload),
   selectDirectory: () => ipcRenderer.invoke("select-directory"),
   selectSavePath: () => ipcRenderer.invoke("select-save-path"),
   openFolder: (path?: string) => ipcRenderer.invoke("open-folder", path),

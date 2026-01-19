@@ -103,6 +103,10 @@ function createWindow(): void {
 
   mainWindow.on("ready-to-show", () => {
     mainWindow.show();
+    // Open DevTools in development mode for debugging
+    if (is.dev) {
+      mainWindow.webContents.openDevTools();
+    }
   });
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -131,15 +135,6 @@ ipcMain.handle("select-save-path", async () => {
     return filePath;
   }
   return null;
-});
-
-ipcMain.handle("stop-task", async () => {
-  try {
-    await axios.post(`${SIDECAR_URL}/tasks/stop`);
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
 });
 
 ipcMain.handle("map-metadata", async (_, payload: any) => {
