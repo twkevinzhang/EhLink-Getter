@@ -1,11 +1,55 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { CaretRight } from "@element-plus/icons-vue";
+import { useAppStore } from "../../stores/app";
+import { ElMessage } from "element-plus";
+import { storeToRefs } from "pinia";
+
+const store = useAppStore();
+const { config } = storeToRefs(store);
+const tasksPath = ref(config.value.tasks_path);
 
 const pageLink = ref("https://e-hentai.org/favorites.php");
 const fromPage = ref(1);
 const toPage = ref("All");
-const metaPath = ref("C:/Path/meta.json");
+
+const handleTasksPathBrowse = async () => {
+  const path = await window.api.selectDirectory();
+  if (path) {
+    tasksPath.value = path + "/tasks.json";
+  }
+};
+
+const handleStartFetch = async () => {
+  if (!pageLink.value) {
+    ElMessage.warning("Please enter a page or search link");
+    return;
+  }
+
+  if (typeof store.startFetching !== "function") {
+    console.error("store.startFetching is not a function!", store);
+    ElMessage.error(
+      "Store action 'startFetching' is missing. Please restart the app.",
+    );
+    return;
+  }
+
+  // Parse max pages from toPage
+  let maxPages = Infinity;
+  if (toPage.value !== "All" && toPage.value !== "") {
+    const parsed = parseInt(toPage.value.toString());
+    if (!isNaN(parsed) && parsed > 0) {
+      maxPages = parsed;
+    }
+  }
+
+  try {
+    await store.startFetching(pageLink.value, tasksPath.value, maxPages);
+    ElMessage.success("Fetching task started");
+  } catch (err: any) {
+    ElMessage.error(`Failed to start fetching: ${err.message}`);
+  }
+};
 </script>
 
 <template>
@@ -33,11 +77,15 @@ const metaPath = ref("C:/Path/meta.json");
         </div>
         <div class="flex flex-col gap-2 pt-2 border-t border-eh-bg">
           <label class="text-xs text-eh-muted font-bold uppercase"
-            >Meta DB Path:</label
+            >Tasks Json Path:</label
           >
           <div class="flex gap-2">
-            <el-input v-model="metaPath" class="flex-1" />
-            <el-button small>Browse</el-button>
+            <el-input
+              v-model="tasksPath"
+              class="flex-1"
+              placeholder="Path to tasks.json"
+            />
+            <el-button small @click="handleTasksPathBrowse">Browse</el-button>
           </div>
         </div>
       </div>
@@ -47,6 +95,7 @@ const metaPath = ref("C:/Path/meta.json");
       <el-button
         type="primary"
         class="w-full !rounded-none !h-10 font-bold uppercase tracking-widest flex items-center justify-center gap-2"
+        @click="handleStartFetch"
       >
         <el-icon><CaretRight /></el-icon>
         Start Fetching List
