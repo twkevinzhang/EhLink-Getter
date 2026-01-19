@@ -1,9 +1,15 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import { Folder } from "@element-plus/icons-vue";
 import { useAppStore } from "../../stores/app";
 import { storeToRefs } from "pinia";
 import { ElMessage } from "element-plus";
+
+interface Gallery {
+  id: string;
+  title: string;
+  link: string;
+}
 
 const store = useAppStore();
 const { fetchedTasks, config } = storeToRefs(store);
@@ -13,7 +19,55 @@ const useZip = ref(true);
 const zipPass = ref("");
 const expandedTasks = ref<string[]>([]);
 
+// Track selected galleries for each task
+const selectedGalleries = ref<Record<string, Set<string>>>({});
+
+// Initialize selected galleries when tasks change
+watch(
+  fetchedTasks,
+  (tasks) => {
+    tasks.forEach((task) => {
+      if (!selectedGalleries.value[task.id]) {
+        selectedGalleries.value[task.id] = new Set(
+          task.galleries.map((g: Gallery) => g.id),
+        );
+      }
+    });
+  },
+  { immediate: true, deep: true },
+);
+
 watch(targetPath, (val) => store.updateConfig({ download_path: val }));
+
+// Check if a gallery is selected
+const isGallerySelected = (taskId: string, galleryId: string) => {
+  return selectedGalleries.value[taskId]?.has(galleryId) ?? false;
+};
+
+// Toggle gallery selection
+const toggleGallery = (taskId: string, galleryId: string) => {
+  if (!selectedGalleries.value[taskId]) {
+    selectedGalleries.value[taskId] = new Set();
+  }
+  if (selectedGalleries.value[taskId].has(galleryId)) {
+    selectedGalleries.value[taskId].delete(galleryId);
+  } else {
+    selectedGalleries.value[taskId].add(galleryId);
+  }
+};
+
+// Browse for folder
+const handleBrowse = async () => {
+  try {
+    const result = await window.api.selectDirectory();
+    if (result) {
+      targetPath.value = result;
+    }
+  } catch (error) {
+    console.error("Failed to select folder:", error);
+    ElMessage.error("Failed to select folder");
+  }
+};
 
 const handleAddAllToQueue = async () => {
   if (fetchedTasks.value.length === 0) {
@@ -21,14 +75,30 @@ const handleAddAllToQueue = async () => {
     return;
   }
 
+  let totalAdded = 0;
   for (const task of fetchedTasks.value) {
-    await store.startDownload(task.id, task.title, task.galleries);
+    // Filter only selected galleries
+    const selected = selectedGalleries.value[task.id];
+    if (!selected || selected.size === 0) {
+      continue;
+    }
+    const selectedGalleryList = task.galleries.filter((g: Gallery) =>
+      selected.has(g.id),
+    );
+    if (selectedGalleryList.length > 0) {
+      await store.startDownload(task.id, task.title, selectedGalleryList);
+      totalAdded++;
+    }
   }
 
-  ElMessage.success(
-    `Added ${fetchedTasks.value.length} tasks to download queue`,
-  );
+  if (totalAdded === 0) {
+    ElMessage.warning("No galleries selected for download");
+    return;
+  }
+
+  ElMessage.success(`Added ${totalAdded} tasks to download queue`);
   fetchedTasks.value = []; // Clear current list after adding to queue
+  selectedGalleries.value = {}; // Clear selections
 };
 </script>
 
@@ -57,9 +127,22 @@ const handleAddAllToQueue = async () => {
               <div
                 v-for="g in task.galleries"
                 :key="g.id"
-                class="text-[11px] text-eh-muted border-l-2 border-eh-border pl-2 py-0.5"
+                class="flex items-center gap-2 text-[11px] border-l-2 border-eh-border pl-2 py-0.5"
               >
-                {{ g.title }}
+                <el-checkbox
+                  :model-value="isGallerySelected(task.id, g.id)"
+                  @change="toggleGallery(task.id, g.id)"
+                  size="small"
+                />
+                <span
+                  :class="[
+                    isGallerySelected(task.id, g.id)
+                      ? 'text-eh-muted'
+                      : 'text-gray-400 line-through',
+                  ]"
+                >
+                  {{ g.title }}
+                </span>
               </div>
             </div>
           </el-collapse-item>
@@ -83,7 +166,7 @@ const handleAddAllToQueue = async () => {
           >
           <div class="flex gap-2">
             <el-input v-model="targetPath" class="flex-1" />
-            <el-button small @click="() => {}">Browse</el-button>
+            <el-button small @click="handleBrowse">Browse</el-button>
           </div>
           <div class="flex gap-2 mt-1">
             <el-button size="small" plain class="!bg-eh-bg/50"
