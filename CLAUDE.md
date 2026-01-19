@@ -338,5 +338,6 @@ See what you're working on:
 
 ```bash
 codemap --diff --ref master
-codemap --diff --ref develop
+codemap --diff --ref dev
+codemap --diff --ref v2
 ```

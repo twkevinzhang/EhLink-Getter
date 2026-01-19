@@ -379,7 +379,7 @@ Create a draft of the final output sections:
 
 **CRITICAL**: You MUST preserve ALL existing content in the task file. Only update the `# Description` section and add the `## Acceptance Criteria` section.
 
-If the task involves UI changes, you MUST also create or update `docs/ui_blueprints.md` with the PlantUML diagrams generated in the previous stage.
+If the task involves UI changes, you MUST also create or update `.specs/analysis/ui_blueprints.md` with the PlantUML diagrams generated in the previous stage.
 
 Read the current task file, then use Write tool to update with enhanced content.
 

@@ -3,7 +3,7 @@
 **Status**: Planning
 **Type**: Feature / Refactor
 **Complexity**: XL
-**Source**: docs/roadmap.md, docs/ui_blueprints.md
+**Source**: .specs/analysis/roadmap.md, .specs/analysis/ui_blueprints.md
 
 ## Description
 
@@ -25,5 +25,5 @@ Transform the existing EhLink-Getter link crawler into a comprehensive desktop a
 
 ## Key Artifacts
 
-- `docs/roadmap.md`: Defining the feature set and phases.
-- `docs/ui_blueprints.md`: Defining the UI layout and design constraints.
+- `.specs/analysis/roadmap.md`: Defining the feature set and phases.
+- `.specs/analysis/ui_blueprints.md`: Defining the UI layout and design constraints.
