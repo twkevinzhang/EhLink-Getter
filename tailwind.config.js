@@ -1,20 +1,23 @@
-/** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./src/renderer/index.html",
-    "./src/renderer/src/**/*.{vue,js,ts,jsx,tsx}",
+    "./index.html",
+    "./src/**/*.{vue,js,ts,jsx,tsx}",
   ],
   theme: {
     extend: {
       colors: {
-        primary: '#6366f1',
-        'bg-dark': '#0f172a',
-        'bg-sidebar': '#1e293b',
-        'glass-bg': 'rgba(255, 255, 255, 0.05)',
-        'glass-border': 'rgba(255, 255, 255, 0.1)',
-        'text-main': '#f8fafc',
-        'text-muted': '#94a3b8',
+        'eh-bg': '#34353b',
+        'eh-sidebar': '#2b2c31',
+        'eh-text': '#f1f1f1',
+        'eh-muted': '#b4b5bc',
+        'eh-panel': '#4f535b',
+        'eh-border': '#5c0d11',
+        'eh-accent': '#ffae00',
+        'primary': '#ffae00', // Override primary for EH theme
       },
+      borderColor: {
+        'glass-border': '#5c0d11', // Reuse existing name but with EH color
+      }
     },
   },
   plugins: [],

@@ -1,6 +1,7 @@
 fastapi
 uvicorn
-httpx
+httpx[socks]
 beautifulsoup4
 pydantic
 PyInstaller
+aiofiles

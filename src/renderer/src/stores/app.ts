@@ -6,10 +6,19 @@ interface LogEntry {
   timestamp: string;
 }
 
-interface TaskInfo {
-  status: "idle" | "running" | "completed" | "error";
+interface ScraperJob {
+  id: string;
+  link: string;
   progress: number;
-  message: string;
+  status: string;
+}
+
+interface DownloadJob {
+  id: string;
+  title: string;
+  progress: number;
+  status: string;
+  mode: "running" | "paused" | "error";
 }
 
 export const useAppStore = defineStore("app", {
@@ -17,16 +26,18 @@ export const useAppStore = defineStore("app", {
     logs: [] as LogEntry[],
     config: {
       cookies: "",
-      proxy: "",
+      proxies: [] as string[],
       metadata_path: "metadata.json",
       download_path: "output",
+      scan_thread_cnt: 3,
+      download_thread_cnt: 5,
+      storage_strategy: "logical" as "logical" | "traditional",
     },
-    task: {
-      status: "idle",
-      progress: 0,
-      message: "Ready",
-    } as TaskInfo,
-    results: [] as any[],
+    fetchingJobs: [] as ScraperJob[],
+    fetchedTasks: [] as any[], // Ready to download
+    downloadingJobs: [] as DownloadJob[],
+    completedTasks: [] as any[],
+    libraryGalleries: [] as any[],
   }),
   actions: {
     addLog(log: any) {
@@ -36,21 +47,9 @@ export const useAppStore = defineStore("app", {
       });
       if (this.logs.length > 500) this.logs.pop();
     },
-    updateProgress(data: any) {
-      this.task.status = "running";
-      this.task.message = data.message;
-      // Simulation of progress if the backend doesn't provide exact %
-      this.task.progress = (this.task.progress + 5) % 100;
+    updateConfig(newConfig: any) {
+      this.config = { ...this.config, ...newConfig };
     },
-    setTaskComplete(data: any) {
-      this.task.status = "completed";
-      this.task.progress = 100;
-      this.task.message = `Completed! Found ${data.count} items.`;
-      this.results = data.results;
-    },
-    setTaskError(msg: string) {
-      this.task.status = "error";
-      this.task.message = msg;
-    },
+    // More actions will be added during final integration
   },
 });

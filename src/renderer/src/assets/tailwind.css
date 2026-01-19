@@ -4,35 +4,32 @@
 
 @layer base {
   body {
-    @apply m-0 font-sans bg-bg-dark text-text-main overflow-hidden;
+    @apply m-0 font-sans bg-eh-bg text-eh-text overflow-hidden;
   }
 }
 
 @layer components {
-  .glass-card {
-    @apply bg-glass-bg backdrop-blur-md border border-glass-border rounded-2xl text-white;
-  }
-
-  .glass-table {
-    --el-table-bg-color: transparent;
-    --el-table-tr-bg-color: transparent;
-    --el-table-header-bg-color: rgba(255, 255, 255, 0.03);
-    --el-table-border-color: rgba(255, 255, 255, 0.1);
-    @apply rounded-xl overflow-hidden;
+  /* Mimic EH Table Headers */
+  .eh-header {
+    @apply bg-eh-panel text-eh-muted border-b border-eh-border font-bold;
   }
 }
 
-/* Custom keyframes if needed, though Tailwind has pulse */
+/* Custom keyframes for status indicators */
 @keyframes pulse-custom {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 .animate-pulse-custom {
   animation: pulse-custom 1s infinite;
+}
+
+/* Element Plus Global Overrides */
+:root {
+  --el-color-primary: #ffae00;
+  --el-bg-color: #34353b;
+  --el-fill-color-blank: #34353b;
+  --el-text-color-primary: #f1f1f1;
+  --el-border-color: #5c0d11;
 }
