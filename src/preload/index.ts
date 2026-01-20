@@ -9,6 +9,8 @@ const api = {
     ipcRenderer.invoke("search-metadata", query),
   mapMetadata: (payload: any) => ipcRenderer.invoke("map-metadata", payload),
   saveConfig: (config: any) => ipcRenderer.invoke("save-config", config),
+  getGalleryMetadata: (payload: { url: string }) =>
+    ipcRenderer.invoke("get-gallery-metadata", payload),
   fetchPage: (payload: { url: string; next?: string }) =>
     ipcRenderer.invoke("fetch-page", payload),
   saveCSV: (payload: { path: string; results: any[] }) =>
@@ -30,6 +32,9 @@ const api = {
     ipcRenderer.on("python-task-complete", (_event, value) => callback(value)),
   getUserDataPath: () => ipcRenderer.invoke("get-user-data-path"),
   getDownloadsPath: () => ipcRenderer.invoke("get-downloads-path"),
+  storeGet: (key: string) => ipcRenderer.invoke("electron-store-get", key),
+  storeSet: (key: string, val: any) =>
+    ipcRenderer.invoke("electron-store-set", key, val),
 };
 
 // Use `contextBridge` APIs to expose Electron APIs to

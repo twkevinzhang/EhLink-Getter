@@ -2,15 +2,15 @@
 import { ref, computed, watch, onMounted } from "vue";
 import { Folder, Delete, Plus } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { useScraperStore } from "../../stores/scraper";
+import { useFetchStore } from "../../stores/fetch";
 import { useDownloadStore } from "../../stores/download";
 import { useConfigStore } from "../../stores/config";
 import { storeToRefs } from "pinia";
 
-const scraperStore = useScraperStore();
+const scraperStore = useFetchStore();
 const downloadStore = useDownloadStore();
 const configStore = useConfigStore();
-const { draftGalleries } = storeToRefs(scraperStore);
+const { galleries } = storeToRefs(scraperStore);
 
 interface DraftGallery {
   id: string;
@@ -77,8 +77,8 @@ const toggleSelectAll = (val: boolean) => {
 // Filter Computed
 const filteredGalleries = computed(() => {
   const query = searchQuery.value.toLowerCase().trim();
-  if (!query) return draftGalleries.value;
-  return draftGalleries.value.filter(
+  if (!query) return galleries.value;
+  return galleries.value.filter(
     (g: DraftGallery) =>
       g.title.toLowerCase().includes(query) ||
       g.link.toLowerCase().includes(query),
@@ -123,7 +123,7 @@ const toggleSelectPage = (val: boolean) => {
 const handleAddManual = () => {
   try {
     if (!manualUrl.value) return;
-    scraperStore.addGalleryToDraft(manualUrl.value);
+    scraperStore.addGallery(manualUrl.value);
     manualUrl.value = "";
     ElMessage.success("Gallery added to draft");
   } catch (error: any) {
@@ -152,7 +152,7 @@ const handleAddSelectedToQueue = async () => {
     return;
   }
 
-  const selectedGalleriesList = draftGalleries.value.filter((g) =>
+  const selectedGalleriesList = galleries.value.filter((g) =>
     selectedIds.value.has(g.id),
   );
 
@@ -169,7 +169,7 @@ const handleAddSelectedToQueue = async () => {
 
   // Remove from drafts
   selectedGalleriesList.forEach((g) => {
-    scraperStore.removeGalleryFromDraft(g.id);
+    scraperStore.removeGallery(g.id);
   });
 
   selectedIds.value.clear();
@@ -179,11 +179,31 @@ const handleAddSelectedToQueue = async () => {
 };
 
 const handleDeleteGallery = (id: string) => {
-  scraperStore.removeGalleryFromDraft(id);
+  scraperStore.removeGallery(id);
   selectedIds.value.delete(id);
   // Adjust page if current page became empty
   if (paginatedGalleries.value.length === 0 && currentPage.value > 1) {
     currentPage.value--;
+  }
+};
+
+const handleClearDrafts = async () => {
+  try {
+    await ElMessageBox.confirm(
+      "This will clear all items in the draft list. Continue?",
+      "Warning",
+      {
+        confirmButtonText: "Clear All",
+        cancelButtonText: "Cancel",
+        type: "warning",
+      },
+    );
+    scraperStore.clearGalleries();
+    selectedIds.value.clear();
+    currentPage.value = 1;
+    ElMessage.success("Draft list cleared");
+  } catch (error) {
+    // User cancelled
   }
 };
 
@@ -231,43 +251,45 @@ onMounted(async () => {
     <div class="eh-panel-card flex-1 flex flex-col overflow-hidden">
       <div class="eh-header flex justify-between items-center">
         <span>Ready to Download (Draft List)</span>
-        <div
-          class="flex items-center gap-4"
-          v-if="filteredGalleries.length > 0"
-        >
-          <div class="flex items-center gap-2">
-            <el-checkbox
-              :model-value="isPageSelected"
-              :indeterminate="isPageIndeterminate"
-              @change="toggleSelectPage"
-              class="!mr-0"
-            />
-            <span class="text-[10px] uppercase font-bold text-eh-accent"
-              >Select Page</span
-            >
-          </div>
-          <div class="flex items-center gap-2">
-            <el-checkbox
-              :model-value="isAllSelected"
-              :indeterminate="isIndeterminate"
-              @change="toggleSelectAll"
-              class="!mr-0"
-            />
-            <span class="text-[10px] uppercase font-bold text-eh-accent"
-              >Select Filtered</span
-            >
-          </div>
-        </div>
       </div>
 
-      <!-- Filter Input -->
-      <div class="px-4 py-2 border-b border-eh-border/50 bg-eh-panel/5">
+      <!-- Filter Input or Action -->
+      <div
+        class="flex px-4 py-2 border-b border-eh-border/50 bg-eh-panel/5 gap-4"
+      >
         <el-input
+          class="w-1/2"
           v-model="searchQuery"
           placeholder="Filter by title or link..."
           size="small"
           clearable
         />
+
+        <div class="flex items-center gap-2">
+          <el-checkbox
+            :model-value="isPageSelected"
+            :indeterminate="isPageIndeterminate"
+            @change="toggleSelectPage"
+            class="!mr-0"
+          />
+          <span class="text-[10px] uppercase font-bold text-eh-accent"
+            >Select Page</span
+          >
+        </div>
+        <div class="flex items-center gap-2">
+          <el-checkbox
+            :model-value="isAllSelected"
+            :indeterminate="isIndeterminate"
+            @change="toggleSelectAll"
+            class="!mr-0"
+          />
+          <span class="text-[10px] uppercase font-bold text-eh-accent"
+            >Select Filtered</span
+          >
+        </div>
+        <el-button type="primary" :icon="Delete" @click="handleClearDrafts"
+          >Clear List</el-button
+        >
       </div>
 
       <div class="p-4 flex-1 overflow-y-auto bg-white/30">
@@ -308,7 +330,7 @@ onMounted(async () => {
           </div>
 
           <div
-            v-if="draftGalleries.length === 0"
+            v-if="galleries.length === 0"
             class="text-center py-10 text-eh-muted text-xs italic"
           >
             No drafts in the list. Start fetching or add links manually.
@@ -365,9 +387,9 @@ onMounted(async () => {
         <div class="flex items-center gap-4 mt-2">
           <div class="flex items-center gap-2">
             <span class="text-[10px] text-eh-muted font-bold uppercase"
-              >Zip:</span
+              >Zip</span
             >
-            <el-switch v-model="useZip" size="small" />
+            <el-switch v-model="useZip" size="small" inactive-color="#dcdfe6" />
           </div>
           <div v-if="useZip" class="flex items-center gap-2 flex-1">
             <span class="text-[10px] text-eh-muted font-bold uppercase"
@@ -386,8 +408,16 @@ onMounted(async () => {
 
     <div class="flex gap-2">
       <el-button
+        type="danger"
+        plain
+        class="flex-1 !rounded-none !h-10 font-bold uppercase tracking-widest"
+        @click="handleClearDrafts"
+      >
+        Clear List
+      </el-button>
+      <el-button
         type="primary"
-        class="w-full !rounded-none !h-10 font-bold uppercase tracking-widest"
+        class="flex-[2] !rounded-none !h-10 font-bold uppercase tracking-widest"
         :disabled="selectedIds.size === 0"
         @click="handleAddSelectedToQueue"
       >

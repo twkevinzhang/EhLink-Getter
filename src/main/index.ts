@@ -6,6 +6,12 @@ import { spawn, ChildProcess } from "child_process";
 import axios from "axios";
 import { MetadataService } from "./services/metadata_service";
 import { ConfigService } from "./services/config_service";
+import Store from "electron-store";
+
+const store = new Store<{
+  isRainbow: boolean;
+  unicorn?: string;
+}>();
 
 let mainWindow: BrowserWindow;
 let pythonProcess: ChildProcess | null = null;
@@ -171,6 +177,24 @@ ipcMain.handle("map-metadata", async (_, payload: any) => {
     return { success: false, error: error.message };
   }
 });
+ipcMain.handle("get-gallery-metadata", async (_, payload: { url: string }) => {
+  try {
+    const response = await axios.get(`${SIDECAR_URL}/gallery/metadata`, {
+      params: { url: payload.url },
+    });
+    return response.data;
+  } catch (error: any) {
+    if (error.response) {
+      return {
+        success: false,
+        error: error.response.data.detail || error.message,
+        status: error.response.status,
+      };
+    }
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle(
   "fetch-page",
   async (_, payload: { url: string; next?: string }) => {
@@ -334,6 +358,14 @@ ipcMain.handle("open-folder", async (_, folderPath: string) => {
 
 ipcMain.handle("get-downloads-path", async () => {
   return app.getPath("downloads");
+});
+
+ipcMain.handle("electron-store-get", async (_, key: string) => {
+  return store.get(key);
+});
+
+ipcMain.handle("electron-store-set", async (_, key: string, val: any) => {
+  store.set(key, val);
 });
 
 ipcMain.handle("select-directory", async () => {

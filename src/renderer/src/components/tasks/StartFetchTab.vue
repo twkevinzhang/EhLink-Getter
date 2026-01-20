@@ -1,19 +1,16 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref } from "vue";
 import { CaretRight } from "@element-plus/icons-vue";
-import { useScraperStore } from "../../stores/scraper";
-import { useConfigStore } from "../../stores/config";
+import { useFetchStore } from "../../stores/fetch";
 import { ElMessage } from "element-plus";
-import { storeToRefs } from "pinia";
 
-const scraperStore = useScraperStore();
-const configStore = useConfigStore();
+const scraperStore = useFetchStore();
 
-const pageLink = ref("https://e-hentai.org/favorites.php");
+const pageLink = ref("https://e-hentai.org/?f_cats=767");
 const fromPage = ref(1);
-const toPage = ref("All");
+const toPage = ref<string | number>(2);
 
-const handleStartFetch = async () => {
+const handleStartFetch = () => {
   if (!pageLink.value) {
     ElMessage.warning("Please enter a page or search link");
     return;
@@ -28,12 +25,12 @@ const handleStartFetch = async () => {
     }
   }
 
-  try {
-    await scraperStore.startFetching(pageLink.value, maxPages);
-    ElMessage.success("Fetching task started");
-  } catch (err: any) {
-    ElMessage.error(`Failed to start fetching: ${err.message}`);
-  }
+  scraperStore
+    .startFetching(pageLink.value, maxPages)
+    .then(() => ElMessage.success("Fetching task started"))
+    .catch((err) =>
+      ElMessage.error(`Failed to start fetching: ${err.message}`),
+    );
 };
 </script>
 

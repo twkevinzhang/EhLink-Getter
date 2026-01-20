@@ -36,6 +36,9 @@ interface SidecarAPI {
   onTaskComplete: (callback: (data: any) => void) => void;
   getUserDataPath: () => Promise<string>;
   getDownloadsPath: () => Promise<string>;
+  getGalleryMetadata: (payload: { url: string }) => Promise<any>;
+  storeSet: (key: string, val: any) => Promise<void>;
+  storeGet: (key: string) => Promise<any>;
 }
 
 declare global {

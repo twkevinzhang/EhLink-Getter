@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { useScraperStore } from "../../stores/scraper";
+import { useFetchStore } from "../../stores/fetch";
 import { storeToRefs } from "pinia";
 import { ElMessage, ElMessageBox } from "element-plus";
 
-const scraperStore = useScraperStore();
+const scraperStore = useFetchStore();
 const { activeFetchingJobs } = storeToRefs(scraperStore);
 
 const handlePause = async (jobId: string) => {

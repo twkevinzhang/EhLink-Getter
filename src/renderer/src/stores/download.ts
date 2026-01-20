@@ -163,12 +163,8 @@ export const useDownloadStore = defineStore("download", () => {
 
     job.mode = "running";
     const galleries = job.galleries;
-    const targetTemplate = configStore.config.download_path || "";
-    let completedCount = 0;
-    const totalCount = galleries.length;
-
-    // Reset progress if starting fresh or update based on current progress
-    // For now we keep it simple and just run through
+    let completedGalleriesCount = 0;
+    const totalGalleriesCount = galleries.length;
 
     for (const gallery of galleries) {
       if (
@@ -177,50 +173,97 @@ export const useDownloadStore = defineStore("download", () => {
       )
         break;
 
-      if (gallery.mode === "completed") continue;
+      if (gallery.mode === "completed") {
+        completedGalleriesCount++;
+        continue;
+      }
 
       gallery.mode = "running";
-      const savePath = `${gallery.targetPath}/metadata.json`.replace(
-        /\/+/g,
-        "/",
-      );
+      gallery.status = "Parsing metadata...";
 
       try {
-        gallery.status = "Downloading...";
-        const result = await window.api.downloadImage({
-          url: gallery.link,
-          savePath: savePath,
-        });
+        // 1. Fetch gallery metadata (resolves all image page links)
+        const meta = await window.api.getGalleryMetadata({ url: gallery.link });
 
-        if (result && result.success) {
+        if (meta.error) {
+          gallery.mode = "error";
+          gallery.status = meta.status ? `Error ${meta.status}` : meta.error;
+          logStore.addLog({
+            level: "error",
+            message: `Parse Error [${gallery.title}]: ${meta.error}`,
+          });
+          continue;
+        }
+
+        // 2. Save metadata.json
+        const metadataSavePath = `${gallery.targetPath}/metadata.json`.replace(
+          /\/+/g,
+          "/",
+        );
+        await window.api.saveJSON({ path: metadataSavePath, data: meta });
+
+        // 3. Download each image
+        const imageLinks = meta.image_links || [];
+        const totalImages = imageLinks.length;
+        let downloadedImages = 0;
+
+        gallery.status = `Downloading (0/${totalImages})...`;
+
+        for (const imgUrl of imageLinks) {
+          // Check for pause/stop mid-gallery
+          if ((job.mode as string) !== "running") break;
+
+          const fileName = imgUrl.split("/").pop() + ".jpg"; // Temporary, Sidecar fetch_image resolves real name
+          // Since Sidecar fetch_image is smart, we just pass the /s/ link
+          const imageSavePath =
+            `${gallery.targetPath}/${imgUrl.split("/").pop()}.jpg`.replace(
+              /\/+/g,
+              "/",
+            );
+
+          const result = await window.api.downloadImage({
+            url: imgUrl,
+            savePath: imageSavePath,
+          });
+
+          if (result && result.success) {
+            downloadedImages++;
+            gallery.progress = Math.round(
+              (downloadedImages / totalImages) * 100,
+            );
+            gallery.status = `Downloading (${downloadedImages}/${totalImages})...`;
+          } else {
+            // Log error but maybe continue with other images or mark gallery as error
+            const errMsg = `Image link failed: ${imgUrl} - ${result?.error}`;
+            logStore.addLog({ level: "error", message: errMsg });
+          }
+        }
+
+        if (downloadedImages === totalImages) {
           gallery.mode = "completed";
           gallery.progress = 100;
           gallery.status = "Completed";
-          completedCount++;
-          job.progress = Math.round((completedCount / totalCount) * 100);
-          job.status = `Progress: ${completedCount}/${totalCount}`;
+          completedGalleriesCount++;
         } else {
           gallery.mode = "error";
-          gallery.status = result?.error || "Error";
-          const errMsg = `Failed to download ${gallery.link}: ${result?.error || "Unknown error"}`;
-          console.error(errMsg);
-          // ...
-          logStore.addLog({
-            level: "error",
-            message: errMsg,
-          });
+          gallery.status = `Incomplete (${downloadedImages}/${totalImages})`;
         }
+
+        job.progress = Math.round(
+          (completedGalleriesCount / totalGalleriesCount) * 100,
+        );
+        job.status = `Progress: ${completedGalleriesCount}/${totalGalleriesCount} galleries.`;
       } catch (error: any) {
-        const errMsg = `Error in download loop for ${gallery.title}: ${error.message}`;
-        console.error(errMsg);
+        gallery.mode = "error";
+        gallery.status = error.message;
         logStore.addLog({
           level: "error",
-          message: errMsg,
+          message: `Download Error [${gallery.title}]: ${error.message}`,
         });
       }
     }
 
-    if (completedCount === totalCount) {
+    if (completedGalleriesCount === totalGalleriesCount) {
       job.mode = "completed";
       job.status = "Finished";
       completedTasks.value.unshift({
@@ -232,11 +275,7 @@ export const useDownloadStore = defineStore("download", () => {
       (job.mode as string) !== "pending"
     ) {
       job.mode = "error";
-      job.status = `Error: Only ${completedCount}/${totalCount} completed`;
-      logStore.addLog({
-        level: "error",
-        message: `Download job "${job.title}" failed. Completed: ${completedCount}/${totalCount}`,
-      });
+      job.status = `Error: ${completedGalleriesCount}/${totalGalleriesCount} galleries completed`;
     }
   }
 
