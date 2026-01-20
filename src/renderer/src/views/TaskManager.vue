@@ -5,13 +5,12 @@ import StartFetchTab from "../components/tasks/StartFetchTab.vue";
 import FetchingTab from "../components/tasks/FetchingTab.vue";
 import FetchedTab from "../components/tasks/FetchedTab.vue";
 import DownloadingTab from "../components/tasks/DownloadingTab.vue";
-import CompletedTab from "../components/tasks/CompletedTab.vue";
 
 const activeTab = ref("settings");
 </script>
 
 <template>
-  <div class="task-manager-view h-full flex flex-col overflow-y-auto">
+  <div class="h-full flex flex-col overflow-y-auto">
     <el-tabs v-model="activeTab" class="eh-tabs">
       <el-tab-pane label="Settings" name="settings">
         <SettingsTab />
@@ -27,9 +26,6 @@ const activeTab = ref("settings");
       </el-tab-pane>
       <el-tab-pane label="Downloading" name="downloading">
         <DownloadingTab />
-      </el-tab-pane>
-      <el-tab-pane label="Completed" name="completed">
-        <CompletedTab />
       </el-tab-pane>
     </el-tabs>
   </div>
