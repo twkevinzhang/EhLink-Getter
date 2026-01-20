@@ -3,10 +3,10 @@ import { ref, onMounted } from "vue";
 import { useLogStore } from "./stores/logs";
 import { useConfigStore } from "./stores/config";
 import { useDownloadStore } from "./stores/download";
-import { Monitor, Search } from "@element-plus/icons-vue";
-
 import TaskManager from "./views/TaskManager.vue";
 import Library from "./views/Library.vue";
+import SystemLogs from "./components/SystemLogs.vue";
+import { Monitor, Search, DataLine } from "@element-plus/icons-vue";
 
 const logStore = useLogStore();
 const configStore = useConfigStore();
@@ -67,6 +67,10 @@ onMounted(() => {
               <el-icon><Search /></el-icon>
               <span>Library</span>
             </el-menu-item>
+            <el-menu-item index="system-logs" class="eh-menu-item">
+              <el-icon><DataLine /></el-icon>
+              <span>System Logs</span>
+            </el-menu-item>
           </el-menu>
 
           <div class="p-4 border-t border-eh-border bg-eh-panel">
@@ -93,6 +97,7 @@ onMounted(() => {
         <el-main class="p-6 flex-1 relative bg-eh-bg overflow-y-auto">
           <TaskManager v-if="activeTab === 'task-manager'" />
           <Library v-if="activeTab === 'library'" />
+          <SystemLogs v-if="activeTab === 'system-logs'" />
         </el-main>
       </el-container>
     </div>
