@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import { CaretRight } from "@element-plus/icons-vue";
-import { useAppStore } from "../../stores/app";
+import { useScraperStore } from "../../stores/scraper";
+import { useConfigStore } from "../../stores/config";
 import { ElMessage } from "element-plus";
 import { storeToRefs } from "pinia";
 
-const store = useAppStore();
-const { config } = storeToRefs(store);
+const scraperStore = useScraperStore();
+const configStore = useConfigStore();
+const { config } = storeToRefs(configStore);
 const tasksPath = ref(config.value.tasks_path);
 
 const pageLink = ref("https://e-hentai.org/favorites.php");
@@ -25,7 +27,7 @@ watch(
   tasksPath,
   (newPath) => {
     if (newPath) {
-      store.loadExistingTasks(newPath, pageLink.value);
+      scraperStore.loadExistingTasks(newPath, pageLink.value);
     }
   },
   { immediate: true },
@@ -37,8 +39,11 @@ const handleStartFetch = async () => {
     return;
   }
 
-  if (typeof store.startFetching !== "function") {
-    console.error("store.startFetching is not a function!", store);
+  if (typeof scraperStore.startFetching !== "function") {
+    console.error(
+      "scraperStore.startFetching is not a function!",
+      scraperStore,
+    );
     ElMessage.error(
       "Store action 'startFetching' is missing. Please restart the app.",
     );
@@ -55,7 +60,7 @@ const handleStartFetch = async () => {
   }
 
   try {
-    await store.startFetching(pageLink.value, tasksPath.value, maxPages);
+    await scraperStore.startFetching(pageLink.value, tasksPath.value, maxPages);
     ElMessage.success("Fetching task started");
   } catch (err: any) {
     ElMessage.error(`Failed to start fetching: ${err.message}`);

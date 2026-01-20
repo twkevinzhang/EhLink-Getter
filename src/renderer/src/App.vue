@@ -1,28 +1,25 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { useAppStore } from "./stores/app";
-import { ElMessage } from "element-plus";
-import {
-  Monitor,
-  Setting,
-  Document,
-  Search,
-  Connection,
-} from "@element-plus/icons-vue";
+import { useLogStore } from "./stores/logs";
+import { useConfigStore } from "./stores/config";
+import { useDownloadStore } from "./stores/download";
+import { Monitor, Search } from "@element-plus/icons-vue";
 
 import TaskManager from "./views/TaskManager.vue";
 import Library from "./views/Library.vue";
 
-const store = useAppStore();
+const logStore = useLogStore();
+const configStore = useConfigStore();
+const downloadStore = useDownloadStore();
 const activeTab = ref("task-manager");
 
 onMounted(() => {
   // Listen to sidecar events
   window.api.onLog((log: any) => {
-    store.addLog(log);
+    logStore.addLog(log);
   });
   window.api.onProgress((progress: any) => {
-    store.updateDownloadProgress(progress);
+    downloadStore.updateDownloadProgress(progress);
   });
 });
 </script>
@@ -80,12 +77,13 @@ onMounted(() => {
                 class="w-1.5 h-1.5 rounded-full"
                 :class="{
                   'bg-green-500 animate-pulse shadow-[0_0_5px_#22c55e]':
-                    store.sidecarOnline,
-                  'bg-red-500 shadow-[0_0_5px_#ef4444]': !store.sidecarOnline,
+                    configStore.sidecarOnline,
+                  'bg-red-500 shadow-[0_0_5px_#ef4444]':
+                    !configStore.sidecarOnline,
                 }"
               ></div>
               <span>
-                SIDECAR: {{ store.sidecarOnline ? "ONLINE" : "OFFLINE" }}
+                SIDECAR: {{ configStore.sidecarOnline ? "ONLINE" : "OFFLINE" }}
               </span>
             </div>
           </div>

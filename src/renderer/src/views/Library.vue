@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { Search } from "@element-plus/icons-vue";
-import { useAppStore } from "../stores/app";
+import { useDownloadStore } from "../stores/download";
+import { useConfigStore } from "../stores/config";
 import { ElMessage } from "element-plus";
 
-const store = useAppStore();
+const downloadStore = useDownloadStore();
+const configStore = useConfigStore();
 const searchTag = ref("");
 const ratings = ref(0);
 const expunged = ref(false);
@@ -12,7 +14,7 @@ const expunged = ref(false);
 const handleSearch = async () => {
   try {
     const payload = {
-      metadata_path: store.config.metadata_path,
+      metadata_path: configStore.config.metadata_path,
       keywords: searchTag.value,
       // Requesting all common fields from metadata.json
       fields: [
@@ -30,7 +32,7 @@ const handleSearch = async () => {
     };
     const response = await window.api.mapMetadata(payload);
     if (response && response.results) {
-      store.libraryGalleries = response.results;
+      downloadStore.libraryGalleries = response.results;
       ElMessage.success(`Found ${response.results.length} galleries`);
     } else if (response && response.error) {
       ElMessage.error(`Search failed: ${response.error}`);
@@ -93,7 +95,7 @@ const formatPosted = (ts: any) => {
     <div class="gallery-grid flex-1 overflow-y-auto pr-2">
       <div class="flex flex-col gap-3">
         <div
-          v-for="g in store.libraryGalleries"
+          v-for="g in downloadStore.libraryGalleries"
           :key="g.gid || g.link"
           class="eh-panel-card flex overflow-hidden hover:border-eh-accent transition-colors cursor-pointer"
           @click="handleOpenLink(g.link)"
@@ -167,7 +169,7 @@ const formatPosted = (ts: any) => {
           </div>
         </div>
         <div
-          v-if="store.libraryGalleries.length === 0"
+          v-if="downloadStore.libraryGalleries.length === 0"
           class="text-center py-20 text-eh-muted"
         >
           <p>
@@ -181,7 +183,7 @@ const formatPosted = (ts: any) => {
     <div class="flex justify-center p-4">
       <el-pagination
         layout="prev, pager, next"
-        :total="store.libraryGalleries.length"
+        :total="downloadStore.libraryGalleries.length"
         :page-size="100"
       />
     </div>

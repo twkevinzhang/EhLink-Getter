@@ -1,22 +1,9 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { useDownloadStore } from "../../stores/download";
+import { storeToRefs } from "pinia";
 
-const completedTasks = ref([
-  {
-    id: 1,
-    title: "[Artist] Masterpiece",
-    date: "2026-01-19 10:00",
-    size: "450MB",
-    status: "success",
-  },
-  {
-    id: 2,
-    title: "[Group] Collection Vol.1",
-    date: "2026-01-18 15:30",
-    size: "1.2GB",
-    status: "success",
-  },
-]);
+const downloadStore = useDownloadStore();
+const { completedTasks } = storeToRefs(downloadStore);
 </script>
 
 <template>

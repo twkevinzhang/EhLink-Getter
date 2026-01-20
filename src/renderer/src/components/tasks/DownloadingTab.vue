@@ -1,19 +1,21 @@
 <script setup lang="ts">
-import { useAppStore } from "../../stores/app";
+import { useDownloadStore } from "../../stores/download";
+import { useScraperStore } from "../../stores/scraper";
 import { storeToRefs } from "pinia";
 import { ElMessage } from "element-plus";
 
-const store = useAppStore();
-const { downloadingJobs } = storeToRefs(store);
+const downloadStore = useDownloadStore();
+const scraperStore = useScraperStore();
+const { downloadingJobs } = storeToRefs(downloadStore);
 
 const handlePauseAll = () => {
-  store.cancelFetching(""); // Reusing stop generic for now
+  scraperStore.pauseFetching(""); // Changed to use scraperStore
   ElMessage.info("Pause command sent");
 };
 
 const handleClear = () => {
   const countBefore = downloadingJobs.value.length;
-  store.clearFinishedJobs();
+  downloadStore.clearFinishedJobs();
   const countAfter = downloadingJobs.value.length;
   ElMessage.success(`Cleared ${countBefore - countAfter} jobs`);
 };

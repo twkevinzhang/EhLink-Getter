@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import { useAppStore } from "../../stores/app";
+import { useScraperStore } from "../../stores/scraper";
 import { storeToRefs } from "pinia";
 import { ElMessage, ElMessageBox } from "element-plus";
 
-const store = useAppStore();
-const { fetchingJobs } = storeToRefs(store);
+const scraperStore = useScraperStore();
+const { fetchingJobs } = storeToRefs(scraperStore);
 
 const handlePause = async (jobId: string) => {
-  await store.pauseFetching(jobId);
+  await scraperStore.pauseFetching(jobId);
   ElMessage.success("Task paused");
 };
 
 const handleResume = async (jobId: string) => {
-  await store.resumeFetching(jobId);
+  await scraperStore.resumeFetching(jobId);
   ElMessage.success("Task resumed");
 };
 
@@ -25,7 +25,7 @@ const handleDelete = async (jobId: string) => {
         type: "warning",
       },
     );
-    store.deleteFetchingJob(jobId);
+    scraperStore.deleteFetchingJob(jobId);
     ElMessage.success("Task deleted");
   } catch (e) {
     // User cancelled dialog

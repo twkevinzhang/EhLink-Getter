@@ -1,18 +1,23 @@
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { ref, watch } from "vue";
 import { Folder } from "@element-plus/icons-vue";
-import { useAppStore } from "../../stores/app";
-import { storeToRefs } from "pinia";
-import { ElMessage } from "element-plus";
 
 interface Gallery {
   id: string;
   title: string;
   link: string;
 }
+import { useScraperStore } from "../../stores/scraper";
+import { useDownloadStore } from "../../stores/download";
+import { useConfigStore } from "../../stores/config";
+import { storeToRefs } from "pinia";
+import { ElMessage } from "element-plus";
 
-const store = useAppStore();
-const { fetchedTasks, config } = storeToRefs(store);
+const scraperStore = useScraperStore();
+const downloadStore = useDownloadStore();
+const configStore = useConfigStore();
+const { fetchedTasks } = storeToRefs(scraperStore);
+const { config } = storeToRefs(configStore);
 
 const targetPath = ref(config.value.download_path);
 const useZip = ref(true);
@@ -37,7 +42,7 @@ watch(
   { immediate: true, deep: true },
 );
 
-watch(targetPath, (val) => store.updateConfig({ download_path: val }));
+watch(targetPath, (val) => configStore.updateConfig({ download_path: val }));
 
 // Check if a gallery is selected
 const isGallerySelected = (taskId: string, galleryId: string) => {
@@ -108,7 +113,11 @@ const handleAddAllToQueue = async () => {
       selected.has(g.id),
     );
     if (selectedGalleryList.length > 0) {
-      await store.startDownload(task.id, task.title, selectedGalleryList);
+      await downloadStore.startDownload(
+        task.id,
+        task.title,
+        selectedGalleryList,
+      );
       totalAdded++;
     }
   }

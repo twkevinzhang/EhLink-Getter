@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { useAppStore } from "../../stores/app";
+import { useConfigStore } from "../../stores/config";
 import { ElMessage } from "element-plus";
 
-const store = useAppStore();
+const configStore = useConfigStore();
 
 // Local refs for editing
 const metadataPath = ref("");
@@ -15,11 +15,11 @@ const cookies = ref("");
 
 onMounted(() => {
   // Initialize from store
-  storageStrategy.value = store.config.storage_strategy;
-  proxyPool.value = store.config.proxies.join("\n");
-  scanThreads.value = store.config.scan_thread_cnt;
-  downloadThreads.value = store.config.download_thread_cnt;
-  cookies.value = store.config.cookies || "";
+  storageStrategy.value = configStore.config.storage_strategy;
+  proxyPool.value = configStore.config.proxies.join("\n");
+  scanThreads.value = configStore.config.scan_thread_cnt;
+  downloadThreads.value = configStore.config.download_thread_cnt;
+  cookies.value = configStore.config.cookies || "";
 });
 
 const handleSave = () => {
@@ -32,10 +32,10 @@ const handleSave = () => {
     scan_thread_cnt: scanThreads.value,
     download_thread_cnt: downloadThreads.value,
     cookies: cookies.value,
-    download_path: store.config.download_path, // Keep existing
+    download_path: configStore.config.download_path, // Keep existing
   };
 
-  store.updateConfig(newConfig);
+  configStore.updateConfig(newConfig);
   ElMessage.success("Settings saved and synced to backend");
 };
 </script>
