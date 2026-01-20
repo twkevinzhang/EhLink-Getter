@@ -106,12 +106,21 @@ const handleTerminateJob = (jobId: string) => {
                   >
                     {{ job.mode }}
                   </div>
-                  <div class="w-32">
+                  <div class="w-32 flex flex-col items-end gap-1">
                     <el-progress
-                      :percentage="job.progress"
+                      :percentage="
+                        job.isArchiving ? job.archiveProgress : job.progress
+                      "
                       :stroke-width="8"
                       :show-text="false"
+                      :status="job.isArchiving ? 'warning' : ''"
                     />
+                    <span
+                      v-if="job.isArchiving"
+                      class="text-[9px] text-eh-accent font-bold"
+                    >
+                      ARCHIVING {{ job.archiveProgress }}%
+                    </span>
                   </div>
                 </div>
               </div>

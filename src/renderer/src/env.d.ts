@@ -39,6 +39,12 @@ interface SidecarAPI {
   getGalleryMetadata: (payload: { url: string }) => Promise<any>;
   storeSet: (key: string, val: any) => Promise<void>;
   storeGet: (key: string) => Promise<any>;
+  archiveFolder: (payload: {
+    folderPath: string;
+    outputPath: string;
+    password?: string;
+  }) => Promise<{ success: boolean; error?: string; size?: number }>;
+  onArchiveProgress: (callback: (data: any) => void) => void;
 }
 
 declare global {

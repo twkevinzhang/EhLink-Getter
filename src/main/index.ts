@@ -7,6 +7,14 @@ import axios from "axios";
 import { MetadataService } from "./services/metadata_service";
 import { ConfigService } from "./services/config_service";
 import Store from "electron-store";
+import archiver from "archiver";
+// @ts-ignore
+import { registerFormat } from "archiver";
+// @ts-ignore
+import zipEncryptable from "archiver-zip-encryptable";
+
+// Register the encryptable zip format
+registerFormat("zip-encryptable", zipEncryptable);
 
 const store = new Store<{
   isRainbow: boolean;
@@ -345,6 +353,69 @@ ipcMain.handle(
     } catch (error: any) {
       return { success: false, error: error.message };
     }
+  },
+);
+
+ipcMain.handle(
+  "archive-folder",
+  async (
+    _,
+    payload: { folderPath: string; outputPath: string; password?: string },
+  ) => {
+    return new Promise((resolve) => {
+      try {
+        const { folderPath, outputPath, password } = payload;
+
+        // Ensure output directory exists
+        if (!fs.existsSync(dirname(outputPath))) {
+          fs.mkdirSync(dirname(outputPath), { recursive: true });
+        }
+
+        const output = fs.createWriteStream(outputPath);
+        const archive = archiver(
+          password ? ("zip-encryptable" as any) : "zip",
+          {
+            zlib: { level: 9 },
+            forceLocalTime: true,
+            ...(password ? { password } : {}),
+          },
+        );
+
+        output.on("close", () => {
+          resolve({ success: true, size: archive.pointer() });
+        });
+
+        archive.on("warning", (err) => {
+          if (err.code === "ENOENT") {
+            console.warn("Archiver warning:", err);
+          } else {
+            throw err;
+          }
+        });
+
+        archive.on("error", (err) => {
+          resolve({ success: false, error: err.message });
+        });
+
+        archive.on("progress", (progress) => {
+          const percent = Math.round(
+            (progress.entries.processed / progress.entries.total) * 100,
+          );
+          mainWindow?.webContents.send("archive-progress", {
+            outputPath,
+            progress: percent,
+            entries: progress.entries,
+          });
+        });
+
+        archive.pipe(output);
+        // Add folder content, but not the folder itself
+        archive.directory(folderPath, false);
+        archive.finalize();
+      } catch (error: any) {
+        resolve({ success: false, error: error.message });
+      }
+    });
   },
 );
 

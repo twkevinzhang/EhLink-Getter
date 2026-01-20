@@ -387,9 +387,13 @@ onMounted(async () => {
         <div class="flex items-center gap-4 mt-2">
           <div class="flex items-center gap-2">
             <span class="text-[10px] text-eh-muted font-bold uppercase"
-              >Zip</span
+              >Archive</span
             >
-            <el-switch v-model="useZip" size="small" inactive-color="#dcdfe6" />
+            <el-switch
+              v-model="useZip"
+              size="small"
+              style="--el-switch-off-color: #dcdfe6"
+            />
           </div>
           <div v-if="useZip" class="flex items-center gap-2 flex-1">
             <span class="text-[10px] text-eh-muted font-bold uppercase"
@@ -407,14 +411,6 @@ onMounted(async () => {
     </div>
 
     <div class="flex gap-2">
-      <el-button
-        type="danger"
-        plain
-        class="flex-1 !rounded-none !h-10 font-bold uppercase tracking-widest"
-        @click="handleClearDrafts"
-      >
-        Clear List
-      </el-button>
       <el-button
         type="primary"
         class="flex-[2] !rounded-none !h-10 font-bold uppercase tracking-widest"

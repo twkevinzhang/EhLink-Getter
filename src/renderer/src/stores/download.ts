@@ -26,6 +26,8 @@ export interface DownloadJob {
   isExpanded?: boolean;
   isArchive?: boolean;
   password?: string;
+  archiveProgress?: number;
+  isArchiving?: boolean;
 }
 
 export const useDownloadStore = defineStore("download", () => {
@@ -264,8 +266,43 @@ export const useDownloadStore = defineStore("download", () => {
     }
 
     if (completedGalleriesCount === totalGalleriesCount) {
+      if (job.isArchive) {
+        job.isArchiving = true;
+        job.status = "Archiving...";
+        job.archiveProgress = 0;
+
+        // Use the first gallery's targetPath as base to derive output zip path
+        // Assuming targetPath is like /path/to/download/{TITLE}
+        const firstGal = job.galleries[0];
+        const folderToZip = firstGal.targetPath;
+        // Get parent dir: /path/to/download
+        const parentDir = folderToZip.split(/[\\/]/).slice(0, -1).join("/");
+        // Get folder name: {TITLE}
+        const folderName = folderToZip.split(/[\\/]/).pop();
+        const archiveOutputPath = `${parentDir}/${folderName}.zip`;
+
+        const result = await window.api.archiveFolder({
+          folderPath: folderToZip,
+          outputPath: archiveOutputPath,
+          password: job.password,
+        });
+
+        if (result.success) {
+          job.archiveProgress = 100;
+          job.status = "Completed & Archived";
+        } else {
+          job.mode = "error";
+          job.status = `Archive Error: ${result.error}`;
+          logStore.addLog({
+            level: "error",
+            message: `Archive Error [${job.title}]: ${result.error}`,
+          });
+          return; // Stop here if archive fails
+        }
+      }
+
       job.mode = "completed";
-      job.status = "Finished";
+      if (!job.isArchive) job.status = "Finished";
       completedTasks.value.unshift({
         ...job,
         date: new Date().toLocaleString(),
@@ -288,6 +325,19 @@ export const useDownloadStore = defineStore("download", () => {
       (j) => j.mode !== "completed" && j.mode !== "error",
     );
   }
+
+  // Listen for archive progress from main process
+  window.api.onArchiveProgress((data: any) => {
+    const job = downloadingJobs.value.find((j) => {
+      // Find job by checking if its derived path matches (simplified)
+      // or we could add a job linking mechanism.
+      // For now, let's assume we update the job that is currently "Archiving"
+      return j.isArchiving && j.mode === "running";
+    });
+    if (job) {
+      job.archiveProgress = data.progress;
+    }
+  });
 
   return {
     downloadingJobs,

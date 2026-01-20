@@ -35,6 +35,13 @@ const api = {
   storeGet: (key: string) => ipcRenderer.invoke("electron-store-get", key),
   storeSet: (key: string, val: any) =>
     ipcRenderer.invoke("electron-store-set", key, val),
+  archiveFolder: (payload: {
+    folderPath: string;
+    outputPath: string;
+    password?: string;
+  }) => ipcRenderer.invoke("archive-folder", payload),
+  onArchiveProgress: (callback: any) =>
+    ipcRenderer.on("archive-progress", (_event, value) => callback(value)),
 };
 
 // Use `contextBridge` APIs to expose Electron APIs to
