@@ -3,13 +3,26 @@ import { ref } from "vue";
 import { useConfigStore } from "./config";
 import { useLogStore } from "./logs";
 
+export interface DownloadGallery {
+  id: string;
+  title: string;
+  link: string;
+  targetPath: string;
+  isArchive: boolean;
+  imageCount: number;
+  status: string;
+  progress: number;
+  mode: "running" | "paused" | "error" | "completed" | "pending";
+}
+
 export interface DownloadJob {
   id: string;
   title: string;
   progress: number;
   status: string;
   mode: "running" | "paused" | "error" | "completed" | "pending";
-  galleries: any[];
+  galleries: DownloadGallery[];
+  isExpanded?: boolean;
 }
 
 export const useDownloadStore = defineStore("download", () => {
@@ -42,9 +55,29 @@ export const useDownloadStore = defineStore("download", () => {
   }
 
   function addToQueue(jobId: string, title: string, galleries: any[]) {
+    const targetTemplate = configStore.config.download_path || "";
+
+    const mappedGalleries: DownloadGallery[] = galleries.map((g) => {
+      const idMatch = g.link.match(/\/g\/(\d+)\//);
+      const id = idMatch ? idMatch[1] : "unknown";
+      const targetPath = parsePath(targetTemplate, g);
+
+      return {
+        id,
+        title: g.title,
+        link: g.link,
+        targetPath,
+        isArchive: false, // Defaulting for now, can be updated from metadata if available
+        imageCount: g.imageCount || 0,
+        status: "Pending...",
+        progress: 0,
+        mode: "pending",
+      };
+    });
+
     const existingJob = downloadingJobs.value.find((j) => j.id === jobId);
     if (existingJob) {
-      existingJob.galleries = [...existingJob.galleries, ...galleries];
+      existingJob.galleries = [...existingJob.galleries, ...mappedGalleries];
       existingJob.status = `Added ${galleries.length} more galleries.`;
       return;
     }
@@ -55,7 +88,8 @@ export const useDownloadStore = defineStore("download", () => {
       progress: 0,
       status: "Waiting in queue...",
       mode: "pending",
-      galleries: galleries,
+      galleries: mappedGalleries,
+      isExpanded: true,
     };
     downloadingJobs.value.unshift(newJob);
   }
@@ -64,6 +98,41 @@ export const useDownloadStore = defineStore("download", () => {
     const job = downloadingJobs.value.find((j) => j.id === jobId);
     if (job && (job.mode === "pending" || job.mode === "paused")) {
       await processDownload(job);
+    }
+  }
+
+  function pauseJob(jobId: string) {
+    const job = downloadingJobs.value.find((j) => j.id === jobId);
+    if (job) {
+      job.mode = "paused";
+      job.status = "Paused";
+      job.galleries.forEach((g) => {
+        if (g.mode === "running" || g.mode === "pending") g.mode = "paused";
+      });
+    }
+  }
+
+  function stopJob(jobId: string) {
+    const job = downloadingJobs.value.find((j) => j.id === jobId);
+    if (job) {
+      job.mode = "paused";
+      job.status = "Stopped";
+      job.galleries.forEach((g) => (g.mode = "paused"));
+    }
+  }
+
+  function restartJob(jobId: string) {
+    const job = downloadingJobs.value.find((j) => j.id === jobId);
+    if (job) {
+      job.progress = 0;
+      job.mode = "pending";
+      job.status = "Restarting...";
+      job.galleries.forEach((g) => {
+        g.progress = 0;
+        g.mode = "pending";
+        g.status = "Pending...";
+      });
+      startJob(jobId);
     }
   }
 
@@ -96,22 +165,34 @@ export const useDownloadStore = defineStore("download", () => {
       )
         break;
 
-      const saveDir = parsePath(targetTemplate, gallery);
-      const savePath = `${saveDir}/metadata.json`.replace(/\/+/g, "/");
+      if (gallery.mode === "completed") continue;
+
+      gallery.mode = "running";
+      const savePath = `${gallery.targetPath}/metadata.json`.replace(
+        /\/+/g,
+        "/",
+      );
 
       try {
-        job.status = `Downloading: ${gallery.title}`;
+        gallery.status = "Downloading...";
         const result = await window.api.downloadImage({
           url: gallery.link,
           savePath: savePath,
         });
 
         if (result && result.success) {
+          gallery.mode = "completed";
+          gallery.progress = 100;
+          gallery.status = "Completed";
           completedCount++;
           job.progress = Math.round((completedCount / totalCount) * 100);
+          job.status = `Progress: ${completedCount}/${totalCount}`;
         } else {
+          gallery.mode = "error";
+          gallery.status = result?.error || "Error";
           const errMsg = `Failed to download ${gallery.link}: ${result?.error || "Unknown error"}`;
           console.error(errMsg);
+          // ...
           logStore.addLog({
             level: "error",
             message: errMsg,
@@ -164,6 +245,9 @@ export const useDownloadStore = defineStore("download", () => {
     addToQueue,
     startJob,
     startAllJobs,
+    pauseJob,
+    stopJob,
+    restartJob,
     updateDownloadProgress,
     clearFinishedJobs,
   };
