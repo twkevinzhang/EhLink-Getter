@@ -159,7 +159,13 @@ const handleAddSelectedToQueue = async () => {
   // Group into a single job or separate?
   // For Draft list, users might expect them to be added together.
   const jobId = `draft-${Date.now()}`;
-  downloadStore.addToQueue(jobId, "Draft Selection", selectedGalleriesList);
+  downloadStore.addToQueue(
+    jobId,
+    "Draft Selection",
+    selectedGalleriesList,
+    useZip.value,
+    zipPass.value,
+  );
 
   // Remove from drafts
   selectedGalleriesList.forEach((g) => {
@@ -353,6 +359,26 @@ onMounted(async () => {
               @click="handlePlaceholder('{JP_TITLE}')"
               >{JP_TITLE}</el-button
             >
+          </div>
+        </div>
+
+        <div class="flex items-center gap-4 mt-2">
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] text-eh-muted font-bold uppercase"
+              >Zip:</span
+            >
+            <el-switch v-model="useZip" size="small" />
+          </div>
+          <div v-if="useZip" class="flex items-center gap-2 flex-1">
+            <span class="text-[10px] text-eh-muted font-bold uppercase"
+              >password:</span
+            >
+            <el-input
+              v-model="zipPass"
+              size="small"
+              placeholder="Leave empty for no password"
+              class="flex-1"
+            />
           </div>
         </div>
       </div>

@@ -13,6 +13,7 @@ export interface DownloadGallery {
   status: string;
   progress: number;
   mode: "running" | "paused" | "error" | "completed" | "pending";
+  password?: string;
 }
 
 export interface DownloadJob {
@@ -23,6 +24,8 @@ export interface DownloadJob {
   mode: "running" | "paused" | "error" | "completed" | "pending";
   galleries: DownloadGallery[];
   isExpanded?: boolean;
+  isArchive?: boolean;
+  password?: string;
 }
 
 export const useDownloadStore = defineStore("download", () => {
@@ -54,7 +57,13 @@ export const useDownloadStore = defineStore("download", () => {
     return path;
   }
 
-  function addToQueue(jobId: string, title: string, galleries: any[]) {
+  function addToQueue(
+    jobId: string,
+    title: string,
+    galleries: any[],
+    isArchive = false,
+    password = "",
+  ) {
     const targetTemplate = configStore.config.download_path || "";
 
     const mappedGalleries: DownloadGallery[] = galleries.map((g) => {
@@ -67,11 +76,12 @@ export const useDownloadStore = defineStore("download", () => {
         title: g.title,
         link: g.link,
         targetPath,
-        isArchive: false, // Defaulting for now, can be updated from metadata if available
+        isArchive: isArchive, // Use the passed parameter
         imageCount: g.imageCount || 0,
         status: "Pending...",
         progress: 0,
         mode: "pending",
+        password: password,
       };
     });
 
@@ -90,6 +100,8 @@ export const useDownloadStore = defineStore("download", () => {
       mode: "pending",
       galleries: mappedGalleries,
       isExpanded: true,
+      isArchive: isArchive,
+      password: password,
     };
     downloadingJobs.value.unshift(newJob);
   }
