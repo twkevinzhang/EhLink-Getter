@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import { Folder, Delete, Plus } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { useScraperStore } from "../../stores/scraper";
@@ -11,7 +11,6 @@ const scraperStore = useScraperStore();
 const downloadStore = useDownloadStore();
 const configStore = useConfigStore();
 const { draftGalleries } = storeToRefs(scraperStore);
-const { config } = storeToRefs(configStore);
 
 interface DraftGallery {
   id: string;
@@ -19,7 +18,7 @@ interface DraftGallery {
   link: string;
 }
 
-const targetPath = ref(config.value.download_path);
+const targetPath = ref("");
 const useZip = ref(true);
 const zipPass = ref("");
 const manualUrl = ref("");
@@ -183,12 +182,25 @@ const handleDeleteGallery = (id: string) => {
 };
 
 // Update config when target path changes
-import { watch } from "vue";
 watch(targetPath, (val) => configStore.updateConfig({ download_path: val }));
 
 // Reset page when filter changes
 watch(searchQuery, () => {
   currentPage.value = 1;
+});
+
+// Initialize default download path
+onMounted(async () => {
+  if (!targetPath.value || targetPath.value.trim() === "") {
+    try {
+      const defaultPath = await window.api.getDownloadsPath();
+      if (defaultPath) {
+        targetPath.value = defaultPath + "/{EN_TITLE}";
+      }
+    } catch (error) {
+      console.error("Failed to get default downloads path:", error);
+    }
+  }
 });
 </script>
 

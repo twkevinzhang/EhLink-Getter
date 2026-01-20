@@ -332,6 +332,10 @@ ipcMain.handle("open-folder", async (_, folderPath: string) => {
   }
 });
 
+ipcMain.handle("get-downloads-path", async () => {
+  return app.getPath("downloads");
+});
+
 ipcMain.handle("select-directory", async () => {
   const { canceled, filePaths } =
     await require("electron").dialog.showOpenDialog(mainWindow, {

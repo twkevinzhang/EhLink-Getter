@@ -35,6 +35,7 @@ interface SidecarAPI {
   onProgress: (callback: (data: any) => void) => void;
   onTaskComplete: (callback: (data: any) => void) => void;
   getUserDataPath: () => Promise<string>;
+  getDownloadsPath: () => Promise<string>;
 }
 
 declare global {
