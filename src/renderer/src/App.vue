@@ -141,6 +141,6 @@ onMounted(() => {
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-eh-panel rounded-full hover:bg-eh-accent;
+  @apply bg-eh-panel rounded-full hover:bg-primary;
 }
 </style>

@@ -291,16 +291,4 @@ const handleTerminateJob = (jobId: string) => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-::-webkit-scrollbar {
-  height: 6px;
-  width: 6px;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.2);
-}
 </style>
