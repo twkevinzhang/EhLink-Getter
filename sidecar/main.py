@@ -49,7 +49,10 @@ async def fetch_image(url: str):
             from fastapi.responses import Response
             return Response(content=response.content, media_type=response.headers.get("content-type", "image/jpeg"))
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            error_detail = f"EH Image Fetch Error: {str(e)} for URL: {url}"
+            # Print to stdout so it captures into the SystemLogs UI
+            print(error_detail)
+            raise HTTPException(status_code=500, detail=error_detail)
 
 @app.get("/tasks/fetch")
 async def fetch_page_with_token(url: str, next: Optional[str] = None):

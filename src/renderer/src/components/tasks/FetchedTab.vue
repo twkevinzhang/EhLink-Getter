@@ -117,11 +117,7 @@ const handleAddAllToQueue = async () => {
       selected.has(g.id),
     );
     if (selectedGalleryList.length > 0) {
-      await downloadStore.startDownload(
-        task.id,
-        task.title,
-        selectedGalleryList,
-      );
+      downloadStore.addToQueue(task.id, task.title, selectedGalleryList);
       totalAdded++;
     }
   }

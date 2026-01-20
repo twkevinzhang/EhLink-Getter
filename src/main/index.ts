@@ -48,9 +48,14 @@ function startSidecar() {
   pythonProcess.stdout?.on("data", (data) => {
     const lines = data.toString().split("\n");
     for (const line of lines) {
-      if (!line.trim()) continue;
+      const trimmedLine = line.trim();
+      if (!trimmedLine) continue;
+
+      // Filter out noisy health check logs
+      if (trimmedLine.includes("GET /health")) continue;
+
       try {
-        const json = JSON.parse(line);
+        const json = JSON.parse(trimmedLine);
         if (json.type === "log") {
           mainWindow?.webContents.send("python-log", json);
         } else if (json.type === "progress") {
@@ -62,48 +67,20 @@ function startSidecar() {
         // Not JSON, just regular log
         mainWindow?.webContents.send("python-log", {
           level: "info",
-          message: line.trim(),
+          message: trimmedLine,
         });
       }
     }
   });
 
   pythonProcess.stderr?.on("data", (data) => {
-    console.error(`Sidecar error: ${data}`);
+    const message = data.toString().trim();
+    if (!message) return;
+
+    console.error(`Sidecar error: ${message}`);
     mainWindow?.webContents.send("python-log", {
       level: "error",
-      message: data.toString(),
-    });
-  });
-
-  pythonProcess.stdout?.on("data", (data) => {
-    const lines = data.toString().split("\n");
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const json = JSON.parse(line);
-        if (json.type === "log") {
-          mainWindow?.webContents.send("python-log", json);
-        } else if (json.type === "progress") {
-          mainWindow?.webContents.send("python-progress", json);
-        } else if (json.type === "task_complete") {
-          mainWindow?.webContents.send("python-task-complete", json);
-        }
-      } catch (e) {
-        // Not JSON, just regular log
-        mainWindow?.webContents.send("python-log", {
-          level: "info",
-          message: line.trim(),
-        });
-      }
-    }
-  });
-
-  pythonProcess.stderr?.on("data", (data) => {
-    console.error(`Sidecar error: ${data}`);
-    mainWindow?.webContents.send("python-log", {
-      level: "error",
-      message: data.toString(),
+      message: message,
     });
   });
 

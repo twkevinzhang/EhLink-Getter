@@ -19,6 +19,15 @@ const handleClear = () => {
   const countAfter = downloadingJobs.value.length;
   ElMessage.success(`Cleared ${countBefore - countAfter} jobs`);
 };
+
+const handleStartAll = () => {
+  downloadStore.startAllJobs();
+  ElMessage.success("Started all pending/paused downloads");
+};
+
+const handleStartJob = (jobId: string) => {
+  downloadStore.startJob(jobId);
+};
 </script>
 
 <template>
@@ -38,15 +47,27 @@ const handleClear = () => {
               <span class="text-sm font-bold text-eh-text truncate">{{
                 dl.title
               }}</span>
-              <div
-                class="px-2 py-0.5 text-[10px] font-bold uppercase rounded-sm border"
-                :class="
-                  dl.mode === 'running'
-                    ? 'bg-eh-cat-gamecg text-white border-eh-cat-gamecg'
-                    : 'bg-gray-400 text-white border-gray-400'
-                "
-              >
-                {{ dl.mode }}
+              <div class="flex items-center gap-2">
+                <el-button
+                  v-if="dl.mode === 'pending' || dl.mode === 'paused'"
+                  type="primary"
+                  size="small"
+                  @click="handleStartJob(dl.id)"
+                >
+                  Start
+                </el-button>
+                <div
+                  class="px-2 py-0.5 text-[10px] font-bold uppercase rounded-sm border"
+                  :class="
+                    dl.mode === 'running'
+                      ? 'bg-eh-cat-gamecg text-white border-eh-cat-gamecg'
+                      : dl.mode === 'pending'
+                        ? 'bg-eh-accent text-white border-eh-accent'
+                        : 'bg-gray-400 text-white border-gray-400'
+                  "
+                >
+                  {{ dl.mode }}
+                </div>
               </div>
             </div>
             <el-progress :percentage="dl.progress" :stroke-width="12" />
@@ -66,6 +87,12 @@ const handleClear = () => {
       </div>
     </div>
     <div class="flex gap-2">
+      <el-button
+        type="primary"
+        class="flex-1 !rounded-none !h-10 font-bold uppercase tracking-widest"
+        @click="handleStartAll"
+        >Start All</el-button
+      >
       <el-button
         plain
         class="flex-1 !rounded-none !h-10 font-bold uppercase tracking-widest border-eh-border text-eh-text"

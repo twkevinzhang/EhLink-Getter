@@ -1,13 +1,15 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { useConfigStore } from "./config";
+import { useLogStore } from "./logs";
 
 export interface DownloadJob {
   id: string;
   title: string;
   progress: number;
   status: string;
-  mode: "running" | "paused" | "error" | "completed";
+  mode: "running" | "paused" | "error" | "completed" | "pending";
+  galleries: any[];
 }
 
 export const useDownloadStore = defineStore("download", () => {
@@ -15,6 +17,7 @@ export const useDownloadStore = defineStore("download", () => {
   const completedTasks = ref<any[]>([]);
   const libraryGalleries = ref<any[]>([]);
   const configStore = useConfigStore();
+  const logStore = useLogStore();
 
   function parsePath(template: string, gallery: any) {
     let path = template;
@@ -38,29 +41,66 @@ export const useDownloadStore = defineStore("download", () => {
     return path;
   }
 
-  async function startDownload(jobId: string, title: string, galleries: any[]) {
+  function addToQueue(jobId: string, title: string, galleries: any[]) {
+    const existingJob = downloadingJobs.value.find((j) => j.id === jobId);
+    if (existingJob) {
+      existingJob.galleries = [...existingJob.galleries, ...galleries];
+      existingJob.status = `Added ${galleries.length} more galleries.`;
+      return;
+    }
+
     const newJob: DownloadJob = {
       id: jobId,
       title: title,
       progress: 0,
-      status: "Starting...",
-      mode: "running",
+      status: "Waiting in queue...",
+      mode: "pending",
+      galleries: galleries,
     };
     downloadingJobs.value.unshift(newJob);
+  }
 
+  async function startJob(jobId: string) {
+    const job = downloadingJobs.value.find((j) => j.id === jobId);
+    if (job && (job.mode === "pending" || job.mode === "paused")) {
+      await processDownload(job);
+    }
+  }
+
+  async function startAllJobs() {
+    const pendingJobs = downloadingJobs.value.filter(
+      (j) => j.mode === "pending" || j.mode === "paused",
+    );
+    for (const job of pendingJobs) {
+      // Non-blocking start for each job
+      processDownload(job);
+    }
+  }
+
+  async function processDownload(job: DownloadJob) {
+    if (job.mode === "running") return;
+
+    job.mode = "running";
+    const galleries = job.galleries;
     const targetTemplate = configStore.config.download_path || "";
     let completedCount = 0;
     const totalCount = galleries.length;
 
+    // Reset progress if starting fresh or update based on current progress
+    // For now we keep it simple and just run through
+
     for (const gallery of galleries) {
-      if (newJob.mode === "paused") break;
+      if (
+        (job.mode as string) === "paused" ||
+        (job.mode as string) === "pending"
+      )
+        break;
 
       const saveDir = parsePath(targetTemplate, gallery);
-      // Construct a filename for the gallery metadata/HTML
       const savePath = `${saveDir}/metadata.json`.replace(/\/+/g, "/");
 
       try {
-        newJob.status = `Downloading: ${gallery.title}`;
+        job.status = `Downloading: ${gallery.title}`;
         const result = await window.api.downloadImage({
           url: gallery.link,
           savePath: savePath,
@@ -68,31 +108,47 @@ export const useDownloadStore = defineStore("download", () => {
 
         if (result && result.success) {
           completedCount++;
-          newJob.progress = Math.round((completedCount / totalCount) * 100);
+          job.progress = Math.round((completedCount / totalCount) * 100);
         } else {
-          console.error(`Failed to download ${gallery.link}:`, result?.error);
+          const errMsg = `Failed to download ${gallery.link}: ${result?.error || "Unknown error"}`;
+          console.error(errMsg);
+          logStore.addLog({
+            level: "error",
+            message: errMsg,
+          });
         }
-      } catch (error) {
-        console.error(`Error in download loop:`, error);
+      } catch (error: any) {
+        const errMsg = `Error in download loop for ${gallery.title}: ${error.message}`;
+        console.error(errMsg);
+        logStore.addLog({
+          level: "error",
+          message: errMsg,
+        });
       }
     }
 
     if (completedCount === totalCount) {
-      newJob.mode = "completed";
-      newJob.status = "Finished";
+      job.mode = "completed";
+      job.status = "Finished";
       completedTasks.value.unshift({
-        ...newJob,
+        ...job,
         date: new Date().toLocaleString(),
       });
-    } else if (newJob.mode !== "paused") {
-      newJob.mode = "error";
-      newJob.status = `Error: Only ${completedCount}/${totalCount} completed`;
+    } else if (
+      (job.mode as string) !== "paused" &&
+      (job.mode as string) !== "pending"
+    ) {
+      job.mode = "error";
+      job.status = `Error: Only ${completedCount}/${totalCount} completed`;
+      logStore.addLog({
+        level: "error",
+        message: `Download job "${job.title}" failed. Completed: ${completedCount}/${totalCount}`,
+      });
     }
   }
 
   function updateDownloadProgress(progressData: any) {
-    // This was for sidecar-led progress, now we manually update in startDownload
-    // Keeping it for potential other progress events if needed
+    // This was for sidecar-led progress, now we manually update in processDownload
   }
 
   function clearFinishedJobs() {
@@ -105,7 +161,9 @@ export const useDownloadStore = defineStore("download", () => {
     downloadingJobs,
     completedTasks,
     libraryGalleries,
-    startDownload,
+    addToQueue,
+    startJob,
+    startAllJobs,
     updateDownloadProgress,
     clearFinishedJobs,
   };
