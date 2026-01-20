@@ -76,6 +76,18 @@ export const useAppStore = defineStore("app", () => {
     }
   }
 
+  // Helper to save all jobs to the current tasks.json
+  async function saveTasksToFile(path: string) {
+    if (!path || !window.api?.saveJSON) return;
+    await window.api.saveJSON({
+      path,
+      data: {
+        version: "1.0",
+        jobs: JSON.parse(JSON.stringify(fetchingJobs.value)),
+      },
+    });
+  }
+
   async function startFetching(
     url: string,
     tasksPath?: string,
@@ -104,26 +116,36 @@ export const useAppStore = defineStore("app", () => {
         throw new Error("IPC API not ready");
       }
 
-      let nextToken: string | undefined = undefined;
       let allItems: any[] = [];
+      let nextToken: string | undefined = undefined;
       let pageCount = 0;
       let isFirstPage = true;
 
-      // Import existing tasks if file exists
-      if (config.tasks_path) {
-        const readResult = await window.api.readJSON({
-          path: config.tasks_path,
-        });
-        if (
-          readResult &&
-          readResult.success &&
-          Array.isArray(readResult.data)
-        ) {
-          allItems = readResult.data;
-          addLog({
-            level: "info",
-            message: `Imported ${allItems.length} existing tasks from ${config.tasks_path}`,
-          });
+      const path = tasksPath || config.tasks_path;
+      if (path) {
+        const readResult = await window.api.readJSON({ path });
+        if (readResult && readResult.success) {
+          if (Array.isArray(readResult.data)) {
+            allItems = readResult.data;
+            addLog({
+              level: "info",
+              message: `Migrated ${allItems.length} items from old tasks.json format.`,
+            });
+          } else if (readResult.data?.jobs) {
+            const existingJob = readResult.data.jobs.find(
+              (j: any) => j.link === url,
+            );
+            if (existingJob) {
+              allItems = existingJob.allItems || [];
+              nextToken = existingJob.nextToken;
+              pageCount = existingJob.currentPage || 0;
+              isFirstPage = pageCount === 0;
+              addLog({
+                level: "info",
+                message: `Resuming existing task from file: ${url}`,
+              });
+            }
+          }
         }
       }
 
@@ -131,101 +153,92 @@ export const useAppStore = defineStore("app", () => {
       if (jobIdx === -1) return;
 
       fetchingJobs.value[jobIdx].state = "fetching";
+      fetchingJobs.value[jobIdx].allItems = allItems;
+      fetchingJobs.value[jobIdx].nextToken = nextToken;
+      fetchingJobs.value[jobIdx].currentPage = pageCount;
 
       while (isFirstPage || nextToken) {
         pageCount++;
-
-        // Check if task was paused
         const currentJobIdx = fetchingJobs.value.findIndex(
           (j) => j.id === jobId,
         );
         if (currentJobIdx === -1) break;
 
         if (fetchingJobs.value[currentJobIdx].state === "paused") {
-          // Save current state for resume (serialize to avoid reference issues)
           fetchingJobs.value[currentJobIdx].nextToken = nextToken;
           fetchingJobs.value[currentJobIdx].allItems = JSON.parse(
             JSON.stringify(allItems),
           );
-          fetchingJobs.value[currentJobIdx].currentPage = pageCount;
+          fetchingJobs.value[currentJobIdx].currentPage = pageCount - 1;
           fetchingJobs.value[currentJobIdx].totalItems = allItems.length;
-          addLog({
-            level: "info",
-            message: "Fetch paused by user.",
-          });
+          await saveTasksToFile(
+            fetchingJobs.value[currentJobIdx].tasksPath || config.tasks_path,
+          );
           return;
         }
 
-        // Check page limit
         if (pageCount > maxPages) {
           addLog({
             level: "info",
-            message: `Reached page limit (${maxPages}). Stopping fetch.`,
+            message: `Reached page limit (${maxPages}).`,
           });
           break;
         }
 
-        if (currentJobIdx !== -1) {
-          fetchingJobs.value[currentJobIdx].status =
-            `Fetching page ${pageCount}... (Found ${allItems.length})`;
-          fetchingJobs.value[currentJobIdx].progress = Math.min(
-            pageCount * 5,
-            95,
-          );
-          fetchingJobs.value[currentJobIdx].currentPage = pageCount;
-          fetchingJobs.value[currentJobIdx].totalItems = allItems.length;
-        }
+        fetchingJobs.value[currentJobIdx].status =
+          `Fetching page ${pageCount}... (Found ${allItems.length})`;
+        fetchingJobs.value[currentJobIdx].progress = Math.min(
+          pageCount * 5,
+          95,
+        );
+        fetchingJobs.value[currentJobIdx].currentPage = pageCount;
+        fetchingJobs.value[currentJobIdx].totalItems = allItems.length;
 
-        const result = await window.api.fetchPage({
-          url: isFirstPage ? url : url,
-          next: nextToken,
-        });
+        const result = await window.api.fetchPage({ url, next: nextToken });
 
         if (result && result.items) {
           allItems = [...allItems, ...result.items];
           nextToken = result.next;
           isFirstPage = false;
-
-          // Update tasksPath/tasks.json after each page
-          const savePath =
-            fetchingJobs.value[currentJobIdx]?.tasksPath || config.tasks_path;
-          if (savePath) {
-            await window.api.saveJSON({
-              path: savePath,
-              data: JSON.parse(JSON.stringify(allItems)),
-            });
-          }
+          fetchingJobs.value[currentJobIdx].allItems = allItems;
+          fetchingJobs.value[currentJobIdx].nextToken = nextToken;
+          await saveTasksToFile(
+            fetchingJobs.value[currentJobIdx].tasksPath || config.tasks_path,
+          );
         } else {
           break;
         }
-
         if (!nextToken) break;
       }
 
-      const finalFetchedTask = {
-        id: jobId,
-        title: `Fetched from ${new URL(url).hostname} (${allItems.length} items)`,
-        galleryCount: allItems.length,
-        galleries: allItems.map((item: any, idx: number) => ({
-          id: `${jobId}-${idx}`,
-          title: item.title,
-          link: item.link,
-        })),
-      };
-      fetchedTasks.value.unshift(finalFetchedTask);
-
       const finalJobIdx = fetchingJobs.value.findIndex((j) => j.id === jobId);
       if (finalJobIdx !== -1) {
-        fetchingJobs.value[finalJobIdx].progress = 100;
-        fetchingJobs.value[finalJobIdx].status =
-          `Finished: ${allItems.length} items found`;
-        fetchingJobs.value[finalJobIdx].state = "waiting";
+        const job = fetchingJobs.value[finalJobIdx];
+        job.progress = 100;
+        job.status = `Finished: ${allItems.length} items found`;
+        job.state = "waiting";
+
+        const finalFetchedTask = {
+          id: jobId,
+          title: `Fetched from ${new URL(url).hostname} (${allItems.length} items)`,
+          galleryCount: allItems.length,
+          galleries: allItems.map((item: any, idx: number) => ({
+            id: `${jobId}-${idx}`,
+            title: item.title,
+            link: item.link,
+          })),
+        };
+        fetchedTasks.value.unshift(finalFetchedTask);
+        await saveTasksToFile(job.tasksPath || config.tasks_path);
       }
     } catch (error: any) {
       const errorJobIdx = fetchingJobs.value.findIndex((j) => j.id === jobId);
       if (errorJobIdx !== -1) {
         fetchingJobs.value[errorJobIdx].status = `Error: ${error.message}`;
         fetchingJobs.value[errorJobIdx].state = "paused";
+        await saveTasksToFile(
+          fetchingJobs.value[errorJobIdx].tasksPath || config.tasks_path,
+        );
       }
     }
   }
@@ -234,10 +247,8 @@ export const useAppStore = defineStore("app", () => {
     const job = fetchingJobs.value.find((j) => j.id === jobId);
     if (job && job.state === "fetching") {
       job.state = "paused";
-      addLog({
-        level: "info",
-        message: `Pausing fetch job: ${jobId}`,
-      });
+      await saveTasksToFile(job.tasksPath || config.tasks_path);
+      addLog({ level: "info", message: `Pausing fetch job: ${jobId}` });
     }
   }
 
@@ -246,60 +257,45 @@ export const useAppStore = defineStore("app", () => {
     if (!job || job.state !== "paused") return;
 
     try {
-      if (!window.api || !window.api.fetchPage) {
+      if (!window.api || !window.api.fetchPage)
         throw new Error("IPC API not ready");
-      }
-
       job.state = "fetching";
       let nextToken = job.nextToken;
       let allItems = [...job.allItems];
       let pageCount = job.currentPage;
 
-      while (nextToken) {
+      while (nextToken || pageCount === 0) {
         pageCount++;
-
-        // Check if paused again
-        const currentJob = fetchingJobs.value.find((j) => j.id === jobId);
-        if (!currentJob || currentJob.state === "paused") {
-          if (currentJob) {
-            currentJob.nextToken = nextToken;
-            currentJob.allItems = JSON.parse(JSON.stringify(allItems));
-            currentJob.currentPage = pageCount;
-            currentJob.totalItems = allItems.length;
-          }
+        if ((job.state as any) === "paused") {
+          job.nextToken = nextToken;
+          job.allItems = JSON.parse(JSON.stringify(allItems));
+          job.currentPage = pageCount - 1;
+          await saveTasksToFile(job.tasksPath || config.tasks_path);
           return;
         }
-
         job.status = `Fetching page ${pageCount}... (Found ${allItems.length})`;
         job.progress = Math.min(pageCount * 5, 95);
-        job.currentPage = pageCount;
-        job.totalItems = allItems.length;
-
         const result = await window.api.fetchPage({
           url: job.link,
           next: nextToken,
         });
-
         if (result && result.items) {
           allItems = [...allItems, ...result.items];
           nextToken = result.next;
-
-          const savePath = job.tasksPath || config.tasks_path;
-          if (savePath) {
-            // Serialize to ensure IPC compatibility
-            await window.api.saveJSON({
-              path: savePath,
-              data: JSON.parse(JSON.stringify(allItems)),
-            });
-          }
+          job.allItems = allItems;
+          job.nextToken = nextToken;
+          job.currentPage = pageCount;
+          job.totalItems = allItems.length;
+          await saveTasksToFile(job.tasksPath || config.tasks_path);
         } else {
           break;
         }
-
         if (!nextToken) break;
       }
 
-      // Completed
+      job.progress = 100;
+      job.status = `Finished: ${allItems.length} items found`;
+      job.state = "waiting";
       const finalFetchedTask = {
         id: jobId,
         title: `Fetched from ${new URL(job.link).hostname} (${allItems.length} items)`,
@@ -311,22 +307,22 @@ export const useAppStore = defineStore("app", () => {
         })),
       };
       fetchedTasks.value.unshift(finalFetchedTask);
-
-      job.progress = 100;
-      job.status = `Finished: ${allItems.length} items found`;
-      job.state = "waiting";
+      await saveTasksToFile(job.tasksPath || config.tasks_path);
     } catch (error: any) {
       job.status = `Error: ${error.message}`;
       job.state = "paused";
+      await saveTasksToFile(job.tasksPath || config.tasks_path);
     }
   }
 
-  function deleteFetchingJob(jobId: string) {
+  async function deleteFetchingJob(jobId: string) {
     const job = fetchingJobs.value.find((j) => j.id === jobId);
     if (job && (job.state === "waiting" || job.state === "paused")) {
       const index = fetchingJobs.value.findIndex((j) => j.id === jobId);
       if (index !== -1) {
+        const path = job.tasksPath || config.tasks_path;
         fetchingJobs.value.splice(index, 1);
+        await saveTasksToFile(path);
         addLog({
           level: "info",
           message: `Deleted fetch job: ${jobId}`,
@@ -338,30 +334,57 @@ export const useAppStore = defineStore("app", () => {
   async function loadExistingTasks(path: string, url: string = "") {
     if (!path) return;
 
-    // Check if already in jobs
-    const exists = fetchingJobs.value.some((j) => j.tasksPath === path);
-    if (exists) return;
-
     try {
       const result = await window.api.readJSON({ path });
-      if (result && result.success && Array.isArray(result.data)) {
-        const jobId = `imported-${Date.now()}`;
-        const newJob: ScraperJob = {
-          id: jobId,
-          link: url || "Imported Task",
-          progress: 100,
-          status: `Imported ${result.data.length} items`,
-          state: "paused",
-          currentPage: 0,
-          totalItems: result.data.length,
-          allItems: result.data,
-          tasksPath: path,
-        };
-        fetchingJobs.value.unshift(newJob);
-        addLog({
-          level: "info",
-          message: `Loaded ${result.data.length} tasks from ${path}`,
-        });
+      if (result && result.success) {
+        let loadedJobs: ScraperJob[] = [];
+
+        if (Array.isArray(result.data)) {
+          // Legacy migration
+          const jobId = `imported-${Date.now()}`;
+          loadedJobs = [
+            {
+              id: jobId,
+              link: url || "Imported Task",
+              progress: 100,
+              status: `Imported ${result.data.length} items`,
+              state: "waiting",
+              currentPage: 0,
+              totalItems: result.data.length,
+              allItems: result.data,
+              tasksPath: path,
+            },
+          ];
+        } else if (result.data?.jobs) {
+          loadedJobs = result.data.jobs;
+        }
+
+        // Merge into current state
+        for (const job of loadedJobs) {
+          if (!fetchingJobs.value.some((j) => j.id === job.id)) {
+            fetchingJobs.value.push(job);
+
+            // If job has items, also show in fetchedTasks
+            if (job.allItems && job.allItems.length > 0) {
+              const fetchedTask = {
+                id: job.id,
+                title: job.link.startsWith("http")
+                  ? `Fetched from ${new URL(job.link).hostname} (${job.allItems.length} items)`
+                  : `${job.link} (${job.allItems.length} items)`,
+                galleryCount: job.allItems.length,
+                galleries: job.allItems.map((item: any, idx: number) => ({
+                  id: `${job.id}-${idx}`,
+                  title: item.title,
+                  link: item.link,
+                })),
+              };
+              if (!fetchedTasks.value.some((t) => t.id === job.id)) {
+                fetchedTasks.value.push(fetchedTask);
+              }
+            }
+          }
+        }
+        addLog({ level: "info", message: `Loaded tasks state from ${path}` });
       }
     } catch (e) {
       console.error("Failed to load tasks:", e);
