@@ -13,10 +13,23 @@ const configStore = useConfigStore();
 const { draftGalleries } = storeToRefs(scraperStore);
 const { config } = storeToRefs(configStore);
 
+interface DraftGallery {
+  id: string;
+  title: string;
+  link: string;
+}
+
 const targetPath = ref(config.value.download_path);
 const useZip = ref(true);
 const zipPass = ref("");
 const manualUrl = ref("");
+
+// Pagination state
+const currentPage = ref(1);
+const pageSize = ref(20);
+
+// Filter state
+const searchQuery = ref("");
 
 // Tab state for selecting all
 const selectedIds = ref<Set<string>>(new Set());
@@ -33,23 +46,78 @@ const toggleGallery = (id: string) => {
 
 const isAllSelected = computed(() => {
   return (
-    draftGalleries.value.length > 0 &&
-    selectedIds.value.size === draftGalleries.value.length
+    filteredGalleries.value.length > 0 &&
+    filteredGalleries.value.every((g: DraftGallery) =>
+      selectedIds.value.has(g.id),
+    )
   );
 });
 
 const isIndeterminate = computed(() => {
+  const selectedInFiltered = filteredGalleries.value.filter((g: DraftGallery) =>
+    selectedIds.value.has(g.id),
+  ).length;
   return (
-    selectedIds.value.size > 0 &&
-    selectedIds.value.size < draftGalleries.value.length
+    selectedInFiltered > 0 &&
+    selectedInFiltered < filteredGalleries.value.length
   );
 });
 
 const toggleSelectAll = (val: boolean) => {
   if (val) {
-    selectedIds.value = new Set(draftGalleries.value.map((g) => g.id));
+    filteredGalleries.value.forEach((g: DraftGallery) =>
+      selectedIds.value.add(g.id),
+    );
   } else {
-    selectedIds.value.clear();
+    filteredGalleries.value.forEach((g: DraftGallery) =>
+      selectedIds.value.delete(g.id),
+    );
+  }
+};
+
+// Filter Computed
+const filteredGalleries = computed(() => {
+  const query = searchQuery.value.toLowerCase().trim();
+  if (!query) return draftGalleries.value;
+  return draftGalleries.value.filter(
+    (g: DraftGallery) =>
+      g.title.toLowerCase().includes(query) ||
+      g.link.toLowerCase().includes(query),
+  );
+});
+
+// Pagination Computed
+const paginatedGalleries = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value;
+  const end = start + pageSize.value;
+  return filteredGalleries.value.slice(start, end);
+});
+
+const isPageSelected = computed(() => {
+  if (paginatedGalleries.value.length === 0) return false;
+  return paginatedGalleries.value.every((g: DraftGallery) =>
+    selectedIds.value.has(g.id),
+  );
+});
+
+const isPageIndeterminate = computed(() => {
+  const pageSelectedCount = paginatedGalleries.value.filter((g: DraftGallery) =>
+    selectedIds.value.has(g.id),
+  ).length;
+  return (
+    pageSelectedCount > 0 && pageSelectedCount < paginatedGalleries.value.length
+  );
+});
+
+const toggleSelectPage = (val: boolean) => {
+  if (val) {
+    paginatedGalleries.value.forEach((g: DraftGallery) =>
+      selectedIds.value.add(g.id),
+    );
+  } else {
+    paginatedGalleries.value.forEach((g: DraftGallery) =>
+      selectedIds.value.delete(g.id),
+    );
   }
 };
 
@@ -108,11 +176,20 @@ const handleAddSelectedToQueue = async () => {
 const handleDeleteGallery = (id: string) => {
   scraperStore.removeGalleryFromDraft(id);
   selectedIds.value.delete(id);
+  // Adjust page if current page became empty
+  if (paginatedGalleries.value.length === 0 && currentPage.value > 1) {
+    currentPage.value--;
+  }
 };
 
 // Update config when target path changes
 import { watch } from "vue";
 watch(targetPath, (val) => configStore.updateConfig({ download_path: val }));
+
+// Reset page when filter changes
+watch(searchQuery, () => {
+  currentPage.value = 1;
+});
 </script>
 
 <template>
@@ -136,23 +213,49 @@ watch(targetPath, (val) => configStore.updateConfig({ download_path: val }));
     <div class="eh-panel-card flex-1 flex flex-col overflow-hidden">
       <div class="eh-header flex justify-between items-center">
         <span>Ready to Download (Draft List)</span>
-        <div class="flex items-center gap-2" v-if="draftGalleries.length > 0">
-          <el-checkbox
-            :model-value="isAllSelected"
-            :indeterminate="isIndeterminate"
-            @change="toggleSelectAll"
-            class="!mr-0"
-          />
-          <span class="text-[10px] uppercase font-bold text-eh-accent"
-            >Select All</span
-          >
+        <div
+          class="flex items-center gap-4"
+          v-if="filteredGalleries.length > 0"
+        >
+          <div class="flex items-center gap-2">
+            <el-checkbox
+              :model-value="isPageSelected"
+              :indeterminate="isPageIndeterminate"
+              @change="toggleSelectPage"
+              class="!mr-0"
+            />
+            <span class="text-[10px] uppercase font-bold text-eh-accent"
+              >Select Page</span
+            >
+          </div>
+          <div class="flex items-center gap-2">
+            <el-checkbox
+              :model-value="isAllSelected"
+              :indeterminate="isIndeterminate"
+              @change="toggleSelectAll"
+              class="!mr-0"
+            />
+            <span class="text-[10px] uppercase font-bold text-eh-accent"
+              >Select Filtered</span
+            >
+          </div>
         </div>
+      </div>
+
+      <!-- Filter Input -->
+      <div class="px-4 py-2 border-b border-eh-border/50 bg-eh-panel/5">
+        <el-input
+          v-model="searchQuery"
+          placeholder="Filter by title or link..."
+          size="small"
+          clearable
+        />
       </div>
 
       <div class="p-4 flex-1 overflow-y-auto bg-white/30">
         <div class="flex flex-col gap-2">
           <div
-            v-for="g in draftGalleries"
+            v-for="g in paginatedGalleries"
             :key="g.id"
             class="flex items-center gap-3 p-2 bg-eh-panel/20 border-l-4"
             :class="
@@ -193,6 +296,20 @@ watch(targetPath, (val) => configStore.updateConfig({ download_path: val }));
             No drafts in the list. Start fetching or add links manually.
           </div>
         </div>
+      </div>
+
+      <!-- Pagination -->
+      <div
+        v-if="filteredGalleries.length > pageSize"
+        class="p-2 border-t border-eh-border flex justify-center bg-eh-panel/10"
+      >
+        <el-pagination
+          v-model:current-page="currentPage"
+          :page-size="pageSize"
+          layout="prev, pager, next"
+          :total="filteredGalleries.length"
+          small
+        />
       </div>
     </div>
 
