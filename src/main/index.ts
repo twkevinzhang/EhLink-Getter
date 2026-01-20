@@ -285,6 +285,10 @@ ipcMain.handle("get-config", async () => {
   return currentConfig;
 });
 
+ipcMain.handle("get-user-data-path", async () => {
+  return app.getPath("userData");
+});
+
 ipcMain.handle("save-config", async (_, config: any) => {
   try {
     currentConfig = config;

@@ -8,45 +8,14 @@ import { storeToRefs } from "pinia";
 
 const scraperStore = useScraperStore();
 const configStore = useConfigStore();
-const { config } = storeToRefs(configStore);
-const tasksPath = ref(config.value.tasks_path);
 
 const pageLink = ref("https://e-hentai.org/favorites.php");
 const fromPage = ref(1);
 const toPage = ref("All");
 
-const handleTasksPathBrowse = async () => {
-  const path = await window.api.selectDirectory();
-  if (path) {
-    tasksPath.value = path + "/tasks.json";
-    // loadExistingTasks will be triggered by watch
-  }
-};
-
-watch(
-  tasksPath,
-  (newPath) => {
-    if (newPath) {
-      scraperStore.loadExistingTasks(newPath, pageLink.value);
-    }
-  },
-  { immediate: true },
-);
-
 const handleStartFetch = async () => {
   if (!pageLink.value) {
     ElMessage.warning("Please enter a page or search link");
-    return;
-  }
-
-  if (typeof scraperStore.startFetching !== "function") {
-    console.error(
-      "scraperStore.startFetching is not a function!",
-      scraperStore,
-    );
-    ElMessage.error(
-      "Store action 'startFetching' is missing. Please restart the app.",
-    );
     return;
   }
 
@@ -60,7 +29,7 @@ const handleStartFetch = async () => {
   }
 
   try {
-    await scraperStore.startFetching(pageLink.value, tasksPath.value, maxPages);
+    await scraperStore.startFetching(pageLink.value, maxPages);
     ElMessage.success("Fetching task started");
   } catch (err: any) {
     ElMessage.error(`Failed to start fetching: ${err.message}`);
@@ -89,19 +58,6 @@ const handleStartFetch = async () => {
           <div class="flex items-center gap-2">
             <span class="text-xs">To:</span>
             <el-input v-model="toPage" size="small" class="w-16" />
-          </div>
-        </div>
-        <div class="flex flex-col gap-2 pt-2 border-t border-eh-bg">
-          <label class="text-xs text-eh-muted font-bold uppercase"
-            >Tasks Json Path:</label
-          >
-          <div class="flex gap-2">
-            <el-input
-              v-model="tasksPath"
-              class="flex-1"
-              placeholder="Path to tasks.json"
-            />
-            <el-button small @click="handleTasksPathBrowse">Browse</el-button>
           </div>
         </div>
       </div>

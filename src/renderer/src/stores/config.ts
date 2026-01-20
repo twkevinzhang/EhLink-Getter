@@ -5,7 +5,6 @@ export const useConfigStore = defineStore("config", () => {
   const config = reactive({
     cookies: "",
     proxies: [] as string[],
-    tasks_path: "tasks.json",
     metadata_path: "metadata.json",
     download_path: "output",
     scan_thread_cnt: 3,

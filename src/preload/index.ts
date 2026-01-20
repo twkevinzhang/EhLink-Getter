@@ -28,6 +28,7 @@ const api = {
     ipcRenderer.on("python-progress", (_event, value) => callback(value)),
   onTaskComplete: (callback: any) =>
     ipcRenderer.on("python-task-complete", (_event, value) => callback(value)),
+  getUserDataPath: () => ipcRenderer.invoke("get-user-data-path"),
 };
 
 // Use `contextBridge` APIs to expose Electron APIs to
