@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
-import { Folder } from "@element-plus/icons-vue";
+import { Folder, Delete } from "@element-plus/icons-vue";
+import { ElMessage, ElMessageBox } from "element-plus";
 
 interface Gallery {
   id: string;
@@ -11,7 +12,6 @@ import { useScraperStore } from "../../stores/scraper";
 import { useDownloadStore } from "../../stores/download";
 import { useConfigStore } from "../../stores/config";
 import { storeToRefs } from "pinia";
-import { ElMessage } from "element-plus";
 
 const scraperStore = useScraperStore();
 const downloadStore = useDownloadStore();
@@ -96,6 +96,10 @@ const handleBrowse = async () => {
   }
 };
 
+const handlePlaceholder = (placeholder: string) => {
+  targetPath.value = (targetPath.value || "") + placeholder;
+};
+
 const handleAddAllToQueue = async () => {
   if (fetchedTasks.value.length === 0) {
     ElMessage.warning("No tasks to download");
@@ -131,6 +135,24 @@ const handleAddAllToQueue = async () => {
   fetchedTasks.value = []; // Clear current list after adding to queue
   selectedGalleries.value = {}; // Clear selections
 };
+
+const handleDeleteTask = async (taskId: string) => {
+  try {
+    await ElMessageBox.confirm(
+      "確定要移除此任務嗎？此動作無法復原。",
+      "確認移除",
+      {
+        confirmButtonText: "確定移除",
+        cancelButtonText: "取消",
+        type: "warning",
+      },
+    );
+    await scraperStore.deleteFetchedTask(taskId);
+    ElMessage.success("任務已移除");
+  } catch (e) {
+    // User cancelled
+  }
+};
 </script>
 
 <template>
@@ -147,11 +169,22 @@ const handleAddAllToQueue = async () => {
             class="mb-4"
           >
             <template #title>
-              <div
-                class="text-sm font-bold flex items-center gap-2 text-eh-text"
-              >
-                <el-icon><Folder /></el-icon>
-                {{ task.title }} ({{ task.galleryCount }} Galleries)
+              <div class="flex items-center justify-between w-full pr-4">
+                <div
+                  class="text-sm font-bold flex items-center gap-2 text-eh-text"
+                >
+                  <el-icon><Folder /></el-icon>
+                  {{ task.title }} ({{ task.galleryCount }} Galleries)
+                </div>
+                <el-button
+                  type="danger"
+                  size="small"
+                  circle
+                  plain
+                  :icon="Delete"
+                  @click.stop="handleDeleteTask(task.id)"
+                  class="delete-task-btn"
+                />
               </div>
             </template>
             <div class="ml-6 flex flex-col gap-1 mt-2">
@@ -209,19 +242,33 @@ const handleAddAllToQueue = async () => {
       <div class="p-4 flex flex-col gap-4">
         <div class="flex flex-col gap-2">
           <label class="text-[10px] text-eh-muted font-bold uppercase"
-            >Target Path & Placeholders:</label
+            >Target Path:</label
           >
           <div class="flex gap-2">
             <el-input v-model="targetPath" class="flex-1" />
             <el-button small @click="handleBrowse">Browse</el-button>
           </div>
           <div class="flex gap-2 mt-1">
-            <el-button size="small" plain class="!bg-eh-bg/50"
-              >[EN_TITLE]</el-button
+            <el-button
+              size="small"
+              plain
+              class="!bg-eh-bg/50"
+              @click="handlePlaceholder('{EN_TITLE}')"
+              >{EN_TITLE}</el-button
             >
-            <el-button size="small" plain class="!bg-eh-bg/50">[ID]</el-button>
-            <el-button size="small" plain class="!bg-eh-bg/50"
-              >[JP_TITLE]</el-button
+            <el-button
+              size="small"
+              plain
+              class="!bg-eh-bg/50"
+              @click="handlePlaceholder('{ID}')"
+              >{ID}</el-button
+            >
+            <el-button
+              size="small"
+              plain
+              class="!bg-eh-bg/50"
+              @click="handlePlaceholder('{JP_TITLE}')"
+              >{JP_TITLE}</el-button
             >
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { useConfigStore } from "./config";
 import { useLogStore } from "./logs";
 
@@ -19,6 +19,10 @@ export interface ScraperJob {
 export const useScraperStore = defineStore("scraper", () => {
   const fetchingJobs = ref<ScraperJob[]>([]);
   const fetchedTasks = ref<any[]>([]);
+
+  const activeFetchingJobs = computed(() =>
+    fetchingJobs.value.filter((job) => job.progress < 100),
+  );
 
   const configStore = useConfigStore();
   const logStore = useLogStore();
@@ -283,6 +287,28 @@ export const useScraperStore = defineStore("scraper", () => {
     }
   }
 
+  async function deleteFetchedTask(taskId: string) {
+    // Remove from fetchedTasks
+    const taskIndex = fetchedTasks.value.findIndex((t) => t.id === taskId);
+    if (taskIndex !== -1) {
+      fetchedTasks.value.splice(taskIndex, 1);
+    }
+
+    // Also remove from fetchingJobs to preserve consistency in tasks.json
+    const jobIndex = fetchingJobs.value.findIndex((j) => j.id === taskId);
+    if (jobIndex !== -1) {
+      const job = fetchingJobs.value[jobIndex];
+      const path = job.tasksPath || configStore.config.tasks_path;
+      fetchingJobs.value.splice(jobIndex, 1);
+      await saveTasksToFile(path);
+    }
+
+    logStore.addLog({
+      level: "info",
+      message: `Deleted fetched task: ${taskId}`,
+    });
+  }
+
   async function loadExistingTasks(path: string, url: string = "") {
     if (!path) return;
 
@@ -346,10 +372,12 @@ export const useScraperStore = defineStore("scraper", () => {
   return {
     fetchingJobs,
     fetchedTasks,
+    activeFetchingJobs,
     startFetching,
     pauseFetching,
     resumeFetching,
     deleteFetchingJob,
+    deleteFetchedTask,
     loadExistingTasks,
   };
 });

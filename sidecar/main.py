@@ -36,6 +36,21 @@ async def update_config(new_config: Config):
     proxy_manager = ProxyManager(config.proxies)
     return {"status": "updated", "config": config}
 
+@app.get("/image/fetch")
+async def fetch_image(url: str):
+    """Fetch image bytes from URL using current config (cookies/proxies)"""
+    headers = build_headers(config.cookies)
+    client_args = proxy_manager.get_client_args()
+    async with httpx.AsyncClient(**client_args, timeout=30) as client:
+        try:
+            response = await client.get(url, headers=headers, follow_redirects=True)
+            response.raise_for_status()
+            # Return raw bytes with appropriate content type
+            from fastapi.responses import Response
+            return Response(content=response.content, media_type=response.headers.get("content-type", "image/jpeg"))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/tasks/fetch")
 async def fetch_page_with_token(url: str, next: Optional[str] = None):
     """Stateless page fetching - returns single page result"""

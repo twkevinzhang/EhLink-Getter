@@ -24,9 +24,9 @@ interface SidecarAPI {
     error?: string;
     code?: string;
   }>;
-  startDownload: (payload: {
-    jobId: string;
-    images: any[];
+  downloadImage: (payload: {
+    url: string;
+    savePath: string;
   }) => Promise<{ success: boolean; error?: string }>;
   selectDirectory: () => Promise<string | null>;
   selectSavePath: () => Promise<string | null>;

@@ -17,8 +17,8 @@ const api = {
     ipcRenderer.invoke("save-json", JSON.parse(JSON.stringify(payload))),
   readJSON: (payload: { path: string }) =>
     ipcRenderer.invoke("read-json", payload),
-  startDownload: (payload: { jobId: string; images: any[] }) =>
-    ipcRenderer.invoke("start-download", payload),
+  downloadImage: (payload: { url: string; savePath: string }) =>
+    ipcRenderer.invoke("download-image", payload),
   selectDirectory: () => ipcRenderer.invoke("select-directory"),
   selectSavePath: () => ipcRenderer.invoke("select-save-path"),
   openFolder: (path?: string) => ipcRenderer.invoke("open-folder", path),

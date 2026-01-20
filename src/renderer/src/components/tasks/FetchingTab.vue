@@ -4,7 +4,7 @@ import { storeToRefs } from "pinia";
 import { ElMessage, ElMessageBox } from "element-plus";
 
 const scraperStore = useScraperStore();
-const { fetchingJobs } = storeToRefs(scraperStore);
+const { activeFetchingJobs } = storeToRefs(scraperStore);
 
 const handlePause = async (jobId: string) => {
   await scraperStore.pauseFetching(jobId);
@@ -67,7 +67,7 @@ const getStateColor = (state: string) => {
         class="p-4 flex-1 overflow-y-auto flex flex-col gap-3 bg-eh-panel/30"
       >
         <div
-          v-for="job in fetchingJobs"
+          v-for="job in activeFetchingJobs"
           :key="job.id"
           class="eh-panel-card p-3 !bg-white/40"
         >
@@ -142,7 +142,7 @@ const getStateColor = (state: string) => {
           </div>
         </div>
         <div
-          v-if="fetchingJobs.length === 0"
+          v-if="activeFetchingJobs.length === 0"
           class="text-center py-10 text-eh-muted text-xs italic"
         >
           No active scraping jobs

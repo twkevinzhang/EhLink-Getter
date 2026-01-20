@@ -289,13 +289,22 @@ ipcMain.handle("save-config", async (_, config: any) => {
 });
 
 ipcMain.handle(
-  "start-download",
-  async (_, payload: { jobId: string; images: any[] }) => {
+  "download-image",
+  async (_, payload: { url: string; savePath: string }) => {
     try {
-      await axios.post(`${SIDECAR_URL}/job/start`, {
-        job_id: payload.jobId,
-        images: payload.images,
+      const response = await axios.get(`${SIDECAR_URL}/image/fetch`, {
+        params: { url: payload.url },
+        responseType: "arraybuffer", // Important for binary data
       });
+
+      const actualPath = payload.savePath;
+      const targetDir = dirname(actualPath);
+
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+
+      fs.writeFileSync(actualPath, Buffer.from(response.data));
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error.message };
