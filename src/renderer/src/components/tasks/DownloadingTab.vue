@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { useDownloadStore } from "../../stores/download";
-import { useScraperStore } from "../../stores/scraper";
 import { storeToRefs } from "pinia";
 import { ElMessage } from "element-plus";
 import {
@@ -12,10 +11,11 @@ import {
   CloseBold,
   ArrowRight,
   ArrowDown,
+  Close,
+  Remove,
 } from "@element-plus/icons-vue";
 
 const downloadStore = useDownloadStore();
-const scraperStore = useScraperStore();
 const { downloadingJobs } = storeToRefs(downloadStore);
 
 const handlePauseAll = () => {
@@ -51,7 +51,7 @@ const handleRestartJob = (jobId: string) => {
   downloadStore.restartJob(jobId);
 };
 
-const handleStopJob = (jobId: string) => {
+const handleTerminateJob = (jobId: string) => {
   downloadStore.stopJob(jobId);
 };
 </script>
@@ -94,7 +94,15 @@ const handleStopJob = (jobId: string) => {
                 }}</span>
                 <div class="flex items-center gap-3">
                   <div
-                    class="text-[10px] px-2 py-0.5 rounded border border-eh-accent text-eh-accent font-bold uppercase"
+                    class="text-[10px] px-2 py-0.5 rounded border font-bold uppercase"
+                    :class="{
+                      'text-green-500 border-green-500':
+                        job.mode === 'completed',
+                      'text-red-500 border-red-500': job.mode === 'error',
+                      'text-eh-accent border-eh-accent': job.mode === 'running',
+                      'text-gray-400 border-gray-400':
+                        job.mode === 'paused' || job.mode === 'pending',
+                    }"
                   >
                     {{ job.mode }}
                   </div>
@@ -110,33 +118,74 @@ const handleStopJob = (jobId: string) => {
             </div>
 
             <!-- Job Actions -->
-            <div class="flex items-center gap-1" @click.stop>
-              <el-tooltip content="Resume/Pause" placement="top">
+            <template v-if="job.mode === 'pending'">
+              <el-tooltip content="Start" placement="top">
                 <el-button
-                  v-if="job.mode === 'running'"
+                  circle
+                  size="small"
+                  :icon="VideoPlay"
+                  @click.stop="handleResumeJob(job.id)"
+                />
+              </el-tooltip>
+            </template>
+            <template v-if="job.mode === 'running'">
+              <el-tooltip content="Pause" placement="top">
+                <el-button
                   circle
                   size="small"
                   :icon="VideoPause"
-                  @click="handlePauseJob(job.id)"
+                  @click.stop="handlePauseJob(job.id)"
                 />
+              </el-tooltip>
+              <el-tooltip content="Terminate" placement="top">
                 <el-button
-                  v-else
+                  disabled
+                  circle
+                  size="small"
+                  type="primary"
+                  :icon="Close"
+                  @click.stop="handleTerminateJob(job.id)"
+                />
+              </el-tooltip>
+            </template>
+            <template v-if="job.mode === 'paused'">
+              <el-tooltip content="Play" placement="top">
+                <el-button
                   circle
                   size="small"
                   type="primary"
                   :icon="VideoPlay"
-                  @click="handleResumeJob(job.id)"
+                  @click.stop="handleResumeJob(job.id)"
                 />
               </el-tooltip>
-              <el-tooltip content="Stop/Restart" placement="top">
+              <el-tooltip content="Terminate" placement="top">
+                <el-button
+                  circle
+                  size="small"
+                  type="primary"
+                  :icon="Close"
+                  @click.stop="handleTerminateJob(job.id)"
+                />
+              </el-tooltip>
+            </template>
+            <template v-if="job.mode === 'error'">
+              <el-tooltip content="Restart" placement="top">
                 <el-button
                   circle
                   size="small"
                   :icon="RefreshRight"
-                  @click="handleRestartJob(job.id)"
+                  @click.stop="handleRestartJob(job.id)"
                 />
               </el-tooltip>
-            </div>
+              <el-tooltip content="Terminate" placement="top">
+                <el-button
+                  circle
+                  size="small"
+                  :icon="Close"
+                  @click.stop="handleTerminateJob(job.id)"
+                />
+              </el-tooltip>
+            </template>
           </div>
 
           <!-- Gallery List (Collapsible) -->
