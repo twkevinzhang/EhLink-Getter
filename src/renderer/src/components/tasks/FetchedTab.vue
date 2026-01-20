@@ -1,13 +1,7 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
-import { Folder, Delete } from "@element-plus/icons-vue";
+import { ref, computed } from "vue";
+import { Folder, Delete, Plus } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
-
-interface Gallery {
-  id: string;
-  title: string;
-  link: string;
-}
 import { useScraperStore } from "../../stores/scraper";
 import { useDownloadStore } from "../../stores/download";
 import { useConfigStore } from "../../stores/config";
@@ -16,74 +10,60 @@ import { storeToRefs } from "pinia";
 const scraperStore = useScraperStore();
 const downloadStore = useDownloadStore();
 const configStore = useConfigStore();
-const { fetchedTasks } = storeToRefs(scraperStore);
+const { draftGalleries } = storeToRefs(scraperStore);
 const { config } = storeToRefs(configStore);
 
 const targetPath = ref(config.value.download_path);
 const useZip = ref(true);
 const zipPass = ref("");
-const expandedTasks = ref<string[]>([]);
+const manualUrl = ref("");
 
-// Track selected galleries for each task
-const selectedGalleries = ref<Record<string, Set<string>>>({});
+// Tab state for selecting all
+const selectedIds = ref<Set<string>>(new Set());
 
-// Initialize selected galleries when tasks change
-watch(
-  fetchedTasks,
-  (tasks) => {
-    tasks.forEach((task) => {
-      if (!selectedGalleries.value[task.id]) {
-        selectedGalleries.value[task.id] = new Set(
-          task.galleries.map((g: Gallery) => g.id),
-        );
-      }
-    });
-  },
-  { immediate: true, deep: true },
-);
+const isGallerySelected = (id: string) => selectedIds.value.has(id);
 
-watch(targetPath, (val) => configStore.updateConfig({ download_path: val }));
-
-// Check if a gallery is selected
-const isGallerySelected = (taskId: string, galleryId: string) => {
-  return selectedGalleries.value[taskId]?.has(galleryId) ?? false;
-};
-
-// Toggle gallery selection
-const toggleGallery = (taskId: string, galleryId: string) => {
-  if (!selectedGalleries.value[taskId]) {
-    selectedGalleries.value[taskId] = new Set();
-  }
-  if (selectedGalleries.value[taskId].has(galleryId)) {
-    selectedGalleries.value[taskId].delete(galleryId);
+const toggleGallery = (id: string) => {
+  if (selectedIds.value.has(id)) {
+    selectedIds.value.delete(id);
   } else {
-    selectedGalleries.value[taskId].add(galleryId);
+    selectedIds.value.add(id);
   }
 };
 
-// Select All Logic
-const isAllSelected = (taskId: string, galleries: Gallery[]) => {
-  const selected = selectedGalleries.value[taskId];
-  return selected && galleries.every((g) => selected.has(g.id));
-};
+const isAllSelected = computed(() => {
+  return (
+    draftGalleries.value.length > 0 &&
+    selectedIds.value.size === draftGalleries.value.length
+  );
+});
 
-const isIndeterminate = (taskId: string, galleries: Gallery[]) => {
-  const selected = selectedGalleries.value[taskId];
-  if (!selected || selected.size === 0) return false;
-  return selected.size < galleries.length;
-};
+const isIndeterminate = computed(() => {
+  return (
+    selectedIds.value.size > 0 &&
+    selectedIds.value.size < draftGalleries.value.length
+  );
+});
 
-const toggleSelectAll = (taskId: string, galleries: Gallery[]) => {
-  if (isAllSelected(taskId, galleries)) {
-    // Unselect all
-    selectedGalleries.value[taskId] = new Set();
+const toggleSelectAll = (val: boolean) => {
+  if (val) {
+    selectedIds.value = new Set(draftGalleries.value.map((g) => g.id));
   } else {
-    // Select all
-    selectedGalleries.value[taskId] = new Set(galleries.map((g) => g.id));
+    selectedIds.value.clear();
   }
 };
 
-// Browse for folder
+const handleAddManual = () => {
+  try {
+    if (!manualUrl.value) return;
+    scraperStore.addGalleryToDraft(manualUrl.value);
+    manualUrl.value = "";
+    ElMessage.success("Gallery added to draft");
+  } catch (error: any) {
+    ElMessage.error(error.message);
+  }
+};
+
 const handleBrowse = async () => {
   try {
     const result = await window.api.selectDirectory();
@@ -91,7 +71,6 @@ const handleBrowse = async () => {
       targetPath.value = result;
     }
   } catch (error) {
-    console.error("Failed to select folder:", error);
     ElMessage.error("Failed to select folder");
   }
 };
@@ -100,185 +79,151 @@ const handlePlaceholder = (placeholder: string) => {
   targetPath.value = (targetPath.value || "") + placeholder;
 };
 
-const handleAddAllToQueue = async () => {
-  if (fetchedTasks.value.length === 0) {
-    ElMessage.warning("No tasks to download");
+const handleAddSelectedToQueue = async () => {
+  if (selectedIds.value.size === 0) {
+    ElMessage.warning("No galleries selected");
     return;
   }
 
-  let totalAdded = 0;
-  for (const task of fetchedTasks.value) {
-    // Filter only selected galleries
-    const selected = selectedGalleries.value[task.id];
-    if (!selected || selected.size === 0) {
-      continue;
-    }
-    const selectedGalleryList = task.galleries.filter((g: Gallery) =>
-      selected.has(g.id),
-    );
-    if (selectedGalleryList.length > 0) {
-      downloadStore.addToQueue(task.id, task.title, selectedGalleryList);
-      totalAdded++;
-    }
-  }
+  const selectedGalleriesList = draftGalleries.value.filter((g) =>
+    selectedIds.value.has(g.id),
+  );
 
-  if (totalAdded === 0) {
-    ElMessage.warning("No galleries selected for download");
-    return;
-  }
+  // Group into a single job or separate?
+  // For Draft list, users might expect them to be added together.
+  const jobId = `draft-${Date.now()}`;
+  downloadStore.addToQueue(jobId, "Draft Selection", selectedGalleriesList);
 
-  ElMessage.success(`Added ${totalAdded} tasks to download queue`);
-  fetchedTasks.value = []; // Clear current list after adding to queue
-  selectedGalleries.value = {}; // Clear selections
+  // Remove from drafts
+  selectedGalleriesList.forEach((g) => {
+    scraperStore.removeGalleryFromDraft(g.id);
+  });
+
+  selectedIds.value.clear();
+  ElMessage.success(
+    `Added ${selectedGalleriesList.length} galleries to download queue`,
+  );
 };
 
-const handleDeleteTask = async (taskId: string) => {
-  try {
-    await ElMessageBox.confirm(
-      "確定要移除此任務嗎？此動作無法復原。",
-      "確認移除",
-      {
-        confirmButtonText: "確定移除",
-        cancelButtonText: "取消",
-        type: "warning",
-      },
-    );
-    await scraperStore.deleteFetchedTask(taskId);
-    ElMessage.success("任務已移除");
-  } catch (e) {
-    // User cancelled
-  }
+const handleDeleteGallery = (id: string) => {
+  scraperStore.removeGalleryFromDraft(id);
+  selectedIds.value.delete(id);
 };
+
+// Update config when target path changes
+import { watch } from "vue";
+watch(targetPath, (val) => configStore.updateConfig({ download_path: val }));
 </script>
 
 <template>
   <div class="p-4 flex flex-col gap-6 h-full overflow-hidden">
-    <!-- Tasks List Panel -->
-    <div class="eh-panel-card flex-1 flex flex-col overflow-hidden">
-      <div class="eh-header">Fetched Tasks (Ready to Download)</div>
-      <div class="p-4 flex-1 overflow-y-auto bg-white/30">
-        <el-collapse v-model="expandedTasks" class="fetched-tasks-collapse">
-          <el-collapse-item
-            v-for="task in fetchedTasks"
-            :key="task.id"
-            :name="task.id"
-            class="mb-4"
-          >
-            <template #title>
-              <div class="flex items-center justify-between w-full pr-4">
-                <div
-                  class="text-sm font-bold flex items-center gap-2 text-eh-text"
-                >
-                  <el-icon><Folder /></el-icon>
-                  {{ task.title }} ({{ task.galleryCount }} Galleries)
-                </div>
-                <el-button
-                  type="danger"
-                  size="small"
-                  circle
-                  plain
-                  :icon="Delete"
-                  @click.stop="handleDeleteTask(task.id)"
-                  class="delete-task-btn"
-                />
-              </div>
-            </template>
-            <div class="ml-6 flex flex-col gap-1 mt-2">
-              <!-- Select All Checkbox -->
-              <div
-                class="flex items-center gap-2 text-[11px] border-l-2 border-eh-accent pl-2 py-1 mb-1 bg-eh-panel/20"
-              >
-                <el-checkbox
-                  :model-value="isAllSelected(task.id, task.galleries)"
-                  :indeterminate="isIndeterminate(task.id, task.galleries)"
-                  @change="toggleSelectAll(task.id, task.galleries)"
-                  size="small"
-                />
-                <span class="font-bold text-eh-accent uppercase tracking-wider"
-                  >Select All</span
-                >
-              </div>
+    <!-- Manual Add Panel -->
+    <div class="eh-panel-card">
+      <div class="eh-header">Add Gallery Link</div>
+      <div class="p-4 flex gap-2">
+        <el-input
+          v-model="manualUrl"
+          placeholder="https://e-hentai.org/g/XXXXX/XXXXXX/"
+          @keyup.enter="handleAddManual"
+        />
+        <el-button type="primary" :icon="Plus" @click="handleAddManual"
+          >Add</el-button
+        >
+      </div>
+    </div>
 
-              <!-- Gallery Items -->
+    <!-- Draft List Panel -->
+    <div class="eh-panel-card flex-1 flex flex-col overflow-hidden">
+      <div class="eh-header flex justify-between items-center">
+        <span>Ready to Download (Draft List)</span>
+        <div class="flex items-center gap-2" v-if="draftGalleries.length > 0">
+          <el-checkbox
+            :model-value="isAllSelected"
+            :indeterminate="isIndeterminate"
+            @change="toggleSelectAll"
+            class="!mr-0"
+          />
+          <span class="text-[10px] uppercase font-bold text-eh-accent"
+            >Select All</span
+          >
+        </div>
+      </div>
+
+      <div class="p-4 flex-1 overflow-y-auto bg-white/30">
+        <div class="flex flex-col gap-2">
+          <div
+            v-for="g in draftGalleries"
+            :key="g.id"
+            class="flex items-center gap-3 p-2 bg-eh-panel/20 border-l-4"
+            :class="
+              isGallerySelected(g.id)
+                ? 'border-eh-accent bg-eh-panel/40'
+                : 'border-eh-border'
+            "
+          >
+            <el-checkbox
+              :model-value="isGallerySelected(g.id)"
+              @change="toggleGallery(g.id)"
+            />
+            <div class="flex-1 min-w-0">
               <div
-                v-for="g in task.galleries"
-                :key="g.id"
-                class="flex items-center gap-2 text-[11px] border-l-2 border-eh-border pl-2 py-0.5"
+                class="text-[12px] font-bold truncate"
+                :class="!isGallerySelected(g.id) && 'text-eh-muted opacity-60'"
               >
-                <el-checkbox
-                  :model-value="isGallerySelected(task.id, g.id)"
-                  @change="toggleGallery(task.id, g.id)"
-                  size="small"
-                />
-                <span
-                  :class="[
-                    isGallerySelected(task.id, g.id)
-                      ? 'text-eh-text'
-                      : 'text-eh-muted line-through opacity-60',
-                  ]"
-                >
-                  {{ g.title }}
-                </span>
+                {{ g.title }}
+              </div>
+              <div class="text-[10px] text-eh-muted truncate opacity-70">
+                {{ g.link }}
               </div>
             </div>
-          </el-collapse-item>
-        </el-collapse>
-        <div
-          v-if="fetchedTasks.length === 0"
-          class="text-center py-10 text-eh-muted text-xs italic"
-        >
-          No fetched tasks yet
+            <el-button
+              type="danger"
+              size="small"
+              circle
+              plain
+              :icon="Delete"
+              @click="handleDeleteGallery(g.id)"
+            />
+          </div>
+
+          <div
+            v-if="draftGalleries.length === 0"
+            class="text-center py-10 text-eh-muted text-xs italic"
+          >
+            No drafts in the list. Start fetching or add links manually.
+          </div>
         </div>
       </div>
     </div>
 
     <!-- Configuration Panel -->
-    <div class="eh-panel-card overflow-hidden">
+    <div class="eh-panel-card">
       <div class="eh-header">Download Configuration</div>
-      <div class="p-4 flex flex-col gap-4">
+      <div class="p-4 flex flex-col gap-4 text-xs">
         <div class="flex flex-col gap-2">
           <label class="text-[10px] text-eh-muted font-bold uppercase"
             >Target Path:</label
           >
           <div class="flex gap-2">
-            <el-input v-model="targetPath" class="flex-1" />
-            <el-button small @click="handleBrowse">Browse</el-button>
+            <el-input v-model="targetPath" size="small" class="flex-1" />
+            <el-button size="small" @click="handleBrowse">Browse</el-button>
           </div>
           <div class="flex gap-2 mt-1">
             <el-button
               size="small"
               plain
-              class="!bg-eh-bg/50"
               @click="handlePlaceholder('{EN_TITLE}')"
               >{EN_TITLE}</el-button
             >
-            <el-button
-              size="small"
-              plain
-              class="!bg-eh-bg/50"
-              @click="handlePlaceholder('{ID}')"
+            <el-button size="small" plain @click="handlePlaceholder('{ID}')"
               >{ID}</el-button
             >
             <el-button
               size="small"
               plain
-              class="!bg-eh-bg/50"
               @click="handlePlaceholder('{JP_TITLE}')"
               >{JP_TITLE}</el-button
             >
-          </div>
-        </div>
-        <div class="flex items-center gap-10 pt-2 border-t border-eh-bg">
-          <el-checkbox v-model="useZip" class="!h-auto"
-            ><span class="text-xs font-bold uppercase"
-              >Archive (Zip)</span
-            ></el-checkbox
-          >
-          <div class="flex items-center gap-2 flex-1" v-if="useZip">
-            <span class="text-[11px] text-eh-muted font-bold uppercase"
-              >Password:</span
-            >
-            <el-input v-model="zipPass" size="small" placeholder="Optional" />
           </div>
         </div>
       </div>
@@ -288,12 +233,21 @@ const handleDeleteTask = async (taskId: string) => {
       <el-button
         type="primary"
         class="w-full !rounded-none !h-10 font-bold uppercase tracking-widest"
-        @click="handleAddAllToQueue"
-        >Add All to Download Queue</el-button
+        :disabled="selectedIds.size === 0"
+        @click="handleAddSelectedToQueue"
       >
+        Start Download ({{ selectedIds.size }} Selected)
+      </el-button>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Keep consistent transitions */
+.eh-panel-card {
+  transition: all 0.2s ease;
+}
+</style>
 
 <style scoped>
 .fetched-tasks-collapse :deep(.el-collapse-item) {

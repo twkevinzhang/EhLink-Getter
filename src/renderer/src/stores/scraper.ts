@@ -19,6 +19,7 @@ export interface ScraperJob {
 export const useScraperStore = defineStore("scraper", () => {
   const fetchingJobs = ref<ScraperJob[]>([]);
   const fetchedTasks = ref<any[]>([]);
+  const draftGalleries = ref<any[]>([]);
 
   const activeFetchingJobs = computed(() =>
     fetchingJobs.value.filter((job) => job.progress < 100),
@@ -36,6 +37,73 @@ export const useScraperStore = defineStore("scraper", () => {
         jobs: JSON.parse(JSON.stringify(fetchingJobs.value)),
       },
     });
+  }
+
+  async function saveDrafts() {
+    if (!window.api?.saveJSON) return;
+    const tasksPath = configStore.config.tasks_path;
+    if (!tasksPath) return;
+
+    // Use same directory as tasks.json but named galleries-download.json
+    const draftPath = tasksPath.replace(
+      /[^\/\\]+\.json$/,
+      "galleries-download.json",
+    );
+    await window.api.saveJSON({
+      path: draftPath,
+      data: {
+        version: "1.0",
+        galleries: JSON.parse(JSON.stringify(draftGalleries.value)),
+      },
+    });
+  }
+
+  async function loadDrafts() {
+    if (!window.api?.readJSON) return;
+    const tasksPath = configStore.config.tasks_path;
+    if (!tasksPath) return;
+
+    const draftPath = tasksPath.replace(
+      /[^\/\\]+\.json$/,
+      "galleries-download.json",
+    );
+    try {
+      const result = await window.api.readJSON({ path: draftPath });
+      if (result && result.success && result.data?.galleries) {
+        draftGalleries.value = result.data.galleries;
+      }
+    } catch (e) {
+      console.warn("No existing drafts found or failed to load");
+    }
+  }
+
+  function addGalleryToDraft(url: string, title?: string) {
+    // Basic E-Hentai gallery URL check
+    const pattern = /^https:\/\/e-hentai\.org\/g\/\d+\/[a-z0-9]+\/?$/;
+    if (!pattern.test(url)) {
+      throw new Error("Invalid E-Hentai gallery URL format");
+    }
+
+    if (draftGalleries.value.some((g) => g.link === url)) {
+      throw new Error("Gallery already in draft list");
+    }
+
+    draftGalleries.value.unshift({
+      id: `manual-${Date.now()}`,
+      title:
+        title ||
+        `Manual Entry: ${url.split("/").filter(Boolean).slice(-2).join("/")}`,
+      link: url,
+    });
+    saveDrafts();
+  }
+
+  function removeGalleryFromDraft(galleryId: string) {
+    const idx = draftGalleries.value.findIndex((g) => g.id === galleryId);
+    if (idx !== -1) {
+      draftGalleries.value.splice(idx, 1);
+      saveDrafts();
+    }
   }
 
   async function startFetching(
@@ -170,17 +238,16 @@ export const useScraperStore = defineStore("scraper", () => {
         job.status = `Finished: ${allItems.length} items found`;
         job.state = "waiting";
 
-        const finalFetchedTask = {
-          id: jobId,
-          title: `Fetched from ${new URL(url).hostname} (${allItems.length} items)`,
-          galleryCount: allItems.length,
-          galleries: allItems.map((item: any, idx: number) => ({
-            id: `${jobId}-${idx}`,
-            title: item.title,
-            link: item.link,
-          })),
-        };
-        fetchedTasks.value.unshift(finalFetchedTask);
+        // Add to main draft galleries instead of fetchedTasks list
+        const newGalleries = allItems.map((item: any, idx: number) => ({
+          id: `${jobId}-${idx}`,
+          title: item.title,
+          link: item.link,
+          sourceJob: job.link,
+        }));
+
+        draftGalleries.value = [...newGalleries, ...draftGalleries.value];
+        await saveDrafts();
         await saveTasksToFile(job.tasksPath || configStore.config.tasks_path);
       }
     } catch (error: any) {
@@ -252,17 +319,16 @@ export const useScraperStore = defineStore("scraper", () => {
       job.progress = 100;
       job.status = `Finished: ${allItems.length} items found`;
       job.state = "waiting";
-      const finalFetchedTask = {
-        id: jobId,
-        title: `Fetched from ${new URL(job.link).hostname} (${allItems.length} items)`,
-        galleryCount: allItems.length,
-        galleries: allItems.map((item: any, idx: number) => ({
-          id: `${jobId}-${idx}`,
-          title: item.title,
-          link: item.link,
-        })),
-      };
-      fetchedTasks.value.unshift(finalFetchedTask);
+
+      const newGalleries = allItems.map((item: any, idx: number) => ({
+        id: `${jobId}-${idx}`,
+        title: item.title,
+        link: item.link,
+        sourceJob: job.link,
+      }));
+
+      draftGalleries.value = [...newGalleries, ...draftGalleries.value];
+      await saveDrafts();
       await saveTasksToFile(job.tasksPath || configStore.config.tasks_path);
     } catch (error: any) {
       job.status = `Error: ${error.message}`;
@@ -339,24 +405,6 @@ export const useScraperStore = defineStore("scraper", () => {
         for (const job of loadedJobs) {
           if (!fetchingJobs.value.some((j) => j.id === job.id)) {
             fetchingJobs.value.push(job);
-
-            if (job.allItems && job.allItems.length > 0) {
-              const fetchedTask = {
-                id: job.id,
-                title: job.link.startsWith("http")
-                  ? `Fetched from ${new URL(job.link).hostname} (${job.allItems.length} items)`
-                  : `${job.link} (${job.allItems.length} items)`,
-                galleryCount: job.allItems.length,
-                galleries: job.allItems.map((item: any, idx: number) => ({
-                  id: `${job.id}-${idx}`,
-                  title: item.title,
-                  link: item.link,
-                })),
-              };
-              if (!fetchedTasks.value.some((t) => t.id === job.id)) {
-                fetchedTasks.value.push(fetchedTask);
-              }
-            }
           }
         }
         logStore.addLog({
@@ -367,11 +415,14 @@ export const useScraperStore = defineStore("scraper", () => {
     } catch (e) {
       console.error("Failed to load tasks:", e);
     }
+    // Also load drafts when tasks are loaded (initially)
+    await loadDrafts();
   }
 
   return {
     fetchingJobs,
     fetchedTasks,
+    draftGalleries,
     activeFetchingJobs,
     startFetching,
     pauseFetching,
@@ -379,5 +430,8 @@ export const useScraperStore = defineStore("scraper", () => {
     deleteFetchingJob,
     deleteFetchedTask,
     loadExistingTasks,
+    addGalleryToDraft,
+    removeGalleryFromDraft,
+    saveDrafts,
   };
 });
