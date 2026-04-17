@@ -36,6 +36,7 @@ A modern desktop application built with Electron, Vue 3, and a Python sidecar fo
 2. Install Node.js dependencies:
 
    ```bash
+   pnpm approve-builds electron
    pnpm install  # or npm install
    ```
 
