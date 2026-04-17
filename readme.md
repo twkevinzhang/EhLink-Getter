@@ -1,13 +1,13 @@
 # EhLink-Getter Desktop
 
-A modern desktop application built with Electron, Vue 3, and a Python sidecar for fetching E-Hentai gallery links and searching metadata.
+A modern desktop application built with Electron, Vue 3, and a Go sidecar for fetching E-Hentai gallery links and searching metadata.
 
 ## Features
 
 - **Generic List Scraper**: Support for fetching any E-Hentai list page, including favorites, search results, and tag categories.
 - **Improved Performance**: Metadata search and CSV generation are handled natively by Node.js for maximum speed and compatibility.
 - **Modern UI**: Built with Vue 3, Element Plus, and glassmorphism design.
-- **Sidecar Scraper**: Python-based scraper logic handles complex web scraping while main process handles data.
+- **Sidecar Scraper**: Go-based scraper logic handles complex web scraping while main process handles data.
 - **Batch Metadata Mapping**: Map large lists of titles to gallery links using your local `metadata.json`.
 - **Excel Friendly**: CSV exports include UTF-8 BOM to ensure correct character display in Excel.
 
@@ -15,14 +15,14 @@ A modern desktop application built with Electron, Vue 3, and a Python sidecar fo
 
 - **Frontend**: Vue 3 (Composition API), Pinia, Element Plus, Vite
 - **Main Process**: Electron, Node.js (Fs streams, readline)
-- **Sidecar**: Python 3.9+, FastAPI, Httpx, BeautifulSoup4
+- **Sidecar**: Go 1.25+, Gin, Goquery, Resty
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js (v18+)
-- Python 3.9+
+- Go (v1.25+)
 
 ### Installation
 
@@ -40,9 +40,9 @@ A modern desktop application built with Electron, Vue 3, and a Python sidecar fo
    pnpm install  # or npm install
    ```
 
-3. Install Python dependencies for the sidecar:
+3. Setup Go sidecar:
    ```bash
-   pip install -r sidecar/requirements.txt
+   cd sidecar && make install && make build
    ```
 
 ### Development
@@ -55,10 +55,10 @@ pnpm run dev
 
 ### Building & Packaging
 
-1. Build the Python sidecar:
+1. Build the Go sidecar:
 
    ```bash
-   pnpm run build:python
+   cd sidecar && make build
    ```
 
 2. Build the Electron application:

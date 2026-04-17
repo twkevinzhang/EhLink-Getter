@@ -155,3 +155,7 @@ dist_electron
 
 # Codemap cache
 .codemap/
+
+# Sidecar binaries
+sidecar/sidecar
+sidecar/sidecar.exe

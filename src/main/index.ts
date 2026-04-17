@@ -22,7 +22,7 @@ const store = new Store<{
 }>();
 
 let mainWindow: BrowserWindow;
-let pythonProcess: ChildProcess | null = null;
+let sidecarProcess: ChildProcess | null = null;
 const configService = new ConfigService();
 let currentConfig = configService.loadConfig();
 
@@ -33,33 +33,38 @@ let isQuitting = false;
 
 function startSidecar() {
   const isDev = is.dev;
-  let pythonExecutable = "python";
-  if (isDev) {
-    const venvPython = join(app.getAppPath(), ".venv", "bin", "python");
-    if (fs.existsSync(venvPython)) {
-      pythonExecutable = venvPython;
-    }
-  }
-  let scriptPath = join(app.getAppPath(), "sidecar", "main.py");
+  let sidecarExecutable = "";
 
-  if (!isDev) {
+  if (isDev) {
+    sidecarExecutable = join(app.getAppPath(), "sidecar", "sidecar");
+    // Ensure binary is executable (on macOS/Linux)
+    if (process.platform !== "win32" && fs.existsSync(sidecarExecutable)) {
+      try {
+        fs.chmodSync(sidecarExecutable, 0o755);
+      } catch (e) {
+        console.error("Failed to set executable bit on sidecar:", e);
+      }
+    }
+  } else {
     // In production, use the bundled binary
-    pythonExecutable = join(
+    sidecarExecutable = join(
       process.resourcesPath,
       "sidecar",
       process.platform === "win32" ? "sidecar.exe" : "sidecar",
     );
-    scriptPath = ""; // Not needed for binary
   }
 
-  const args = isDev ? [scriptPath] : [];
+  if (!fs.existsSync(sidecarExecutable)) {
+    console.error(`Sidecar executable not found at: ${sidecarExecutable}`);
+    return;
+  }
 
-  pythonProcess = spawn(pythonExecutable, args, {
+  sidecarProcess = spawn(sidecarExecutable, [], {
     env: { ...process.env, SIDECAR_PORT: SIDECAR_PORT.toString() },
-    shell: true,
+    shell: false, // Go binary doesn't need a shell usually
   });
 
-  pythonProcess.stdout?.on("data", (data) => {
+  sidecarProcess.stdout?.on("data", (data) => {
     const lines = data.toString().split("\n");
     for (const line of lines) {
       const trimmedLine = line.trim();
@@ -87,7 +92,7 @@ function startSidecar() {
     }
   });
 
-  pythonProcess.stderr?.on("data", (data) => {
+  sidecarProcess.stderr?.on("data", (data) => {
     const message = data.toString().trim();
     if (!message) return;
 
@@ -98,7 +103,7 @@ function startSidecar() {
     });
   });
 
-  pythonProcess.on("close", (code) => {
+  sidecarProcess.on("close", (code) => {
     console.log(`Sidecar process exited with code ${code}`);
     if (code !== 0 && !isQuitting) {
       // Auto restart in production if needed
@@ -499,7 +504,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
-  if (pythonProcess) {
-    pythonProcess.kill();
+  if (sidecarProcess) {
+    sidecarProcess.kill();
   }
 });

@@ -8,7 +8,7 @@ EhLink-Getter is an Electron desktop application for fetching E-Hentai gallery l
 
 - **Frontend (Renderer)**: Vue 3 + TypeScript + Element Plus UI
 - **Main Process**: Electron IPC handlers + Node.js native services
-- **Python Sidecar**: FastAPI-based HTTP service for web scraping
+- **Go Sidecar**: Gin-based HTTP service for web scraping
 
 The sidecar runs as a separate process spawned by Electron and communicates via HTTP (localhost:8000) and structured JSON logs over stdout.
 
@@ -21,15 +21,15 @@ Vue Renderer (Port: dev HMR)
     ↕ (IPC)
 Electron Main Process
     ↕ (HTTP + JSON stdout)
-Python Sidecar (Port: 8000)
+Go Sidecar (Port: 8000)
 ```
 
 **Key Points**:
 
-- Main process spawns Python sidecar on app start (`src/main/index.ts:16-82`)
-- Python sidecar outputs structured JSON events via stdout for logs/progress
+- Main process spawns Go sidecar on app start (`src/main/index.ts`)
+- Go sidecar outputs structured JSON events via stdout for logs/progress
 - IPC handlers in main process proxy requests to sidecar HTTP API
-- Metadata search runs **natively in Node.js** using streams (not Python) for performance
+- Metadata search runs **natively in Node.js** using streams (not Go) for performance
 
 ### Directory Structure
 
@@ -48,19 +48,21 @@ src/
         │   ├── Configuration.vue    # Cookie/proxy settings
         │   ├── MappingMetadata.vue  # Batch title-to-link mapping
         │   ├── SearchMetadata.vue   # Single metadata search
-        │   ├── SystemLogs.vue       # Python sidecar log viewer
+        │   ├── SystemLogs.vue       # Sidecar log viewer (JSON parsing)
         │   └── TaskConsole.vue      # Generic list scraper UI
         └── stores/              # Pinia state stores
 
 sidecar/
-├── main.py                 # FastAPI entry point
-└── src/
-    ├── entities/
-    │   └── link_info.py    # LinkInfo data model
-    ├── services/
-    │   └── eh_scraper_service.py  # BeautifulSoup scraper with fallback selectors
-    └── utilities/
-        └── header_builder.py      # Build HTTP headers from cookies
+├── cmd/
+│   └── sidecar/
+│       └── main.go         # Go entry point (Gin)
+├── internal/
+│   ├── api/                # API handlers
+│   ├── models/             # Data models
+│   ├── scraper/            # EhScraperService & ProxyManager
+│   └── pkg/
+│       └── logger/         # JSON structured logger
+└── go.mod                  # Go module definition
 ```
 
 ### Critical Architectural Decisions
@@ -68,12 +70,12 @@ sidecar/
 1. **Why Node.js for Metadata Search?**
    - `MetadataService` (`src/main/services/metadata_service.ts`) uses Node.js `fs.createReadStream()` and `readline` to process large `metadata.json` files line-by-line
    - This avoids loading gigabytes of JSON into memory and is faster than Python
-   - Python sidecar handles **scraping only**, not metadata search
+   - Go sidecar handles **scraping only**, not metadata search
 
 2. **Sidecar Lifecycle**
-   - Development: Uses `.venv/bin/python` if exists, else system Python
-   - Production: Uses PyInstaller binary (`sidecar.exe` / `sidecar`) bundled in `resources/sidecar/`
-   - Sidecar is killed on app quit (`src/main/index.ts:299-303`)
+   - Development: Uses `sidecar/sidecar` binary (built via `make build`)
+   - Production: Uses static binary bundled in `resources/sidecar/`
+   - Sidecar is killed on app quit (`src/main/index.ts`)
 
 3. **IPC Pattern**
    - All IPC handlers are in `src/main/index.ts:118-265`
@@ -81,8 +83,8 @@ sidecar/
    - Main process handlers either proxy to sidecar HTTP API or run native Node services
 
 4. **Python Sidecar State**
-   - Global `config` object stores cookies, proxy, paths (`sidecar/main.py:23`)
-   - `current_service` tracks active scraper for cancellation (`sidecar/main.py:24`)
+   - Global `config` object stores cookies, proxy, paths
+   - Cancellation is handled via `context.Context` in Go service
    - Frontend must call `/config` endpoint to update settings before scraping
 
 ## Development Commands
@@ -93,17 +95,14 @@ sidecar/
 # Install Node dependencies
 pnpm install
 
-# Install Python dependencies for sidecar
-pip install -r sidecar/requirements.txt
-
-# OR use sidecar Makefile (requires uv)
-cd sidecar && make install
+# Setup Go sidecar
+cd sidecar && make install && make build
 ```
 
 ### Development
 
 ```bash
-# Start Electron in dev mode (auto-spawns Python sidecar)
+# Start Electron in dev mode (auto-spawns Go sidecar)
 pnpm run dev
 
 # Type checking only (no build)
@@ -124,11 +123,10 @@ pnpm run format              # Format with Prettier
 # Step 1: Type check and build Electron assets
 pnpm run typecheck && pnpm exec electron-vite build
 
-# Step 2: Build Python sidecar with PyInstaller
-pip install pyinstaller
-python -m PyInstaller sidecar/main.py --noconfirm --onedir --console --name sidecar
+# Step 2: Build Go sidecar
+cd sidecar && make build
 
-# Step 3: Package Electron app (includes sidecar binary from dist/sidecar)
+# Step 3: Package Electron app (includes sidecar binary from sidecar/sidecar)
 pnpm exec electron-builder --mac --publish never     # macOS
 pnpm exec electron-builder --win --publish never     # Windows
 ```
@@ -140,21 +138,15 @@ pnpm exec electron-builder --win --publish never     # Windows
 ### Electron Main Process
 
 - **`src/main/index.ts`**: Core app lifecycle
-  - `startSidecar()` (line 16): Spawns Python, handles stdout JSON parsing
+  - `startSidecar()`: Spawns Go binary, handles stdout JSON parsing
   - IPC handlers (line 118+): All renderer↔main communication
   - `MetadataService` usage (line 143, 230): Native Node.js metadata search
 
-### Python Sidecar
+### Go Sidecar
 
-- **`sidecar/main.py`**: FastAPI HTTP server
-  - `/tasks/fetch` (line 40): Fetch one page of gallery list with pagination token
-  - `/tasks/stop` (line 52): Cancel active scraper
-  - `/config` (line 34): Update global config (cookies, proxy)
-  - `log_event()` (line 26): Outputs JSON to stdout for Electron consumption
-
-- **`sidecar/src/services/eh_scraper_service.py`**: BeautifulSoup scraper
-  - `parse_list()` (line 15): **Fallback selectors** for different E-Hentai display modes (Minimal, Compact, Extended, Thumbnail)
-  - `fetch_page_with_token()` (line 54): HTTP fetch + pagination token extraction
+- **`sidecar/cmd/sidecar/main.go`**: Gin HTTP server
+- **`sidecar/internal/scraper/eh_scraper.go`**: Goquery scraper with fallback selectors
+- **`sidecar/internal/scraper/image_service.go`**: Image fetching with Smart Resolver
 
 ### Vue Frontend
 
@@ -191,9 +183,9 @@ pnpm exec electron-builder --win --publish never     # Windows
 
 ### Modifying Scraper Logic
 
-1. Edit `sidecar/src/services/eh_scraper_service.py`
-2. Test with `cd sidecar && python main.py` (runs FastAPI on port 8000)
-3. Restart Electron dev server to pick up changes (sidecar auto-spawns)
+1. Edit `sidecar/internal/scraper/eh_scraper.go`
+2. Test with `cd sidecar && go run ./cmd/sidecar/main.go`
+3. Restart Electron dev server to pick up changes (binary re-run)
 
 ### Working with Metadata Files
 
@@ -214,7 +206,7 @@ The `metadata.json` file is a **newline-delimited JSON** (NDJSON) format:
 - GitHub Actions workflow (`.github/workflows/release.yml`) handles:
   1. Version bumping (`pnpm version patch|minor|major`)
   2. Multi-OS builds (macOS + Windows in parallel)
-  3. PyInstaller bundling of Python sidecar
+  3. Compiled Go binary bundling
   4. Draft release creation with artifacts
 
 To trigger a release:
@@ -227,7 +219,7 @@ git push origin v1.0.0
 
 ## Gotchas & Known Issues
 
-1. **PyInstaller Hidden Imports**: If adding new Python dependencies, ensure they're bundled correctly (check `dist/sidecar/` after build)
+1. **Static Binary Architecture**: Ensure Go is cross-compiled if building for different OS from same host
 
 2. **Electron Builder + pnpm**: Windows builds fail without `node-linker=hoisted` in `.npmrc`
 
@@ -253,7 +245,7 @@ This project uses:
 
 - **Vue 3** - Progressive JavaScript framework
 - **TypeScript** - Typed superset of JavaScript
-- **Python** - Backend/scripting language
+- **Go** - Sidecar service (Gin, Goquery)
 
 ## Use Context7 MCP for Loading Documentation
 

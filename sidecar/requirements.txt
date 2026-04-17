@@ -1,7 +1,0 @@
-fastapi
-uvicorn
-httpx[socks]
-beautifulsoup4
-pydantic
-PyInstaller
-aiofiles
