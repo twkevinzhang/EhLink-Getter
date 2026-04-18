@@ -41,20 +41,24 @@ export const useDownloadStore = defineStore('download', () => {
     // Extract ID from link like https://e-hentai.org/g/123456/token/
     const idMatch = gallery.link.match(/\/g\/(\d+)\//)
     const id = idMatch ? idMatch[1] : 'unknown'
+    const strategy = configStore.config.storage_strategy
 
-    if (configStore.config.storage_strategy === 'eh_id') {
-      // EH_ID Strategy: Store directly by ID under output folder
-      return `output/${id}`
+    let path = template
+    if (!path || path.trim() === '') {
+      path = strategy === 'eh_id' ? 'output' : 'output/{EN_TITLE}'
     }
 
-    // Traditional Strategy Logic:
-    let path = template
+    // Traditional Strategy Logic and general placeholder replacement:
     const enTitle = gallery.title
     const jpTitle = gallery.title
 
     path = path.replace(/{ID}/g, id)
     path = path.replace(/{EN_TITLE}/g, enTitle)
     path = path.replace(/{JP_TITLE}/g, jpTitle)
+
+    if (strategy === 'eh_id' && !path.includes(id)) {
+      path = `${path}/${id}`
+    }
 
     return path
   }
@@ -66,7 +70,7 @@ export const useDownloadStore = defineStore('download', () => {
     isArchive = false,
     password = '',
   ) {
-    const targetTemplate = configStore.config.download_path || ''
+    const targetTemplate = '' // Default to empty, will be handled by DownloadService fallback if needed
 
     const mappedGalleries: DownloadGallery[] = galleries.map((g) => {
       const idMatch = g.link.match(/\/g\/(\d+)\//)
@@ -177,69 +181,30 @@ export const useDownloadStore = defineStore('download', () => {
       }
 
       gallery.mode = 'running'
-      gallery.status = 'Parsing metadata...'
+      gallery.status = 'Downloading...'
 
       try {
-        // 1. Fetch gallery metadata (resolves all image page links)
-        const meta = await window.api.getGalleryMetadata({ url: gallery.link })
+        // Centralized download logic in Main Process via DownloadService
+        const result = await window.api.downloadGallery({
+          url: gallery.link,
+          targetTemplate: gallery.targetPath,
+          storageStrategy: configStore.config.storage_strategy,
+          isArchive: job.isArchive,
+          password: job.password
+        })
 
-        if (meta.error) {
-          gallery.mode = 'error'
-          gallery.status = meta.status ? `Error ${meta.status}` : meta.error
-          logStore.addLog({
-            level: 'error',
-            message: `Parse Error [${gallery.title}]: ${meta.error}`,
-          })
-          continue
-        }
-
-        // 2. Save metadata.json
-        const metadataSavePath = `${gallery.targetPath}/metadata.json`.replace(
-          /\/+/g,
-          '/',
-        )
-        await window.api.saveJSON({ path: metadataSavePath, data: meta })
-
-        // 3. Download each image
-        const imageLinks = meta.image_links || []
-        const totalImages = imageLinks.length
-        let downloadedImages = 0
-
-        gallery.status = `Downloading (0/${totalImages})...`
-
-        for (const imgUrl of imageLinks) {
-          // Check for pause/stop mid-gallery
-          if ((job.mode as string) !== 'running') break
-
-          const fileName = imgUrl.split('/').pop() + '.jpg' // Temporary, Sidecar fetch_image resolves real name
-          // Since Sidecar fetch_image is smart, we just pass the /s/ link
-          const imageSavePath =
-            `${gallery.targetPath}/${imgUrl.split('/').pop()}.jpg`.replace(/\/+/g, '/')
-
-          const result = await window.api.downloadImage({
-            url: imgUrl,
-            savePath: imageSavePath,
-          })
-
-          if (result && result.success) {
-            downloadedImages++
-            gallery.progress = Math.round((downloadedImages / totalImages) * 100)
-            gallery.status = `Downloading (${downloadedImages}/${totalImages})...`
-          } else {
-            // Log error but maybe continue with other images or mark gallery as error
-            const errMsg = `Image link failed: ${imgUrl} - ${result?.error}`
-            logStore.addLog({ level: 'error', message: errMsg })
-          }
-        }
-
-        if (downloadedImages === totalImages) {
+        if (result.success) {
           gallery.mode = 'completed'
           gallery.progress = 100
           gallery.status = 'Completed'
           completedGalleriesCount++
         } else {
           gallery.mode = 'error'
-          gallery.status = `Incomplete (${downloadedImages}/${totalImages})`
+          gallery.status = result.error || 'Failed'
+          logStore.addLog({
+            level: 'error',
+            message: `Download Error [${gallery.title}]: ${result.error}`,
+          })
         }
 
         job.progress = Math.round((completedGalleriesCount / totalGalleriesCount) * 100)
@@ -249,49 +214,14 @@ export const useDownloadStore = defineStore('download', () => {
         gallery.status = error.message
         logStore.addLog({
           level: 'error',
-          message: `Download Error [${gallery.title}]: ${error.message}`,
+          message: `IPC Error [${gallery.title}]: ${error.message}`,
         })
       }
     }
 
     if (completedGalleriesCount === totalGalleriesCount) {
-      if (job.isArchive) {
-        job.isArchiving = true
-        job.status = 'Archiving...'
-        job.archiveProgress = 0
-
-        // Use the first gallery's targetPath as base to derive output zip path
-        // Assuming targetPath is like /path/to/download/{TITLE}
-        const firstGal = job.galleries[0]
-        const folderToZip = firstGal.targetPath
-        // Get parent dir: /path/to/download
-        const parentDir = folderToZip.split(/[\\/]/).slice(0, -1).join('/')
-        // Get folder name: {TITLE}
-        const folderName = folderToZip.split(/[\\/]/).pop()
-        const archiveOutputPath = `${parentDir}/${folderName}.zip`
-
-        const result = await window.api.archiveFolder({
-          folderPath: folderToZip,
-          outputPath: archiveOutputPath,
-          password: job.password,
-        })
-
-        if (result.success) {
-          job.archiveProgress = 100
-          job.status = 'Completed & Archived'
-        } else {
-          job.mode = 'error'
-          job.status = `Archive Error: ${result.error}`
-          logStore.addLog({
-            level: 'error',
-            message: `Archive Error [${job.title}]: ${result.error}`,
-          })
-          return // Stop here if archive fails
-        }
-      }
-
       job.mode = 'completed'
-      if (!job.isArchive) job.status = 'Finished'
+      job.status = job.isArchive ? 'Finished & Archived' : 'Finished'
       completedTasks.value.unshift({
         ...job,
         date: new Date().toLocaleString(),
@@ -302,9 +232,23 @@ export const useDownloadStore = defineStore('download', () => {
     }
   }
 
-  function updateDownloadProgress(progressData: any) {
-    // This was for sidecar-led progress, now we manually update in processDownload
-  }
+  // Listen for real-time status updates from DownloadService
+  window.api.onDownloadStatusUpdate((data: any) => {
+    // Find matching gallery across all active jobs
+    for (const job of downloadingJobs.value) {
+      const gallery = job.galleries.find(g => g.link === data.url)
+      if (gallery && gallery.mode === 'running') {
+        if (data.progress !== undefined) {
+          gallery.progress = data.progress
+        }
+        if (data.status) {
+          gallery.status = data.status
+        }
+        // If one gallery has specific progress, we can update job summary too
+        break
+      }
+    }
+  })
 
   function clearFinishedJobs() {
     downloadingJobs.value = downloadingJobs.value.filter(
@@ -335,7 +279,6 @@ export const useDownloadStore = defineStore('download', () => {
     pauseJob,
     stopJob,
     restartJob,
-    updateDownloadProgress,
     clearFinishedJobs,
   }
 })

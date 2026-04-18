@@ -6,6 +6,8 @@ import { spawn, type ChildProcess } from 'child_process'
 import axios from 'axios'
 import { MetadataService } from './services/metadata_service'
 import { ConfigService } from './services/config_service'
+import { SchedulerService } from './services/scheduler_service'
+import { DownloadService } from './services/download_service'
 import Store from 'electron-store'
 import archiver from 'archiver'
 // @ts-ignore
@@ -26,6 +28,7 @@ let mainWindow: BrowserWindow
 let sidecarProcess: ChildProcess | null = null
 const configService = new ConfigService()
 let currentConfig = configService.loadConfig()
+let downloadService: DownloadService
 
 const SIDECAR_PORT = 8000
 const SIDECAR_URL = `http://127.0.0.1:${SIDECAR_PORT}`
@@ -219,7 +222,8 @@ ipcMain.handle('download-metadata', async () => {
 
 ipcMain.handle('map-metadata', async (_, payload: any) => {
   try {
-    const service = new MetadataService(payload.metadata_path)
+    const metadataPath = join(app.getPath('userData'), 'metadata.json')
+    const service = new MetadataService(metadataPath)
     const rawResults = await service.findMultipleLinks(payload.keywords, 1000, true)
 
     const filteredResults = rawResults.map((item) => {
@@ -348,12 +352,8 @@ ipcMain.handle('save-csv', async (_, payload: { path: string; results: any[] }) 
 
 ipcMain.handle('search-metadata', async (_, query: string) => {
   try {
-    // We need the metadata path from state... actually App.vue passes it in some calls,
-    // but searchMetadata in SidecarAPI doesn't take it currently.
-    // In metadata_service.py it used config.metadata_path.
-    // For now I'll use a hardcoded default or handle it better.
-    // MapMetadata takes it, so let's assume metadata.json in current dir as default.
-    const service = new MetadataService('metadata.json')
+    const metadataPath = join(app.getPath('userData'), 'metadata.json')
+    const service = new MetadataService(metadataPath)
     const results = await service.findLinks(query)
     return { results }
   } catch (error: any) {
@@ -505,6 +505,17 @@ ipcMain.handle(
   },
 )
 
+ipcMain.handle('download-gallery', async (_, payload: any) => {
+  return await downloadService.downloadGallery({
+    url: payload.url,
+    targetTemplate: payload.targetTemplate,
+    storageStrategy: payload.storageStrategy,
+    isArchive: payload.isArchive,
+    password: payload.password,
+    metadata: payload.metadata
+  })
+})
+
 ipcMain.handle('open-folder', async (_, folderPath: string) => {
   if (folderPath) {
     shell.openPath(folderPath)
@@ -554,6 +565,10 @@ app.whenReady().then(() => {
 
   startSidecar()
   createWindow()
+
+  downloadService = new DownloadService(mainWindow)
+  const schedulerService = new SchedulerService(mainWindow, downloadService)
+  schedulerService.start()
 
   // Sync config to sidecar once it's up
   const syncConfig = async (retries = 5) => {

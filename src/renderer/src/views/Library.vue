@@ -20,9 +20,7 @@ const checkMetadata = async () => {
   console.log('[Library] Metadata exists check:', exists)
   isMetadataDownloaded.value = exists
   if (exists) {
-    const userDataPath = await window.api.getUserDataPath()
-    const pathSeparator = window.electron.process.platform === 'win32' ? '\\' : '/'
-    configStore.updateConfig({ metadata_path: `${userDataPath}${pathSeparator}metadata.json` })
+    // metadata_path is now handled internally in main process
   }
 }
 
@@ -45,9 +43,6 @@ const handleDownloadMetadata = async () => {
 
     if (result.success) {
       isMetadataDownloaded.value = true
-      const userDataPath = await window.api.getUserDataPath()
-      const pathSeparator = window.electron.process.platform === 'win32' ? '\\' : '/'
-      configStore.updateConfig({ metadata_path: `${userDataPath}${pathSeparator}metadata.json` })
       toast.add({ severity: 'success', summary: 'Success', detail: 'Metadata downloaded successfully!', life: 3000 })
     } else {
       toast.add({ severity: 'error', summary: 'Download Failed', detail: result.error, life: 5000 })
@@ -65,7 +60,6 @@ const handleSearch = async () => {
   }
   try {
     const payload = {
-      metadata_path: configStore.config.metadata_path,
       keywords: searchTag.value,
       fields: [
         'title',

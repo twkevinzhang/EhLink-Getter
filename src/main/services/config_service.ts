@@ -5,8 +5,6 @@ import { join } from 'path'
 export interface AppConfig {
   cookies: string
   proxies: string[]
-  metadata_path: string
-  download_path: string
   scan_thread_cnt: number
   download_thread_cnt: number
   storage_strategy: 'eh_id' | 'traditional'
@@ -15,8 +13,6 @@ export interface AppConfig {
 const DEFAULT_CONFIG: AppConfig = {
   cookies: '',
   proxies: [],
-  metadata_path: 'metadata.json',
-  download_path: 'output',
   scan_thread_cnt: 3,
   download_thread_cnt: 5,
   storage_strategy: 'traditional',

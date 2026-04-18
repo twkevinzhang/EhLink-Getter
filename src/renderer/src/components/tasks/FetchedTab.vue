@@ -200,7 +200,10 @@ const handleClearDrafts = () => {
   })
 }
 
-watch(targetPath, (val) => configStore.updateConfig({ download_path: val }))
+// targetPath is now a local state and not persisted to global config
+watch(targetPath, (val) => {
+  console.log('[FetchedTab] Target path updated:', val)
+})
 
 watch(searchQuery, () => {
   first.value = 0

@@ -80,8 +80,7 @@ const handleSave = () => {
       .filter((p) => p.length > 0),
     scan_thread_cnt: scanThreads.value,
     download_thread_cnt: downloadThreads.value,
-    cookies: configStore.config.cookies,
-    download_path: configStore.config.download_path
+    cookies: configStore.config.cookies
   }
 
   configStore.updateConfig(newConfig)

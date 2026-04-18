@@ -44,6 +44,9 @@ const api = {
   checkMetadataExists: () => ipcRenderer.invoke('check-metadata-exists'),
   onDownloadProgress: (callback: any) =>
     ipcRenderer.on('download-progress', (_event, value) => callback(value)),
+  downloadGallery: (payload: any) => ipcRenderer.invoke('download-gallery', payload),
+  onDownloadStatusUpdate: (callback: any) =>
+    ipcRenderer.on('download-status-update', (_event, value) => callback(value)),
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
