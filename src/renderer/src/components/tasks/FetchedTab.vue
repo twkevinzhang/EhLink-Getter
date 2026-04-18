@@ -73,7 +73,8 @@ const isIndeterminate = computed(() => {
   return selectedInFiltered > 0 && selectedInFiltered < filteredGalleries.value.length
 })
 
-const toggleSelectAll = (val: boolean) => {
+const toggleSelectAll = () => {
+  const val = !isAllSelected.value
   if (val) {
     filteredGalleries.value.forEach((g: DraftGallery) => selectedIds.value.add(g.id))
   } else {
