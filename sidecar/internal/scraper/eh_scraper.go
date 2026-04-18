@@ -239,7 +239,7 @@ func (s *EhScraperService) ExtractGidToken(targetURL string) (int, string, error
 	return gid, token, nil
 }
 
-func (s *EhScraperService) FetchGalleryMetadata(ctx context.Context, targetURL string) (*models.GalleryMetadata, error) {
+func (s *EhScraperService) FetchLibraryGallery(ctx context.Context, targetURL string) (*models.LibraryGallery, error) {
 	gid, token, err := s.ExtractGidToken(targetURL)
 	if err == nil {
 		// Attempting via EH API
@@ -254,7 +254,7 @@ func (s *EhScraperService) FetchGalleryMetadata(ctx context.Context, targetURL s
 	return s.fetchMetadataViaScraping(ctx, targetURL)
 }
 
-func (s *EhScraperService) fetchMetadataViaAPI(ctx context.Context, gid int, token string) (*models.GalleryMetadata, error) {
+func (s *EhScraperService) fetchMetadataViaAPI(ctx context.Context, gid int, token string) (*models.LibraryGallery, error) {
 	type ApiRequest struct {
 		Method    string      `json:"method"`
 		Gidlist   [][]interface{} `json:"gidlist"`
@@ -270,7 +270,7 @@ func (s *EhScraperService) fetchMetadataViaAPI(ctx context.Context, gid int, tok
 	}
 
 	var result struct {
-		Gmetadata []models.GalleryMetadata `json:"gmetadata"`
+		Gmetadata []models.LibraryGallery `json:"gmetadata"`
 	}
 
 	resp, err := s.client.R().
@@ -289,15 +289,11 @@ func (s *EhScraperService) fetchMetadataViaAPI(ctx context.Context, gid int, tok
 		return nil, err
 	}
 
-	if len(result.Gmetadata) == 0 {
-		return nil, fmt.Errorf("metadata not found in API response")
-	}
-
 	return &result.Gmetadata[0], nil
 }
 
-func (s *EhScraperService) fetchMetadataViaScraping(ctx context.Context, targetURL string) (*models.GalleryMetadata, error) {
-	metadata := &models.GalleryMetadata{}
+func (s *EhScraperService) fetchMetadataViaScraping(ctx context.Context, targetURL string) (*models.LibraryGallery, error) {
+	metadata := &models.LibraryGallery{}
 	gid, token, _ := s.ExtractGidToken(targetURL)
 	metadata.Gid = gid
 	metadata.Token = token

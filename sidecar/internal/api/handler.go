@@ -83,7 +83,7 @@ func (h *APIHandler) GetGalleryMetadata(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Minute)
 	defer cancel()
 
-	metadata, err := scraperService.FetchGalleryMetadata(ctx, targetURL)
+	metadata, err := scraperService.FetchLibraryGallery(ctx, targetURL)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
