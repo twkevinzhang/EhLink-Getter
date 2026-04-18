@@ -12,6 +12,7 @@ const confirm = useConfirm()
 const proxyPool = ref('')
 const scanThreads = ref(3)
 const downloadThreads = ref(5)
+const localCookies = ref(configStore.config.cookies)
 
 const parsedCookies = computed(() => {
   try {
@@ -50,35 +51,39 @@ watch(
   { deep: true },
 )
 
+// 當 store cookies 被外部更新時（例如登入後），同步到本地
+watch(
+  () => configStore.config.cookies,
+  (val) => {
+    if (!isModified.value) localCookies.value = val
+  },
+)
+
 const isModified = computed(() => {
   const currentProxies = proxyPool.value
     .split('\n')
     .map((p) => p.trim())
-    .filter((p) => p.length > 0)
+    .filter(Boolean)
 
   const storeProxies = [...(configStore.config.proxies || [])]
-  const storeScanThreads = configStore.config.scan_thread_cnt || 3
-  const storeDownloadThreads = configStore.config.download_thread_cnt || 5
-
   return (
     JSON.stringify(currentProxies) !== JSON.stringify(storeProxies) ||
-    scanThreads.value !== storeScanThreads ||
-    downloadThreads.value !== storeDownloadThreads
+    scanThreads.value !== (configStore.config.scan_thread_cnt || 3) ||
+    downloadThreads.value !== (configStore.config.download_thread_cnt || 5) ||
+    localCookies.value !== configStore.config.cookies
   )
 })
 
 const handleSave = () => {
-  const newConfig = {
+  configStore.updateConfig({
     proxies: proxyPool.value
       .split('\n')
       .map((p) => p.trim())
       .filter((p) => p.length > 0),
     scan_thread_cnt: scanThreads.value,
     download_thread_cnt: downloadThreads.value,
-    cookies: configStore.config.cookies,
-  }
-
-  configStore.updateConfig(newConfig)
+    cookies: localCookies.value,
+  })
   toast.add({
     severity: 'success',
     summary: 'Saved',
@@ -91,7 +96,7 @@ const handleLogin = async () => {
   try {
     const result = await configStore.loginEHentai()
     if (result.success && result.cookies) {
-      configStore.updateConfig({ ...configStore.config, cookies: result.cookies })
+      configStore.updateConfig({ cookies: result.cookies })
       toast.add({
         severity: 'success',
         summary: 'Login Success',
@@ -125,7 +130,7 @@ const handleLogout = () => {
     acceptLabel: 'Logout',
     acceptClass: 'p-button-danger',
     accept: () => {
-      configStore.updateConfig({ ...configStore.config, cookies: '' })
+      configStore.updateConfig({ cookies: '' })
       toast.add({
         severity: 'success',
         summary: 'Logged Out',
@@ -187,15 +192,11 @@ const handleLogout = () => {
             Format: [{"name": "ipp_pass_hash", ...}, ...]
           </span>
           <Textarea
+            v-model="localCookies"
             class="w-full !p-2"
-            :modelValue="configStore.config.cookies"
             rows="4"
             placeholder="JSON format cookies"
             autoResize
-            @update:modelValue="
-              (val: string) =>
-                configStore.updateConfig({ ...configStore.config, cookies: val })
-            "
           />
         </template>
       </div>
