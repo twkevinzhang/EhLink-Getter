@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, app } from 'electron'
 import axios from 'axios'
 import * as fs from 'fs'
 import { join, dirname } from 'path'
@@ -121,7 +121,11 @@ export class DownloadService {
     // 1. Prepare base path
     let path = template
     if (!path || path.trim() === '') {
-      path = 'output/{EN_TITLE}'
+      try {
+        path = join(app.getPath('downloads'), '{EN_TITLE}')
+      } catch (e) {
+        path = join(app.getPath('userData'), 'downloads', '{EN_TITLE}')
+      }
     }
 
     // 2. Safety replacement for filesystem

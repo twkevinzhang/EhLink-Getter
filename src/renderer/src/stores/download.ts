@@ -36,6 +36,17 @@ export const useDownloadStore = defineStore('download', () => {
   const libraryGalleries = ref<any[]>([])
   const configStore = useConfigStore()
   const logStore = useLogStore()
+  const defaultDownloadsPath = ref('')
+
+  async function init() {
+    try {
+      defaultDownloadsPath.value = await window.api.getDownloadsPath()
+    } catch (e) {
+      console.error('Failed to get downloads path:', e)
+    }
+  }
+
+  init()
 
   function parsePath(template: string, gallery: any) {
     const idMatch = gallery.link.match(/\/g\/(\d+)\//)
@@ -43,7 +54,9 @@ export const useDownloadStore = defineStore('download', () => {
 
     let path = template
     if (!path || path.trim() === '') {
-      path = 'output/{EN_TITLE}'
+      path = defaultDownloadsPath.value 
+        ? `${defaultDownloadsPath.value}/{EN_TITLE}`
+        : 'downloads/{EN_TITLE}'
     }
 
     // Traditional Strategy Logic and general placeholder replacement:
