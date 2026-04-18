@@ -16,7 +16,12 @@ const handlePause = async (jobId: string) => {
 
 const handleResume = async (jobId: string) => {
   await scraperStore.resumeFetching(jobId)
-  toast.add({ severity: 'success', summary: 'Resumed', detail: 'Task resumed', life: 3000 })
+  toast.add({
+    severity: 'success',
+    summary: 'Resumed',
+    detail: 'Task resumed',
+    life: 3000,
+  })
 }
 
 const handleDelete = async (jobId: string) => {
@@ -29,8 +34,13 @@ const handleDelete = async (jobId: string) => {
     acceptClass: 'p-button-danger',
     accept: () => {
       scraperStore.deleteFetchingJob(jobId)
-      toast.add({ severity: 'success', summary: 'Deleted', detail: 'Task deleted', life: 3000 })
-    }
+      toast.add({
+        severity: 'success',
+        summary: 'Deleted',
+        detail: 'Task deleted',
+        life: 3000,
+      })
+    },
   })
 }
 
@@ -94,7 +104,9 @@ const getStateColor = (state: string) => {
                   <span></span>
                 </template>
               </ProgressBar>
-              <div class="flex justify-between items-center text-[10px] font-bold text-eh-text">
+              <div
+                class="flex justify-between items-center text-[10px] font-bold text-eh-text"
+              >
                 <span>PROGRESS</span>
                 <span>{{ job.status }}</span>
               </div>

@@ -48,7 +48,7 @@ const handleAddTask = () => {
       severity: 'warn',
       summary: 'Missing Info',
       detail: 'Please fill in Link and Schedule Time',
-      life: 3000
+      life: 3000,
     })
     return
   }
@@ -56,7 +56,7 @@ const handleAddTask = () => {
   const timeStr = scheduleTime.value.toLocaleTimeString('en-GB', {
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false
+    hour12: false,
   })
 
   schedulerStore.addTask({
@@ -66,16 +66,16 @@ const handleAddTask = () => {
     scheduleTime: timeStr,
     customDownloadPath: displayPath.value,
     isArchive: useZip.value,
-    archivePassword: zipPass.value
+    archivePassword: zipPass.value,
   })
 
   toast.add({
     severity: 'success',
     summary: 'Task Added',
     detail: `Scheduled for ${timeStr}`,
-    life: 3000
+    life: 3000,
   })
-  
+
   activeTab.value = 'task-list'
 }
 
@@ -90,10 +90,14 @@ onMounted(async () => {
 
 const formatStatus = (status: string) => {
   switch (status) {
-    case 'enabled': return 'success'
-    case 'disabled': return 'secondary'
-    case 'running': return 'info'
-    default: return 'contrast'
+    case 'enabled':
+      return 'success'
+    case 'disabled':
+      return 'secondary'
+    case 'running':
+      return 'info'
+    default:
+      return 'contrast'
   }
 }
 
@@ -105,7 +109,7 @@ const handleTriggerNow = async (taskId: string) => {
         severity: 'info',
         summary: 'Task Triggered',
         detail: 'The task has been started manually.',
-        life: 3000
+        life: 3000,
       })
     } else {
       throw new Error(result.error)
@@ -115,7 +119,7 @@ const handleTriggerNow = async (taskId: string) => {
       severity: 'error',
       summary: 'Trigger Failed',
       detail: err.message,
-      life: 5000
+      life: 5000,
     })
   }
 }
@@ -124,10 +128,13 @@ const handleTriggerNow = async (taskId: string) => {
 <template>
   <div class="h-full flex flex-col">
     <Tabs v-model:value="activeTab" class="flex-1 flex flex-col">
-      <TabList class="eh-tab-list" :pt="{
-        tabList: { class: '!flex !flex-row !flex-nowrap' },
-        content: { class: '!overflow-x-auto !overflow-y-hidden' }
-      }">
+      <TabList
+        class="eh-tab-list"
+        :pt="{
+          tabList: { class: '!flex !flex-row !flex-nowrap' },
+          content: { class: '!overflow-x-auto !overflow-y-hidden' },
+        }"
+      >
         <Tab value="settings" class="eh-tab-item">Settings</Tab>
         <Tab value="add-task" class="eh-tab-item">Add Task</Tab>
         <Tab value="task-list" class="eh-tab-item">Task List</Tab>
@@ -159,13 +166,29 @@ const handleTriggerNow = async (taskId: string) => {
                 <div class="flex gap-8 items-center flex-wrap">
                   <div class="flex items-center gap-2">
                     <span class="text-xs text-eh-muted font-bold uppercase">From:</span>
-                    <InputText v-model="fromPage" size="small" class="!w-16 !p-1 text-center" />
-                    <span class="text-xs text-eh-muted font-bold uppercase ml-2">To:</span>
-                    <InputText v-model="toPage" size="small" class="!w-16 !p-1 text-center" />
+                    <InputText
+                      v-model="fromPage"
+                      size="small"
+                      class="!w-16 !p-1 text-center"
+                    />
+                    <span class="text-xs text-eh-muted font-bold uppercase ml-2"
+                      >To:</span
+                    >
+                    <InputText
+                      v-model="toPage"
+                      size="small"
+                      class="!w-16 !p-1 text-center"
+                    />
                   </div>
                   <div class="flex items-center gap-2">
                     <span class="text-xs text-eh-muted font-bold uppercase">Time:</span>
-                    <DatePicker v-model="scheduleTime" timeOnly hourFormat="24" class="h-8 !w-32" inputClass="!p-1 text-center" />
+                    <DatePicker
+                      v-model="scheduleTime"
+                      timeOnly
+                      hourFormat="24"
+                      class="h-8 !w-32"
+                      inputClass="!p-1 text-center"
+                    />
                   </div>
                 </div>
               </div>
@@ -176,21 +199,23 @@ const handleTriggerNow = async (taskId: string) => {
               <div class="p-4 flex flex-col gap-4 text-xs">
                 <!-- Path Selection -->
                 <div class="flex flex-col gap-2">
-                  <label class="text-[10px] text-eh-muted font-bold uppercase flex items-center justify-between">
+                  <label
+                    class="text-[10px] text-eh-muted font-bold uppercase flex items-center justify-between"
+                  >
                     Target Path:
                   </label>
                   <div class="flex gap-2">
-                    <InputText 
-                      v-model="displayPath" 
-                      size="small" 
-                      class="flex-1 !p-1.5 !text-xs" 
+                    <InputText
+                      v-model="displayPath"
+                      size="small"
+                      class="flex-1 !p-1.5 !text-xs"
                     />
-                    <Button 
-                      label="Browse" 
+                    <Button
+                      label="Browse"
                       size="small"
                       outlined
                       class="!py-1 !px-3"
-                      @click="handleSelectPath" 
+                      @click="handleSelectPath"
                     />
                   </div>
                   <div class="flex gap-2 mt-1">
@@ -209,11 +234,15 @@ const handleTriggerNow = async (taskId: string) => {
                 <!-- Archive Settings -->
                 <div class="flex items-center gap-6 mt-2">
                   <div class="flex items-center gap-2">
-                    <span class="text-[10px] text-eh-muted font-bold uppercase">Archive</span>
+                    <span class="text-[10px] text-eh-muted font-bold uppercase"
+                      >Archive</span
+                    >
                     <ToggleSwitch v-model="useZip" />
                   </div>
                   <div v-if="useZip" class="flex items-center gap-2 flex-1">
-                    <span class="text-[10px] text-eh-muted font-bold uppercase">password:</span>
+                    <span class="text-[10px] text-eh-muted font-bold uppercase"
+                      >password:</span
+                    >
                     <InputText
                       v-model="zipPass"
                       size="small"
@@ -223,7 +252,9 @@ const handleTriggerNow = async (taskId: string) => {
                   </div>
                 </div>
 
-                <p class="text-[9px] text-eh-muted italic mt-1 border-t border-eh-border/30 pt-2">
+                <p
+                  class="text-[9px] text-eh-muted italic mt-1 border-t border-eh-border/30 pt-2"
+                >
                   * Note: placeholders will be replaced with actual gallery information.
                 </p>
               </div>
@@ -243,71 +274,105 @@ const handleTriggerNow = async (taskId: string) => {
         <!-- Task List Tab -->
         <TabPanel value="task-list">
           <div class="p-4 flex flex-col gap-3">
-            <div v-if="schedulerStore.tasks.length === 0" class="text-center py-20 text-eh-muted italic">
+            <div
+              v-if="schedulerStore.tasks.length === 0"
+              class="text-center py-20 text-eh-muted italic"
+            >
               No scheduled tasks yet.
             </div>
-            <div 
-              v-for="task in schedulerStore.sortedTasks" 
-              :key="task.id" 
+            <div
+              v-for="task in schedulerStore.sortedTasks"
+              :key="task.id"
               class="eh-panel-card p-4 flex items-center justify-between gap-4"
             >
               <div class="flex-1 flex flex-col gap-2 overflow-hidden">
                 <div class="flex items-center gap-3">
-                  <span class="font-mono text-xl font-bold text-eh-accent">{{ task.scheduleTime }}</span>
-                  <Tag :value="task.status.toUpperCase()" :severity="formatStatus(task.status)" class="!text-[9px]" />
-                  <Tag v-if="task.isArchive" value="ZIP" severity="info" class="!text-[8px] !h-4" />
+                  <span class="font-mono text-xl font-bold text-eh-accent">{{
+                    task.scheduleTime
+                  }}</span>
+                  <Tag
+                    :value="task.status.toUpperCase()"
+                    :severity="formatStatus(task.status)"
+                    class="!text-[9px]"
+                  />
+                  <Tag
+                    v-if="task.isArchive"
+                    value="ZIP"
+                    severity="info"
+                    class="!text-[8px] !h-4"
+                  />
                 </div>
-                <div class="text-[11px] text-eh-muted truncate opacity-80">{{ task.link }}</div>
-                
-                <div v-if="task.customDownloadPath" class="flex items-center gap-1.5 opacity-70">
+                <div class="text-[11px] text-eh-muted truncate opacity-80">
+                  {{ task.link }}
+                </div>
+
+                <div
+                  v-if="task.customDownloadPath"
+                  class="flex items-center gap-1.5 opacity-70"
+                >
                   <i class="pi pi-folder text-[10px] text-eh-accent"></i>
-                  <span class="text-[10px] text-eh-accent truncate font-mono">{{ task.customDownloadPath }}</span>
+                  <span class="text-[10px] text-eh-accent truncate font-mono">{{
+                    task.customDownloadPath
+                  }}</span>
                 </div>
 
                 <div class="flex items-center gap-6 mt-1">
                   <div class="flex items-center gap-1.5">
                     <i class="pi pi-sync text-[10px] text-eh-muted"></i>
-                    <span class="text-[10px] text-eh-muted uppercase font-bold">Runs:</span>
-                    <span class="text-[11px] font-bold text-eh-text">{{ task.executionCount }}</span>
+                    <span class="text-[10px] text-eh-muted uppercase font-bold"
+                      >Runs:</span
+                    >
+                    <span class="text-[11px] font-bold text-eh-text">{{
+                      task.executionCount
+                    }}</span>
                   </div>
                   <div class="flex items-center gap-1.5">
                     <i class="pi pi-download text-[10px] text-eh-muted"></i>
-                    <span class="text-[10px] text-eh-muted uppercase font-bold">Downloaded:</span>
-                    <span class="text-[11px] font-bold text-eh-text">{{ task.downloadedCount }}</span>
+                    <span class="text-[10px] text-eh-muted uppercase font-bold"
+                      >Downloaded:</span
+                    >
+                    <span class="text-[11px] font-bold text-eh-text">{{
+                      task.downloadedCount
+                    }}</span>
                   </div>
                   <div class="flex items-center gap-1.5 ml-auto">
                     <span class="text-[10px] text-eh-muted uppercase">Range:</span>
-                    <span class="text-[10px] font-medium text-eh-text">{{ task.fromPage }} → {{ task.toPage }}</span>
+                    <span class="text-[10px] font-medium text-eh-text"
+                      >{{ task.fromPage }} → {{ task.toPage }}</span
+                    >
                   </div>
                 </div>
-                
-                <div v-if="task.lastRun" class="text-[9px] text-eh-muted italic opacity-60">
+
+                <div
+                  v-if="task.lastRun"
+                  class="text-[9px] text-eh-muted italic opacity-60"
+                >
                   Last run: {{ task.lastRun }}
                 </div>
               </div>
               <div class="flex items-center gap-2">
-                <Button 
-                  :icon="task.status === 'enabled' ? 'pi pi-pause' : 'pi pi-play'" 
-                  text 
-                  rounded 
+                <Button
+                  :icon="task.status === 'enabled' ? 'pi pi-pause' : 'pi pi-play'"
+                  text
+                  rounded
                   size="small"
-                   :severity="task.status === 'enabled' ? 'warn' : 'success'"
-                   @click="schedulerStore.toggleTask(task.id)"
-                 />
-                 <Button 
-                   icon="pi pi-bolt" 
-                   text 
-                   rounded 
-                   size="small"
-                   severity="info"
-                   v-tooltip="'Trigger Now'"
-                   :loading="task.status === 'running'"
-                   @click="handleTriggerNow(task.id)"
-                 />
-                 <Button 
-                   icon="pi pi-trash" 
-                  text 
-                  rounded 
+                  :severity="task.status === 'enabled' ? 'warn' : 'success'"
+                  @click="schedulerStore.toggleTask(task.id)"
+                />
+                <Button
+                  icon="pi pi-bolt"
+                  text
+                  rounded
+                  size="small"
+                  severity="info"
+                  v-tooltip="'Trigger Now'"
+                  :loading="task.status === 'running'"
+                  @click="handleTriggerNow(task.id)"
+                />
+                <Button
+                  icon="pi pi-trash"
+                  text
+                  rounded
                   size="small"
                   severity="danger"
                   @click="schedulerStore.removeTask(task.id)"

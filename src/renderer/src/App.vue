@@ -46,8 +46,12 @@ onMounted(() => {
       <!-- Sidebar -->
       <aside class="w-[200px] bg-eh-sidebar border-r border-eh-border flex flex-col">
         <!-- logo / title area -->
-        <div class="p-4 border-b border-eh-border bg-eh-panel flex flex-col items-center gap-1">
-          <div class="text-[10px] uppercase tracking-widest text-eh-text font-bold">E-Hentai</div>
+        <div
+          class="p-4 border-b border-eh-border bg-eh-panel flex flex-col items-center gap-1"
+        >
+          <div class="text-[10px] uppercase tracking-widest text-eh-text font-bold">
+            E-Hentai
+          </div>
           <div
             class="font-serif italic text-eh-text text-xl border-y border-eh-border px-2 py-1 my-1"
           >
@@ -111,8 +115,9 @@ onMounted(() => {
             <div
               class="w-1.5 h-1.5 rounded-full"
               :class="{
-                'bg-green-500 animate-pulse shadow-[0_0_5px_#22c55e]': configStore.sidecarOnline,
-                'bg-red-500 shadow-[0_0_5px_#ef4444]': !configStore.sidecarOnline
+                'bg-green-500 animate-pulse shadow-[0_0_5px_#22c55e]':
+                  configStore.sidecarOnline,
+                'bg-red-500 shadow-[0_0_5px_#ef4444]': !configStore.sidecarOnline,
               }"
             ></div>
             <span> SIDECAR: {{ configStore.sidecarOnline ? 'ONLINE' : 'OFFLINE' }} </span>

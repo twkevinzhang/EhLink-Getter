@@ -47,8 +47,7 @@ export const useDownloadStore = defineStore('download', () => {
   }
 
   init()
-
-  function parsePath(template: string, gallery: any) {
+  function parsePath(path: string, gallery: any) {
     const idMatch = gallery.link.match(/\/g\/(\d+)\//)
     const id = idMatch ? idMatch[1] : 'unknown'
 
@@ -196,7 +195,7 @@ export const useDownloadStore = defineStore('download', () => {
           url: gallery.link,
           targetTemplate: gallery.targetPath,
           isArchive: job.isArchive,
-          password: job.password
+          password: job.password,
         })
 
         if (result.success) {
@@ -242,7 +241,7 @@ export const useDownloadStore = defineStore('download', () => {
   window.api.onDownloadStatusUpdate((data: any) => {
     // Find matching gallery across all active jobs
     for (const job of downloadingJobs.value) {
-      const gallery = job.galleries.find(g => g.link === data.url)
+      const gallery = job.galleries.find((g) => g.link === data.url)
       if (gallery && gallery.mode === 'running') {
         if (data.progress !== undefined) {
           gallery.progress = data.progress
@@ -279,6 +278,7 @@ export const useDownloadStore = defineStore('download', () => {
     downloadingJobs,
     completedTasks,
     libraryGalleries,
+    getDefaultDownloadsPath,
     addToQueue,
     startJob,
     startAllJobs,

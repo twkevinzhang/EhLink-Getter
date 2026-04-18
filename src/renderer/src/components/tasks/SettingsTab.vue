@@ -47,7 +47,7 @@ watch(
       syncLocalState()
     }
   },
-  { deep: true }
+  { deep: true },
 )
 
 const isModified = computed(() => {
@@ -75,7 +75,7 @@ const handleSave = () => {
       .filter((p) => p.length > 0),
     scan_thread_cnt: scanThreads.value,
     download_thread_cnt: downloadThreads.value,
-    cookies: configStore.config.cookies
+    cookies: configStore.config.cookies,
   }
 
   configStore.updateConfig(newConfig)
@@ -83,7 +83,7 @@ const handleSave = () => {
     severity: 'success',
     summary: 'Saved',
     detail: 'Settings saved and synced to backend',
-    life: 3000
+    life: 3000,
   })
 }
 
@@ -96,17 +96,22 @@ const handleLogin = async () => {
         severity: 'success',
         summary: 'Login Success',
         detail: 'Captured cookies and synced settings.',
-        life: 3000
+        life: 3000,
       })
     } else if (result.error) {
-      toast.add({ severity: 'warn', summary: 'Login Warning', detail: result.error, life: 5000 })
+      toast.add({
+        severity: 'warn',
+        summary: 'Login Warning',
+        detail: result.error,
+        life: 5000,
+      })
     }
   } catch (error: any) {
     toast.add({
       severity: 'error',
       summary: 'Login Failed',
       detail: error.message,
-      life: 5000
+      life: 5000,
     })
   }
 }
@@ -121,8 +126,13 @@ const handleLogout = () => {
     acceptClass: 'p-button-danger',
     accept: () => {
       configStore.updateConfig({ ...configStore.config, cookies: '' })
-      toast.add({ severity: 'success', summary: 'Logged Out', detail: 'Successfully logged out', life: 3000 })
-    }
+      toast.add({
+        severity: 'success',
+        summary: 'Logged Out',
+        detail: 'Successfully logged out',
+        life: 3000,
+      })
+    },
   })
 }
 </script>
@@ -182,12 +192,14 @@ const handleLogout = () => {
             rows="4"
             placeholder="JSON format cookies"
             autoResize
-            @update:modelValue="(val: string) => configStore.updateConfig({ ...configStore.config, cookies: val })"
+            @update:modelValue="
+              (val: string) =>
+                configStore.updateConfig({ ...configStore.config, cookies: val })
+            "
           />
         </template>
       </div>
     </div>
-
 
     <div class="eh-panel-card overflow-hidden">
       <div class="eh-header">Request Management</div>
@@ -206,13 +218,29 @@ const handleLogout = () => {
         <div class="flex gap-10">
           <div class="flex flex-col gap-1">
             <label class="text-xs text-eh-muted font-bold uppercase">Scan Threads:</label>
-            <InputNumber v-model="scanThreads" showButtons :min="1" :max="10" buttonLayout="horizontal" class="h-8" inputClass="!w-12 !h-8 !p-1 !text-center" />
+            <InputNumber
+              v-model="scanThreads"
+              showButtons
+              :min="1"
+              :max="10"
+              buttonLayout="horizontal"
+              class="h-8"
+              inputClass="!w-12 !h-8 !p-1 !text-center"
+            />
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-xs text-eh-muted font-bold uppercase"
               >Download Threads:</label
             >
-            <InputNumber v-model="downloadThreads" showButtons :min="1" :max="20" buttonLayout="horizontal" class="h-8" inputClass="!w-12 !h-8 !p-1 !text-center" />
+            <InputNumber
+              v-model="downloadThreads"
+              showButtons
+              :min="1"
+              :max="20"
+              buttonLayout="horizontal"
+              class="h-8"
+              inputClass="!w-12 !h-8 !p-1 !text-center"
+            />
           </div>
         </div>
       </div>

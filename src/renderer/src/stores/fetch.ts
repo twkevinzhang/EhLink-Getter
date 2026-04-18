@@ -84,12 +84,13 @@ export const useFetchStore = defineStore('fetch', () => {
       console.log('Starting fetching from', url, 'range:', startPage, 'to', endPage)
 
       let allItems: any[] = []
-      let nextToken: string | undefined = startPage > 1 ? (startPage - 1).toString() : undefined
+      let nextToken: string | undefined =
+        startPage > 1 ? (startPage - 1).toString() : undefined
       let pageCount = startPage - 1
       let isFirstPage = true
 
       // Removed aggressive existingJob inheritance that caused loops to skip if previous job finished
-      
+
       const jobIdx = fetchingJobs.value.findIndex((j) => j.id === jobId)
       if (jobIdx === -1) return
 

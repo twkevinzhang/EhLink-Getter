@@ -509,10 +509,9 @@ ipcMain.handle('download-gallery', async (_, payload: any) => {
   return await downloadService.downloadGallery({
     url: payload.url,
     targetTemplate: payload.targetTemplate,
-    storageStrategy: payload.storageStrategy,
     isArchive: payload.isArchive,
     password: payload.password,
-    metadata: payload.metadata
+    metadata: payload.metadata,
   })
 })
 
@@ -521,7 +520,7 @@ ipcMain.handle('trigger-scheduler-task', async (_, taskId: string) => {
   const schedulerService = (global as any).schedulerService
   if (schedulerService) {
     const tasks = (schedulerService.store.get('scheduler.tasks') as any[]) || []
-    const task = tasks.find(t => t.id === taskId)
+    const task = tasks.find((t) => t.id === taskId)
     if (task) {
       schedulerService.runTask(task)
       return { success: true }

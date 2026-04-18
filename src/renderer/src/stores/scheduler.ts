@@ -25,14 +25,14 @@ export const useSchedulerStore = defineStore('scheduler', () => {
   })
 
   function addTask(
-    task: Omit<ScheduledTask, 'id' | 'status' | 'executionCount' | 'downloadedCount'>
+    task: Omit<ScheduledTask, 'id' | 'status' | 'executionCount' | 'downloadedCount'>,
   ) {
     const newTask: ScheduledTask = {
       ...task,
       id: Date.now().toString(),
       status: 'enabled',
       executionCount: 0,
-      downloadedCount: 0
+      downloadedCount: 0,
     }
     tasks.value.push(newTask)
   }
@@ -71,6 +71,6 @@ export const useSchedulerStore = defineStore('scheduler', () => {
     sortedTasks,
     addTask,
     removeTask,
-    toggleTask
+    toggleTask,
   }
 })

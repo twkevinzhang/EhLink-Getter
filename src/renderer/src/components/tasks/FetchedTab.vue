@@ -26,13 +26,6 @@ const useZip = ref(true)
 const zipPass = ref('')
 const manualUrl = ref('')
 
-const displayPath = computed({
-  get: () => targetPath.value,
-  set: (val) => {
-    targetPath.value = val
-  }
-})
-
 // Pagination state
 const first = ref(0)
 const pageSize = ref(20)
@@ -63,7 +56,7 @@ const isAllSelected = computed(() => {
 
 const isIndeterminate = computed(() => {
   const selectedInFiltered = filteredGalleries.value.filter((g: DraftGallery) =>
-    selectedIds.value.has(g.id)
+    selectedIds.value.has(g.id),
   ).length
   return selectedInFiltered > 0 && selectedInFiltered < filteredGalleries.value.length
 })
@@ -83,7 +76,7 @@ const filteredGalleries = computed(() => {
   if (!query) return galleries.value
   return galleries.value.filter(
     (g: DraftGallery) =>
-      g.title.toLowerCase().includes(query) || g.link.toLowerCase().includes(query)
+      g.title.toLowerCase().includes(query) || g.link.toLowerCase().includes(query),
   )
 })
 
@@ -101,7 +94,7 @@ const isPageSelected = computed(() => {
 
 const isPageIndeterminate = computed(() => {
   const pageSelectedCount = paginatedGalleries.value.filter((g: DraftGallery) =>
-    selectedIds.value.has(g.id)
+    selectedIds.value.has(g.id),
   ).length
   return pageSelectedCount > 0 && pageSelectedCount < paginatedGalleries.value.length
 })
@@ -120,7 +113,12 @@ const handleAddManual = () => {
     if (!manualUrl.value) return
     scraperStore.addGallery(manualUrl.value)
     manualUrl.value = ''
-    toast.add({ severity: 'success', summary: 'Added', detail: 'Gallery added to draft', life: 3000 })
+    toast.add({
+      severity: 'success',
+      summary: 'Added',
+      detail: 'Gallery added to draft',
+      life: 3000,
+    })
   } catch (error: any) {
     toast.add({ severity: 'error', summary: 'Error', detail: error.message, life: 5000 })
   }
@@ -133,7 +131,12 @@ const handleBrowse = async () => {
       targetPath.value = result
     }
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to select folder', life: 5000 })
+    toast.add({
+      severity: 'error',
+      summary: 'Error',
+      detail: 'Failed to select folder',
+      life: 5000,
+    })
   }
 }
 
@@ -143,7 +146,12 @@ const handlePlaceholder = (placeholder: string) => {
 
 const handleAddSelectedToQueue = async () => {
   if (selectedIds.value.size === 0) {
-    toast.add({ severity: 'warn', summary: 'Warning', detail: 'No galleries selected', life: 3000 })
+    toast.add({
+      severity: 'warn',
+      summary: 'Warning',
+      detail: 'No galleries selected',
+      life: 3000,
+    })
     return
   }
 
@@ -154,7 +162,7 @@ const handleAddSelectedToQueue = async () => {
     'Draft Selection',
     selectedGalleriesList,
     useZip.value,
-    zipPass.value
+    zipPass.value,
   )
 
   selectedGalleriesList.forEach((g) => {
@@ -166,7 +174,7 @@ const handleAddSelectedToQueue = async () => {
     severity: 'success',
     summary: 'Queued',
     detail: `Added ${selectedGalleriesList.length} galleries to download queue`,
-    life: 3000
+    life: 3000,
   })
 }
 
@@ -190,15 +198,15 @@ const handleClearDrafts = () => {
       scraperStore.clearGalleries()
       selectedIds.value.clear()
       first.value = 0
-      toast.add({ severity: 'success', summary: 'Cleared', detail: 'Draft list cleared', life: 3000 })
-    }
+      toast.add({
+        severity: 'success',
+        summary: 'Cleared',
+        detail: 'Draft list cleared',
+        life: 3000,
+      })
+    },
   })
 }
-
-// targetPath is now a local state and not persisted to global config
-watch(targetPath, (val) => {
-  console.log('[FetchedTab] Target path updated:', val)
-})
 
 watch(searchQuery, () => {
   first.value = 0
@@ -207,7 +215,7 @@ watch(searchQuery, () => {
 onMounted(async () => {
   if (!targetPath.value || targetPath.value.trim() === '') {
     try {
-      const defaultPath = await window.api.getDownloadsPath()
+      const defaultPath = await downloadStore.getDefaultDownloadsPath()
       if (defaultPath) {
         targetPath.value = defaultPath + '/{EN_TITLE}'
       }
@@ -241,7 +249,9 @@ onMounted(async () => {
       </div>
 
       <!-- Filter Input or Action -->
-      <div class="flex px-4 py-2 border-b border-eh-border/50 bg-eh-panel/5 gap-4 items-center">
+      <div
+        class="flex px-4 py-2 border-b border-eh-border/50 bg-eh-panel/5 gap-4 items-center"
+      >
         <InputText
           v-model="searchQuery"
           class="w-1/2 !p-1.5 !text-xs"
@@ -298,7 +308,9 @@ onMounted(async () => {
             <div class="flex-1 min-w-0">
               <div
                 class="text-[12px] font-bold truncate transition-colors"
-                :class="isGallerySelected(g.id) ? 'text-eh-text' : 'text-eh-muted opacity-60'"
+                :class="
+                  isGallerySelected(g.id) ? 'text-eh-text' : 'text-eh-muted opacity-60'
+                "
               >
                 {{ g.title }}
               </div>
@@ -346,15 +358,13 @@ onMounted(async () => {
       <div class="eh-header">Download Configuration</div>
       <div class="p-4 flex flex-col gap-4 text-xs">
         <div class="flex flex-col gap-2">
-          <label class="text-[10px] text-eh-muted font-bold uppercase flex items-center gap-2">
+          <label
+            class="text-[10px] text-eh-muted font-bold uppercase flex items-center gap-2"
+          >
             Target Path:
           </label>
           <div class="flex gap-2">
-            <InputText
-              v-model="displayPath"
-              size="small"
-              class="flex-1 !p-1.5 !text-xs"
-            />
+            <InputText v-model="targetPath" size="small" class="flex-1 !p-1.5 !text-xs" />
             <Button
               label="Browse"
               size="small"

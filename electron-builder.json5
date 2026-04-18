@@ -1,38 +1,38 @@
 {
-  appId: "dev.twkevinzhang.ehlinkgetter",
-  productName: "EhLink-Getter",
+  appId: 'dev.twkevinzhang.ehlinkgetter',
+  productName: 'EhLink-Getter',
   directories: {
-    output: "dist/electron",
+    output: 'dist/electron',
   },
   files: [
-    "out/**/*",
-    "package.json",
+    'out/**/*',
+    'package.json',
     {
-      from: "node_modules",
-      to: "node_modules",
-      filter: ["**/*"],
+      from: 'node_modules',
+      to: 'node_modules',
+      filter: ['**/*'],
     },
   ],
   asar: true,
-  asarUnpack: ["resources/sidecar/**"],
+  asarUnpack: ['resources/sidecar/**'],
   extraResources: [
     {
-      from: "dist/sidecar",
-      to: "sidecar",
-      filter: ["**/*"],
+      from: 'dist/sidecar',
+      to: 'sidecar',
+      filter: ['**/*'],
     },
   ],
   win: {
-    target: ["portable"],
+    target: ['portable'],
   },
   mac: {
-    target: ["dmg", "zip"],
+    target: ['dmg', 'zip'],
   },
   publish: [
     {
-      provider: "github",
-      owner: "twkevinzhang",
-      repo: "EhLink-Getter",
+      provider: 'github',
+      owner: 'twkevinzhang',
+      repo: 'EhLink-Getter',
     },
   ],
 }

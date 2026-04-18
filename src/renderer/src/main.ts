@@ -1,5 +1,5 @@
-import { createApp } from "vue";
-import { createPinia } from "pinia";
+import { createApp } from 'vue'
+import { createPinia } from 'pinia'
 import PrimeVue from 'primevue/config'
 import ToastService from 'primevue/toastservice'
 import ConfirmationService from 'primevue/confirmationservice'
@@ -28,9 +28,9 @@ app.use(PrimeVue, {
   theme: {
     preset: EHPreset,
     options: {
-      darkModeSelector: '.dark-mode'
-    }
-  }
+      darkModeSelector: '.dark-mode',
+    },
+  },
 })
 app.use(ToastService)
 app.use(ConfirmationService)
@@ -47,6 +47,6 @@ app.component('ConfirmDialog', ConfirmDialog)
 app.component('Button', Button)
 app.component('ToggleSwitch', ToggleSwitch)
 
-console.log("[Renderer] Mounting Vue application to #app...");
-app.mount("#app");
-console.log("[Renderer] Vue application mounted successfully!");
+console.log('[Renderer] Mounting Vue application to #app...')
+app.mount('#app')
+console.log('[Renderer] Vue application mounted successfully!')

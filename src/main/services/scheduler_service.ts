@@ -53,19 +53,21 @@ export class SchedulerService {
     const currentHourMin = now.toLocaleTimeString('en-GB', {
       hour: '2-digit',
       minute: '2-digit',
-      hour12: false
+      hour12: false,
     })
 
     const tasks = (this.store.get('scheduler.tasks') as ScheduledTask[]) || []
-    
+
     for (const task of tasks) {
       if (task.status === 'enabled' && task.scheduleTime === currentHourMin) {
         // Prevent running multiple times in the same minute
         const lastRunDate = task.lastRun ? new Date(task.lastRun) : null
-        if (lastRunDate && 
-            lastRunDate.toDateString() === now.toDateString() && 
-            lastRunDate.getHours() === now.getHours() && 
-            lastRunDate.getMinutes() === now.getMinutes()) {
+        if (
+          lastRunDate &&
+          lastRunDate.toDateString() === now.toDateString() &&
+          lastRunDate.getHours() === now.getHours() &&
+          lastRunDate.getMinutes() === now.getMinutes()
+        ) {
           continue
         }
 
@@ -83,7 +85,8 @@ export class SchedulerService {
 
       const config = this.configService.loadConfig()
       let allItems: any[] = []
-      let nextToken: string | undefined = task.fromPage > 1 ? (task.fromPage - 1).toString() : undefined
+      let nextToken: string | undefined =
+        task.fromPage > 1 ? (task.fromPage - 1).toString() : undefined
       let pageCount = task.fromPage - 1
       const maxPages = typeof task.toPage === 'number' ? task.toPage : Infinity
 
@@ -91,10 +94,10 @@ export class SchedulerService {
       while (pageCount < maxPages) {
         pageCount++
         this.logToRenderer(`[Scheduler] Fetching page ${pageCount}...`)
-        
+
         try {
           const response = await axios.get(`${this.SIDECAR_URL}/tasks/fetch`, {
-            params: { url: task.link, next: nextToken }
+            params: { url: task.link, next: nextToken },
           })
           const result = response.data
           if (result && result.items) {
@@ -110,7 +113,9 @@ export class SchedulerService {
         }
       }
 
-      this.logToRenderer(`[Scheduler] Found ${allItems.length} galleries. Starting downloads...`)
+      this.logToRenderer(
+        `[Scheduler] Found ${allItems.length} galleries. Starting downloads...`,
+      )
 
       // 2. Download galleries using centralised DownloadService
       let successDownloaded = 0
@@ -122,26 +127,32 @@ export class SchedulerService {
             targetTemplate: task.customDownloadPath || '', // Fallback handled by DownloadService
             storageStrategy: config.storage_strategy,
             isArchive: task.isArchive,
-            password: task.archivePassword
+            password: task.archivePassword,
           })
 
           if (result.success) {
             successDownloaded++
-            this.updateTaskState(task.id, { downloadedCount: task.downloadedCount + successDownloaded })
+            this.updateTaskState(task.id, {
+              downloadedCount: task.downloadedCount + successDownloaded,
+            })
           }
         } catch (err: any) {
-          this.logToRenderer(`[Scheduler] Failed to download ${item.title}: ${err.message}`, 'error')
+          this.logToRenderer(
+            `[Scheduler] Failed to download ${item.title}: ${err.message}`,
+            'error',
+          )
         }
       }
 
       // 3. Finalize
-      this.updateTaskState(task.id, { 
-        status: 'enabled', 
+      this.updateTaskState(task.id, {
+        status: 'enabled',
         executionCount: task.executionCount + 1,
-        lastRun: new Date().toLocaleString()
+        lastRun: new Date().toLocaleString(),
       })
-      this.logToRenderer(`[Scheduler] Task finished. Downloaded ${successDownloaded} new items.`)
-
+      this.logToRenderer(
+        `[Scheduler] Task finished. Downloaded ${successDownloaded} new items.`,
+      )
     } catch (error: any) {
       console.error('Scheduled task error:', error)
       this.updateTaskState(task.id, { status: 'enabled' })
@@ -151,7 +162,7 @@ export class SchedulerService {
 
   private updateTaskState(id: string, updates: Partial<ScheduledTask>) {
     const tasks = (this.store.get('scheduler.tasks') as ScheduledTask[]) || []
-    const idx = tasks.findIndex(t => t.id === id)
+    const idx = tasks.findIndex((t) => t.id === id)
     if (idx !== -1) {
       tasks[idx] = { ...tasks[idx], ...updates }
       this.store.set('scheduler.tasks', tasks)
@@ -165,7 +176,7 @@ export class SchedulerService {
       level,
       message,
       timestamp: new Date().toISOString(),
-      type: 'log'
+      type: 'log',
     })
   }
 }

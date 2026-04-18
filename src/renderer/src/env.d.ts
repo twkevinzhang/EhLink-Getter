@@ -1,59 +1,61 @@
-import { ElectronAPI } from "@electron-toolkit/preload";
+import { ElectronAPI } from '@electron-toolkit/preload'
 
 interface SidecarAPI {
-  getConfig: () => Promise<any>;
-  checkSidecarHealth: () => Promise<{ success: boolean }>;
-  searchMetadata: (query: string) => Promise<{ results: any[] }>;
-  mapMetadata: (payload: any) => Promise<{ results: any[]; error?: string }>;
-  saveConfig: (config: any) => Promise<{ success: boolean; error?: string }>;
+  getConfig: () => Promise<any>
+  checkSidecarHealth: () => Promise<{ success: boolean }>
+  searchMetadata: (query: string) => Promise<{ results: any[] }>
+  mapMetadata: (payload: any) => Promise<{ results: any[]; error?: string }>
+  saveConfig: (config: any) => Promise<{ success: boolean; error?: string }>
   fetchPage: (payload: {
-    url: string;
-    next?: string;
-  }) => Promise<{ items: any[]; next?: string; error?: string }>;
+    url: string
+    next?: string
+  }) => Promise<{ items: any[]; next?: string; error?: string }>
   saveCSV: (payload: {
-    path: string;
-    results: any[];
-  }) => Promise<{ status: string; path: string; error?: string }>;
+    path: string
+    results: any[]
+  }) => Promise<{ status: string; path: string; error?: string }>
   saveJSON: (payload: {
-    path: string;
-    data: any;
-  }) => Promise<{ status: string; path: string; error?: string }>;
+    path: string
+    data: any
+  }) => Promise<{ status: string; path: string; error?: string }>
   readJSON: (payload: { path: string }) => Promise<{
-    success: boolean;
-    data?: any;
-    error?: string;
-    code?: string;
-  }>;
+    success: boolean
+    data?: any
+    error?: string
+    code?: string
+  }>
   downloadImage: (payload: {
-    url: string;
-    savePath: string;
-  }) => Promise<{ success: boolean; error?: string }>;
-  selectDirectory: () => Promise<string | null>;
-  selectSavePath: () => Promise<string | null>;
-  openFolder: (path?: string) => Promise<void>;
-  onLog: (callback: (log: any) => void) => void;
-  onProgress: (callback: (data: any) => void) => void;
-  onTaskComplete: (callback: (data: any) => void) => void;
-  getUserDataPath: () => Promise<string>;
-  getDownloadsPath: () => Promise<string>;
-  getGalleryMetadata: (payload: { url: string }) => Promise<any>;
-  storeSet: (key: string, val: any) => Promise<void>;
-  storeGet: (key: string) => Promise<any>;
+    url: string
+    savePath: string
+  }) => Promise<{ success: boolean; error?: string }>
+  selectDirectory: () => Promise<string | null>
+  selectSavePath: () => Promise<string | null>
+  openFolder: (path?: string) => Promise<void>
+  onLog: (callback: (log: any) => void) => void
+  onProgress: (callback: (data: any) => void) => void
+  onTaskComplete: (callback: (data: any) => void) => void
+  getUserDataPath: () => Promise<string>
+  getDownloadsPath: () => Promise<string>
+  getGalleryMetadata: (payload: { url: string }) => Promise<any>
+  storeSet: (key: string, val: any) => Promise<void>
+  storeGet: (key: string) => Promise<any>
   archiveFolder: (payload: {
-    folderPath: string;
-    outputPath: string;
-    password?: string;
-  }) => Promise<{ success: boolean; error?: string; size?: number }>;
-  onArchiveProgress: (callback: (data: any) => void) => void;
-  loginEHentai: () => Promise<{ success: boolean; cookies?: string; error?: string }>;
-  downloadMetadata: () => Promise<{ success: boolean; path?: string; error?: string }>;
-  checkMetadataExists: () => Promise<boolean>;
-  onDownloadProgress: (callback: (data: { loaded: number; total: number }) => void) => void;
+    folderPath: string
+    outputPath: string
+    password?: string
+  }) => Promise<{ success: boolean; error?: string; size?: number }>
+  onArchiveProgress: (callback: (data: any) => void) => void
+  loginEHentai: () => Promise<{ success: boolean; cookies?: string; error?: string }>
+  downloadMetadata: () => Promise<{ success: boolean; path?: string; error?: string }>
+  checkMetadataExists: () => Promise<boolean>
+  onDownloadProgress: (
+    callback: (data: { loaded: number; total: number }) => void,
+  ) => void
 }
 
 declare global {
   interface Window {
-    electron: ElectronAPI;
-    api: SidecarAPI;
+    electron: ElectronAPI
+    api: SidecarAPI
   }
 }

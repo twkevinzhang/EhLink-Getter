@@ -23,10 +23,13 @@ const downloadStore = useDownloadStore()
 <template>
   <div class="h-full flex flex-col">
     <Tabs v-model:value="activeTab" class="flex-1 flex flex-col">
-      <TabList class="eh-tab-list" :pt="{
-        tabList: { class: '!flex !flex-row !flex-nowrap' },
-        content: { class: '!overflow-x-auto !overflow-y-hidden' }
-      }">
+      <TabList
+        class="eh-tab-list"
+        :pt="{
+          tabList: { class: '!flex !flex-row !flex-nowrap' },
+          content: { class: '!overflow-x-auto !overflow-y-hidden' },
+        }"
+      >
         <Tab value="settings" class="eh-tab-item">Settings</Tab>
         <Tab value="start-fetch" class="eh-tab-item">Start Fetch</Tab>
         <Tab value="fetching" class="eh-tab-item">

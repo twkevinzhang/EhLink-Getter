@@ -7,22 +7,22 @@ import { PrimeVueResolver } from 'unplugin-vue-components/resolvers'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
   },
   preload: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
   },
   renderer: {
     resolve: {
       alias: {
-        '@renderer': resolve('src/renderer/src')
-      }
+        '@renderer': resolve('src/renderer/src'),
+      },
     },
     plugins: [
       vue(),
       Components({
-        resolvers: [PrimeVueResolver()]
-      })
-    ]
-  }
+        resolvers: [PrimeVueResolver()],
+      }),
+    ],
+  },
 })

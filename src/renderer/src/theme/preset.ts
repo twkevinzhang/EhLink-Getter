@@ -14,7 +14,7 @@ export const EHPreset = definePreset(Aura, {
       700: '#8d1822',
       800: '#73141c',
       900: '#5c1217',
-      950: '#3c0c0f'
+      950: '#3c0c0f',
     },
     colorScheme: {
       light: {
@@ -30,8 +30,8 @@ export const EHPreset = definePreset(Aura, {
           700: '#374151',
           800: '#1f2937',
           900: '#111827',
-          950: '#030712'
-        }
+          950: '#030712',
+        },
       },
       dark: {
         surface: {
@@ -46,9 +46,9 @@ export const EHPreset = definePreset(Aura, {
           700: '#121212',
           800: '#0c0c0c',
           900: '#060606',
-          950: '#000000'
-        }
-      }
-    }
-  }
+          950: '#000000',
+        },
+      },
+    },
+  },
 })

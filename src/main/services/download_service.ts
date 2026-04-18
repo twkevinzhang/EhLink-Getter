@@ -29,15 +29,17 @@ export class DownloadService {
    * Main entry point for downloading a single gallery.
    * Handles path resolution, metadata fetching, image downloading, and archiving.
    */
-  async downloadGallery(options: DownloadOptions): Promise<{ success: boolean; path?: string; error?: string }> {
+  async downloadGallery(
+    options: DownloadOptions,
+  ): Promise<{ success: boolean; path?: string; error?: string }> {
     try {
       const { url, targetTemplate, isArchive, password } = options
-      
+
       // 1. Fetch Metadata if not provided
       let meta = options.metadata
       if (!meta) {
         const metaResp = await axios.get(`${this.SIDECAR_URL}/gallery/metadata`, {
-          params: { url }
+          params: { url },
         })
         meta = metaResp.data
         if (meta.error) {
@@ -64,23 +66,23 @@ export class DownloadService {
         try {
           const response = await axios.get(`${this.SIDECAR_URL}/image/fetch`, {
             params: { url: imgUrl },
-            responseType: 'arraybuffer'
+            responseType: 'arraybuffer',
           })
-          
+
           // Use the ID part of the URL as filename to avoid duplicates
           const fileName = `${imgUrl.split('/').pop()}.jpg`
           fs.writeFileSync(join(targetPath, fileName), Buffer.from(response.data))
           downloadedCount++
-          
+
           // Send progress to renderer
           this.sendProgress(url, {
             status: `Downloading (${downloadedCount}/${totalImages})`,
-            progress: Math.round((downloadedCount / totalImages) * 100)
+            progress: Math.round((downloadedCount / totalImages) * 100),
           })
         } catch (e: any) {
           this.sendProgress(url, {
             status: `Image skipped: ${e.message}`,
-            level: 'warn'
+            level: 'warn',
           })
         }
       }
@@ -96,15 +98,17 @@ export class DownloadService {
         const archivePath = `${targetPath}.zip`
         await this.archiveFolder(targetPath, archivePath, password)
         finalPath = archivePath
-        // Optionally delete the original folder after archiving? 
+        // Optionally delete the original folder after archiving?
         // For now keep it to be safe, or follow Task Manager behavior.
       }
 
       this.sendProgress(url, { status: 'Completed', progress: 100, completed: true })
       return { success: true, path: finalPath }
-
     } catch (error: any) {
-      this.sendProgress(options.url, { status: `Error: ${error.message}`, level: 'error' })
+      this.sendProgress(options.url, {
+        status: `Error: ${error.message}`,
+        level: 'error',
+      })
       return { success: false, error: error.message }
     }
   }
@@ -137,11 +141,11 @@ export class DownloadService {
       '{TOKEN}': token,
       '{EN_TITLE}': sanitize(meta.title),
       '{JP_TITLE}': sanitize(meta.japanese_title || meta.title),
-      '{CATEGORY}': sanitize(meta.category || 'Other')
+      '{CATEGORY}': sanitize(meta.category || 'Other'),
     }
 
     // 3. Perform replacements on the path
-    Object.keys(replacements).forEach(key => {
+    Object.keys(replacements).forEach((key) => {
       const regex = new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
       path = path.replace(regex, replacements[key])
     })
@@ -152,7 +156,11 @@ export class DownloadService {
   /**
    * Helper to ZIP a folder with optional password.
    */
-  private async archiveFolder(folderPath: string, outputPath: string, password?: string): Promise<void> {
+  private async archiveFolder(
+    folderPath: string,
+    outputPath: string,
+    password?: string,
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
         if (!fs.existsSync(dirname(outputPath))) {
@@ -180,7 +188,7 @@ export class DownloadService {
   private sendProgress(url: string, data: any) {
     this.mainWindow?.webContents.send('download-status-update', {
       url,
-      ...data
+      ...data,
     })
   }
 }
