@@ -4,30 +4,25 @@ import * as fs from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { spawn, type ChildProcess } from 'child_process'
 import axios from 'axios'
-import { MetadataService } from './services/metadata_service'
-import { ConfigService } from './services/config_service'
+import { LibraryService } from './services/library_service'
 import { SchedulerService } from './services/scheduler_service'
 import { DownloadService } from './services/download_service'
 import Store from 'electron-store'
-import archiver from 'archiver'
 // @ts-ignore
 import { registerFormat } from 'archiver'
 // @ts-ignore
 import zipEncryptable from 'archiver-zip-encryptable'
 import { File as MegaFile } from 'megajs'
+import { downloadsPath, libraryPath } from './services/utilties'
+import { CONFIG_STORE_KEY } from '../shared/src/utilities'
 
 // Register the encryptable zip format
 registerFormat('zip-encryptable', zipEncryptable)
 
-const store = new Store<{
-  isRainbow: boolean
-  unicorn?: string
-}>()
+const store = new Store<any>()
 
 let mainWindow: BrowserWindow
 let sidecarProcess: ChildProcess | null = null
-const configService = new ConfigService()
-let currentConfig = configService.loadConfig()
 let downloadService: DownloadService
 
 const SIDECAR_PORT = 8000
@@ -36,10 +31,9 @@ const SIDECAR_URL = `http://127.0.0.1:${SIDECAR_PORT}`
 const isQuitting = false
 
 function startSidecar() {
-  const isDev = is.dev
   let sidecarExecutable = ''
 
-  if (isDev) {
+  if (is.dev) {
     sidecarExecutable = join(app.getAppPath(), 'sidecar', 'sidecar')
     // Ensure binary is executable (on macOS/Linux)
     if (process.platform !== 'win32' && fs.existsSync(sidecarExecutable)) {
@@ -154,6 +148,68 @@ function createWindow(): void {
   }
 }
 
+// This method will be called when Electron has finished
+// initialization and is ready to create browser windows.
+// Some APIs can only be used after this event occurs.
+app.whenReady().then(() => {
+  // Set app user model id for windows
+  electronApp.setAppUserModelId('tw.kevinzhang.ehlinkgetter')
+
+  if (is.dev) {
+    app.on('browser-window-created', (_, window) => {
+      optimizer.watchWindowShortcuts(window)
+    })
+  }
+
+  startSidecar()
+  createWindow()
+
+  downloadService = new DownloadService(mainWindow)
+  const schedulerService = new SchedulerService(mainWindow, downloadService)
+  schedulerService.start()
+  // Store in global for IPC access
+  ;(global as any).schedulerService = schedulerService
+
+  // Sync config to sidecar once it's up
+  const unsubscribe = store.onDidChange(CONFIG_STORE_KEY, (newValue, oldValue) => {
+    console.log(`${CONFIG_STORE_KEY} changed:`, { oldValue, newValue })
+    syncConfig(newValue, 5)
+  })
+  const syncConfig = async (newConfig: any, retries: number) => {
+    try {
+      await axios.post(`${SIDECAR_URL}/config`, newConfig)
+      console.log('Config synced to sidecar')
+    } catch (e) {
+      if (retries > 0) {
+        setTimeout(() => syncConfig(newConfig, retries - 1), 2000)
+      } else {
+        console.error('Failed to sync config to sidecar after retries')
+      }
+    }
+  }
+
+  app.on('activate', function () {
+    // On macOS it's common to re-create a window in the app when the
+    // dock icon is clicked and there are no other windows open.
+    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  })
+})
+
+// Quit when all windows are closed, except on macOS. There, it's common
+// for applications and their menu bar to stay active until the user quits
+// explicitly with Cmd + Q.
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit()
+  }
+})
+
+app.on('before-quit', () => {
+  if (sidecarProcess) {
+    sidecarProcess.kill()
+  }
+})
+
 // IPC Handlers
 ipcMain.handle('select-save-path', async () => {
   const { canceled, filePath } = await require('electron').dialog.showSaveDialog(
@@ -170,14 +226,13 @@ ipcMain.handle('select-save-path', async () => {
   return null
 })
 
-ipcMain.handle('check-metadata-exists', async () => {
-  const metadataPath = join(app.getPath('userData'), 'metadata.json')
-  return fs.existsSync(metadataPath)
+ipcMain.handle('check-library-exists', async () => {
+  return fs.existsSync(libraryPath())
 })
 
-ipcMain.handle('download-metadata', async () => {
+ipcMain.handle('download-library', async () => {
   const url = 'https://mega.nz/folder/oh1U0SIA#WBUcf3PaOvrfIF238fnbTg'
-  const targetPath = join(app.getPath('userData'), 'metadata.json')
+  const targetPath = libraryPath()
 
   try {
     const folder = MegaFile.fromURL(url)
@@ -191,7 +246,7 @@ ipcMain.handle('download-metadata', async () => {
     }
 
     return new Promise((resolve, reject) => {
-      const stream = file.download()
+      const stream = file.download({})
       const writeStream = fs.createWriteStream(targetPath)
 
       stream.on('progress', (info) => {
@@ -220,10 +275,10 @@ ipcMain.handle('download-metadata', async () => {
   }
 })
 
-ipcMain.handle('map-metadata', async (_, payload: any) => {
+ipcMain.handle('search-library', async (_, payload: any) => {
   try {
-    const metadataPath = join(app.getPath('userData'), 'metadata.json')
-    const service = new MetadataService(metadataPath)
+    const libPath = libraryPath()
+    const service = new LibraryService(libPath)
     const rawResults = await service.findMultipleLinks(payload.keywords, 1000, true)
 
     const filteredResults = rawResults.map((item) => {
@@ -240,23 +295,6 @@ ipcMain.handle('map-metadata', async (_, payload: any) => {
 
     return { results: filteredResults }
   } catch (error: any) {
-    return { success: false, error: error.message }
-  }
-})
-ipcMain.handle('get-gallery-metadata', async (_, payload: { url: string }) => {
-  try {
-    const response = await axios.get(`${SIDECAR_URL}/gallery/metadata`, {
-      params: { url: payload.url },
-    })
-    return response.data
-  } catch (error: any) {
-    if (error.response) {
-      return {
-        success: false,
-        error: error.response.data.detail || error.message,
-        status: error.response.status,
-      }
-    }
     return { success: false, error: error.message }
   }
 })
@@ -279,6 +317,7 @@ ipcMain.handle('check-sidecar-health', async () => {
     })
     return { success: response.data.status === 'ok' }
   } catch (error) {
+    1
     return { success: false }
   }
 })
@@ -350,17 +389,6 @@ ipcMain.handle('save-csv', async (_, payload: { path: string; results: any[] }) 
   }
 })
 
-ipcMain.handle('search-metadata', async (_, query: string) => {
-  try {
-    const metadataPath = join(app.getPath('userData'), 'metadata.json')
-    const service = new MetadataService(metadataPath)
-    const results = await service.findLinks(query)
-    return { results }
-  } catch (error: any) {
-    return { success: false, error: error.message }
-  }
-})
-
 ipcMain.handle('login-ehentai', async () => {
   const authWindow = new BrowserWindow({
     width: 800,
@@ -405,25 +433,6 @@ ipcMain.handle('login-ehentai', async () => {
   })
 })
 
-ipcMain.handle('get-config', async () => {
-  return currentConfig
-})
-
-ipcMain.handle('get-user-data-path', async () => {
-  return app.getPath('userData')
-})
-
-ipcMain.handle('save-config', async (_, config: any) => {
-  try {
-    currentConfig = config
-    configService.saveConfig(config)
-    await axios.post(`${SIDECAR_URL}/config`, config)
-    return { success: true }
-  } catch (error: any) {
-    return { success: false, error: error.message }
-  }
-})
-
 ipcMain.handle(
   'download-image',
   async (_, payload: { url: string; savePath: string }) => {
@@ -449,78 +458,25 @@ ipcMain.handle(
 )
 
 ipcMain.handle(
-  'archive-folder',
-  async (_, payload: { folderPath: string; outputPath: string; password?: string }) => {
-    return new Promise((resolve) => {
-      try {
-        const { folderPath, outputPath, password } = payload
-
-        // Ensure output directory exists
-        if (!fs.existsSync(dirname(outputPath))) {
-          fs.mkdirSync(dirname(outputPath), { recursive: true })
-        }
-
-        const output = fs.createWriteStream(outputPath)
-        const archive = archiver(password ? ('zip-encryptable' as any) : 'zip', {
-          zlib: { level: 9 },
-          forceLocalTime: true,
-          ...(password ? { password } : {}),
-        })
-
-        output.on('close', () => {
-          resolve({ success: true, size: archive.pointer() })
-        })
-
-        archive.on('warning', (err) => {
-          if (err.code === 'ENOENT') {
-            console.warn('Archiver warning:', err)
-          } else {
-            throw err
-          }
-        })
-
-        archive.on('error', (err) => {
-          resolve({ success: false, error: err.message })
-        })
-
-        archive.on('progress', (progress) => {
-          const percent = Math.round(
-            (progress.entries.processed / progress.entries.total) * 100,
-          )
-          mainWindow?.webContents.send('archive-progress', {
-            outputPath,
-            progress: percent,
-            entries: progress.entries,
-          })
-        })
-
-        archive.pipe(output)
-        // Add folder content, but not the folder itself
-        archive.directory(folderPath, false)
-        archive.finalize()
-      } catch (error: any) {
-        resolve({ success: false, error: error.message })
-      }
-    })
+  'download-gallery',
+  async (_, payload: { gallery: any; isArchive?: boolean; password?: string }) => {
+    try {
+      const result = await downloadService.downloadGallery(payload)
+      // Final guard against any non-clonable data in the response
+      return JSON.parse(JSON.stringify(result))
+    } catch (error: any) {
+      console.error('[IPC] download-gallery error:', error)
+      return { success: false, error: error.message }
+    }
   },
 )
-
-ipcMain.handle('download-gallery', async (_, payload: any) => {
-  return await downloadService.downloadGallery({
-    url: payload.url,
-    targetTemplate: payload.targetTemplate,
-    isArchive: payload.isArchive,
-    password: payload.password,
-    metadata: payload.metadata,
-  })
-})
 
 ipcMain.handle('trigger-scheduler-task', async (_, taskId: string) => {
   // @ts-ignore - We need access to the schedulerService instance
   const schedulerService = (global as any).schedulerService
   if (schedulerService) {
     const tasks = (schedulerService.store.get('scheduler.tasks') as any[]) || []
-    const task = tasks.find((t) => t.id === taskId)
+    const task = tasks.find((t) => (t.taskId || t.id) === taskId)
     if (task) {
       schedulerService.runTask(task)
       return { success: true }
@@ -534,12 +490,12 @@ ipcMain.handle('open-folder', async (_, folderPath: string) => {
   if (folderPath) {
     shell.openPath(folderPath)
   } else {
-    shell.openPath(app.getPath('downloads'))
+    shell.openPath(downloadsPath())
   }
 })
 
 ipcMain.handle('get-downloads-path', async () => {
-  return app.getPath('downloads')
+  return downloadsPath()
 })
 
 ipcMain.handle('electron-store-get', async (_, key: string) => {
@@ -561,64 +517,4 @@ ipcMain.handle('select-directory', async () => {
     return filePaths[0]
   }
   return null
-})
-
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
-  // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
-
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
-  })
-
-  startSidecar()
-  createWindow()
-
-  downloadService = new DownloadService(mainWindow)
-  const schedulerService = new SchedulerService(mainWindow, downloadService)
-  schedulerService.start()
-  // Store in global for IPC access
-  ;(global as any).schedulerService = schedulerService
-
-  // Sync config to sidecar once it's up
-  const syncConfig = async (retries = 5) => {
-    try {
-      await axios.post(`${SIDECAR_URL}/config`, currentConfig)
-      console.log('Config synced to sidecar')
-    } catch (e) {
-      if (retries > 0) {
-        setTimeout(() => syncConfig(retries - 1), 2000)
-      } else {
-        console.error('Failed to sync config to sidecar after retries')
-      }
-    }
-  }
-  syncConfig()
-
-  app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
-  })
-})
-
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
-})
-
-app.on('before-quit', () => {
-  if (sidecarProcess) {
-    sidecarProcess.kill()
-  }
 })
