@@ -14,7 +14,15 @@ export const DEFAULT_CONFIG: AppConfig = {
 
 export const CONFIG_STORE_KEY = 'config.config'
 
-export function parseTemplatePath(template: string, meta: any): string {
+export interface GalleryMeta {
+  gid: string
+  token?: string
+  title: string
+  japanese_title?: string
+  category?: string
+}
+
+export function parseTemplatePath(template: string, meta: GalleryMeta): string {
   const gid = meta.gid
   const token = meta.token || ''
 

@@ -1,5 +1,3 @@
-import { markRaw } from 'vue'
-
-export function plainValue(value: any): any {
-  return JSON.parse(JSON.stringify(markRaw(value)))
+export function plainValue<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
 }

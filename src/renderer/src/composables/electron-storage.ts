@@ -1,43 +1,40 @@
 import { plainValue } from '@renderer/utilities'
-import { ref, toRaw, watch, type Ref, type UnwrapRef } from 'vue'
+import { ref, watch, type Ref, type UnwrapRef } from 'vue'
 
 /**
- * Custom composable for electron-store persistence using VueUse-like pattern
- * Note: Due to async nature of IPC, this handles initial load and subsequent watches.
+ * Custom composable for electron-store persistence using VueUse-like pattern.
+ * Uses isSaving flag to prevent the load completing from triggering a redundant write-back.
  */
 export function useElectronStorage<T>(key: string, initialValue: T): Ref<UnwrapRef<T>> {
   const data = ref<T>(initialValue)
-  const isLoaded = ref(false)
+  let isLoaded = false
+  let isSaving = false
 
-  // Load initial data
   const load = async () => {
-    if (window.api?.storeGet) {
-      try {
-        const saved = await window.api.storeGet(key)
-        if (saved !== undefined && saved !== null) {
-          data.value = saved
-        }
-      } catch (err) {
-        console.error(`[ElectronStorage] Failed to load key "${key}":`, err)
+    if (!window.api?.storeGet) return
+    try {
+      const saved = await window.api.storeGet<T>(key)
+      if (saved !== undefined && saved !== null) {
+        isSaving = true
+        data.value = saved as UnwrapRef<T>
+        isSaving = false
       }
-      isLoaded.value = true
+    } catch (err) {
+      console.error(`[ElectronStorage] Failed to load key "${key}":`, err)
     }
+    isLoaded = true
   }
 
   load()
 
-  // Watch for changes and save
   watch(
     data,
     (newValue) => {
-      if (isLoaded.value && window.api?.storeSet) {
-        try {
-          // Use JSON.parse(JSON.stringify()) to ensure the object is cloneable and free of Proxies/non-serializables
-          window.api.storeSet(key, plainValue(newValue))
-        } catch (err) {
-          console.error(`[ElectronStorage] Failed to save key "${key}":`, err)
-          console.error(`Value attempted to save:`, newValue)
-        }
+      if (!isLoaded || isSaving || !window.api?.storeSet) return
+      try {
+        window.api.storeSet(key, plainValue(newValue))
+      } catch (err) {
+        console.error(`[ElectronStorage] Failed to save key "${key}":`, err)
       }
     },
     { deep: true },

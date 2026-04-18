@@ -1,26 +1,20 @@
+// src/renderer/src/stores/logs.ts
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import type { LogLevel, LogEntry } from '@renderer/types/log'
 
-export interface LogEntry {
-  level: string
-  message: string
-  timestamp: string
-}
+export type { LogLevel, LogEntry }
 
 export const useLogStore = defineStore('logs', () => {
   const logs = ref<LogEntry[]>([])
 
-  function addLog(log: any) {
-    const entry = {
+  function addLog(log: Omit<LogEntry, 'timestamp'>) {
+    logs.value.unshift({
       ...log,
       timestamp: new Date().toLocaleTimeString(),
-    }
-    logs.value.unshift(entry)
+    })
     if (logs.value.length > 500) logs.value.pop()
   }
 
-  return {
-    logs,
-    addLog,
-  }
+  return { logs, addLog }
 })

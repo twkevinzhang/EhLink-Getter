@@ -1,37 +1,48 @@
+// src/renderer/src/env.d.ts
 import { type ElectronAPI } from '@electron-toolkit/preload'
+import type {
+  FetchPageResponse,
+  FetchedItem,
+  SearchLibraryPayload,
+  SearchLibraryResponse,
+  DownloadGalleryPayload,
+  DownloadGalleryResponse,
+  DownloadStatusEvent,
+  ArchiveProgressEvent,
+  SidecarLogEvent,
+  TriggerSchedulerResponse,
+} from '@renderer/types/api'
+import type { AppConfig } from '@shared/utilities'
 
 interface SidecarAPI {
-  // config module
-  getConfig: () => Promise<any>
-  saveConfig: (config: any) => Promise<{ success: boolean; error?: string }>
+  // config
+  getConfig: () => Promise<AppConfig>
+  saveConfig: (config: AppConfig) => Promise<{ success: boolean; error?: string }>
   checkSidecarHealth: () => Promise<{ success: boolean }>
   loginEHentai: () => Promise<{ success: boolean; cookies?: string; error?: string }>
 
-  // library module
-  searchLibrary: (payload: any) => Promise<{ results: any[]; error?: string }>
+  // library
+  searchLibrary: (payload: SearchLibraryPayload) => Promise<SearchLibraryResponse>
   checkLibraryExists: () => Promise<boolean>
   downloadLibrary: () => Promise<{ success: boolean; path?: string; error?: string }>
   onDownloadProgress: (
     callback: (data: { loaded: number; total: number }) => void,
   ) => void
-  openFolder: (path?: string) => Promise<void>
+  openFolder: (path?: string) => Promise<void> // NOTE: semantically should be openExternal, renamed in Task 13
 
-  // fetch module
-  fetchPage: (payload: {
-    url: string
-    next?: string
-  }) => Promise<{ items: any[]; next?: string; error?: string }>
+  // fetch
+  fetchPage: (payload: { url: string; next?: string }) => Promise<FetchPageResponse>
   saveCSV: (payload: {
     path: string
-    results: any[]
+    results: FetchedItem[]
   }) => Promise<{ status: string; path: string; error?: string }>
   saveJSON: (payload: {
     path: string
-    data: any
+    data: unknown
   }) => Promise<{ status: string; path: string; error?: string }>
   readJSON: (payload: { path: string }) => Promise<{
     success: boolean
-    data?: any
+    data?: unknown
     error?: string
     code?: string
   }>
@@ -42,24 +53,21 @@ interface SidecarAPI {
   selectDirectory: () => Promise<string | null>
   selectSavePath: () => Promise<string | null>
 
-  // app.vue
-  onLog: (callback: (log: any) => void) => void
-  onProgress: (callback: (data: any) => void) => void
+  // events
+  onLog: (callback: (log: SidecarLogEvent) => void) => void
 
-  // download module
+  // download
   getDownloadsPath: () => Promise<string>
-  onArchiveProgress: (callback: (data: any) => void) => void
-  downloadGallery: (
-    payload: any,
-  ) => Promise<{ success: boolean; path?: string; error?: string }>
-  onDownloadStatusUpdate: (callback: (data: any) => void) => void
+  onArchiveProgress: (callback: (data: ArchiveProgressEvent) => void) => void
+  downloadGallery: (payload: DownloadGalleryPayload) => Promise<DownloadGalleryResponse>
+  onDownloadStatusUpdate: (callback: (data: DownloadStatusEvent) => void) => void
 
-  // electron-storage composable
-  storeGet: (key: string) => Promise<any>
-  storeSet: (key: string, val: any) => Promise<void>
+  // electron-storage
+  storeGet: <T = unknown>(key: string) => Promise<T>
+  storeSet: (key: string, val: unknown) => Promise<void>
 
-  // scheduler module
-  triggerSchedulerTask: (taskId: string) => Promise<any>
+  // scheduler
+  triggerSchedulerTask: (taskId: string) => Promise<TriggerSchedulerResponse>
 }
 
 declare global {
