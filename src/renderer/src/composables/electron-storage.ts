@@ -11,9 +11,13 @@ export function useElectronStorage<T>(key: string, initialValue: T): Ref<UnwrapR
   // Load initial data
   const load = async () => {
     if (window.api?.storeGet) {
-      const saved = await window.api.storeGet(key)
-      if (saved !== undefined && saved !== null) {
-        data.value = saved
+      try {
+        const saved = await window.api.storeGet(key)
+        if (saved !== undefined && saved !== null) {
+          data.value = saved
+        }
+      } catch (err) {
+        console.error(`[ElectronStorage] Failed to load key "${key}":`, err)
       }
       isLoaded.value = true
     }
@@ -26,7 +30,14 @@ export function useElectronStorage<T>(key: string, initialValue: T): Ref<UnwrapR
     data,
     (newValue) => {
       if (isLoaded.value && window.api?.storeSet) {
-        window.api.storeSet(key, toRaw(newValue))
+        try {
+          // Use JSON.parse(JSON.stringify()) to ensure the object is cloneable and free of Proxies/non-serializables
+          const plainValue = JSON.parse(JSON.stringify(toRaw(newValue)))
+          window.api.storeSet(key, plainValue)
+        } catch (err) {
+          console.error(`[ElectronStorage] Failed to save key "${key}":`, err)
+          console.error(`Value attempted to save:`, newValue)
+        }
       }
     },
     { deep: true },
