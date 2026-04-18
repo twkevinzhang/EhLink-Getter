@@ -10,6 +10,8 @@ import (
 
 	"sidecar/internal/models"
 	"strconv"
+	"regexp"
+	"encoding/json"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/go-resty/resty/v2"
@@ -224,13 +226,86 @@ func extractToken(href string) string {
 	return ""
 }
 
-func (s *EhScraperService) FetchGalleryMetadata(ctx context.Context, targetURL string) (*models.GalleryMetadata, error) {
-	var allImageLinks []string
-	currentURL := targetURL
-	title := "Unknown"
-	titleJP := ""
+func (s *EhScraperService) ExtractGidToken(targetURL string) (int, string, error) {
+	// Pattern: /g/(\d+)/([a-z0-9]+)/
+	re := regexp.MustCompile(`/g/(\d+)/([a-z0-9]+)`)
+	matches := re.FindStringSubmatch(targetURL)
+	if len(matches) < 3 {
+		return 0, "", fmt.Errorf("invalid gallery URL")
+	}
 
-	for p := 0; p < 200; p++ {
+	gid, _ := strconv.Atoi(matches[1])
+	token := matches[2]
+	return gid, token, nil
+}
+
+func (s *EhScraperService) FetchGalleryMetadata(ctx context.Context, targetURL string) (*models.GalleryMetadata, error) {
+	gid, token, err := s.ExtractGidToken(targetURL)
+	if err == nil {
+		// Attempting via EH API
+		metadata, err := s.fetchMetadataViaAPI(ctx, gid, token)
+		if err == nil {
+			return metadata, nil
+		}
+		fmt.Printf("API fetch failed: %v, falling back to HTML scraping\n", err)
+	}
+
+	// Fallback to HTML scraping
+	return s.fetchMetadataViaScraping(ctx, targetURL)
+}
+
+func (s *EhScraperService) fetchMetadataViaAPI(ctx context.Context, gid int, token string) (*models.GalleryMetadata, error) {
+	type ApiRequest struct {
+		Method    string      `json:"method"`
+		Gidlist   [][]interface{} `json:"gidlist"`
+		Namespace int         `json:"namespace"`
+	}
+
+	reqBody := ApiRequest{
+		Method: "gdata",
+		Gidlist: [][]interface{}{
+			{gid, token},
+		},
+		Namespace: 1,
+	}
+
+	var result struct {
+		Gmetadata []models.GalleryMetadata `json:"gmetadata"`
+	}
+
+	resp, err := s.client.R().
+		SetContext(ctx).
+		SetBody(reqBody).
+		Post("https://e-hentai.org/api.php")
+
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return nil, fmt.Errorf("API Error: status %d", resp.StatusCode())
+	}
+
+	if err := json.Unmarshal(resp.Body(), &result); err != nil {
+		return nil, err
+	}
+
+	if len(result.Gmetadata) == 0 {
+		return nil, fmt.Errorf("metadata not found in API response")
+	}
+
+	return &result.Gmetadata[0], nil
+}
+
+func (s *EhScraperService) fetchMetadataViaScraping(ctx context.Context, targetURL string) (*models.GalleryMetadata, error) {
+	metadata := &models.GalleryMetadata{}
+	gid, token, _ := s.ExtractGidToken(targetURL)
+	metadata.Gid = gid
+	metadata.Token = token
+
+	currentURL := targetURL
+	var allImageLinks []string
+
+	for p := 0; p < 1000; p++ { // Support up to 1000 pages (~40k images)
 		resp, err := s.client.R().
 			SetContext(ctx).
 			SetHeaders(s.buildHeaders()).
@@ -245,17 +320,35 @@ func (s *EhScraperService) FetchGalleryMetadata(ctx context.Context, targetURL s
 			break
 		}
 
-		// Extract metadata from first page
+		// Extract basic metadata only from the first page
 		if p == 0 {
 			if gn := doc.Find("#gn"); gn.Length() > 0 {
-				title = strings.TrimSpace(gn.Text())
+				metadata.Title = strings.TrimSpace(gn.Text())
 			}
 			if gj := doc.Find("#gj"); gj.Length() > 0 {
-				titleJP = strings.TrimSpace(gj.Text())
+				metadata.TitleJP = strings.TrimSpace(gj.Text())
 			}
+			if cat := doc.Find("div#gdc div").First(); cat.Length() > 0 {
+				metadata.Category = strings.TrimSpace(cat.Text())
+			}
+			if up := doc.Find("div#gdn a"); up.Length() > 0 {
+				metadata.Uploader = strings.TrimSpace(up.Text())
+			}
+			// Extract tags
+			doc.Find("div#taglist tr").Each(func(i int, sel *goquery.Selection) {
+				namespace := strings.TrimSuffix(strings.TrimSpace(sel.Find("td.tc").Text()), ":")
+				sel.Find("div.gt, div.gtl").Each(func(j int, tagSel *goquery.Selection) {
+					tagName := strings.TrimSpace(tagSel.Text())
+					if namespace != "" {
+						metadata.Tags = append(metadata.Tags, fmt.Sprintf("%s:%s", namespace, tagName))
+					} else {
+						metadata.Tags = append(metadata.Tags, tagName)
+					}
+				})
+			})
 		}
 
-		// Find image page links
+		// Extract image links from the current page
 		doc.Find("div#gdt a").Each(func(i int, sel *goquery.Selection) {
 			link, exists := sel.Attr("href")
 			if exists && strings.Contains(link, "/s/") {
@@ -263,7 +356,7 @@ func (s *EhScraperService) FetchGalleryMetadata(ctx context.Context, targetURL s
 			}
 		})
 
-		// Find next page link
+		// Find next page link in the pagination table (ptt)
 		var nextPage string
 		doc.Find("table.ptt td.ptds").Next().Find("a").Each(func(i int, sel *goquery.Selection) {
 			nextPage, _ = sel.Attr("href")
@@ -275,10 +368,8 @@ func (s *EhScraperService) FetchGalleryMetadata(ctx context.Context, targetURL s
 		currentURL = nextPage
 	}
 
-	return &models.GalleryMetadata{
-		Title:      title,
-		TitleJP:    titleJP,
-		ImageLinks: allImageLinks,
-		Count:      len(allImageLinks),
-	}, nil
+	metadata.ImageLinks = allImageLinks
+	metadata.Count = len(allImageLinks)
+
+	return metadata, nil
 }
