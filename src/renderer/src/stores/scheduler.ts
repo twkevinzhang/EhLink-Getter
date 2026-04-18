@@ -7,7 +7,7 @@ export interface ScheduledTask {
   link: string
   fromPage: number
   toPage: number | string
-  scheduleTime: string // Format: "HH:mm"
+  scheduleTime: string
   templatePath?: string
   isArchive?: boolean
   archivePassword?: string
@@ -20,43 +20,25 @@ export interface ScheduledTask {
 export const useSchedulerStore = defineStore('scheduler', () => {
   const tasks = useElectronStorage<ScheduledTask[]>('scheduler.tasks', [])
 
-  const sortedTasks = computed(() => {
-    return [...tasks.value].sort((a, b) => a.scheduleTime.localeCompare(b.scheduleTime))
-  })
+  const sortedTasks = computed(() =>
+    [...tasks.value].sort((a, b) => a.scheduleTime.localeCompare(b.scheduleTime)),
+  )
 
   function addTask(
     task: Omit<ScheduledTask, 'taskId' | 'status' | 'executionCount' | 'downloadedCount'>,
   ) {
-    const newTask: ScheduledTask = {
+    tasks.value.push({
       ...task,
-      taskId: Date.now().toString(),
+      taskId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       status: 'enabled',
       executionCount: 0,
       downloadedCount: 0,
-    }
-    tasks.value.push(newTask)
-  }
-
-  function incrementExecution(taskId: string) {
-    const task = tasks.value.find((t) => t.taskId === taskId)
-    if (task) {
-      task.executionCount++
-      task.lastRun = new Date().toLocaleString()
-    }
-  }
-
-  function incrementDownloaded(taskId: string, count: number = 1) {
-    const task = tasks.value.find((t) => t.taskId === taskId)
-    if (task) {
-      task.downloadedCount += count
-    }
+    })
   }
 
   function removeTask(taskId: string) {
     const idx = tasks.value.findIndex((t) => t.taskId === taskId)
-    if (idx !== -1) {
-      tasks.value.splice(idx, 1)
-    }
+    if (idx !== -1) tasks.value.splice(idx, 1)
   }
 
   function toggleTask(taskId: string) {
@@ -66,11 +48,10 @@ export const useSchedulerStore = defineStore('scheduler', () => {
     }
   }
 
-  return {
-    tasks,
-    sortedTasks,
-    addTask,
-    removeTask,
-    toggleTask,
+  /** main process 透過 scheduler-updated 事件推送完整 tasks 陣列時呼叫 */
+  function syncFromMain(updatedTasks: ScheduledTask[]) {
+    tasks.value = updatedTasks
   }
+
+  return { tasks, sortedTasks, addTask, removeTask, toggleTask, syncFromMain }
 })
