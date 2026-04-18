@@ -1,79 +1,83 @@
 import { defineStore } from 'pinia'
-import { reactive, ref, watch } from 'vue'
+import { ref, watch, toRaw } from 'vue'
+
+export interface AppConfig {
+  cookies: string
+  proxies: string[]
+  metadata_path: string
+  download_path: string
+  scan_thread_cnt: number
+  download_thread_cnt: number
+  storage_strategy: 'eh_id' | 'traditional'
+}
+
+const STORAGE_KEYS = {
+  COOKIES: 'eh_cookies',
+  STRATEGY: 'eh_storage_strategy',
+}
+
+const DEFAULT_CONFIG: AppConfig = {
+  cookies: '',
+  proxies: [],
+  metadata_path: 'metadata.json',
+  download_path: 'output',
+  scan_thread_cnt: 3,
+  download_thread_cnt: 5,
+  storage_strategy: 'traditional',
+}
 
 export const useConfigStore = defineStore('config', () => {
-  // 1. 初始化狀態：cookies 優先從 localStorage 讀取以保證 SSOT
-  const config = reactive({
-    cookies: localStorage.getItem('eh_cookies') || '',
-    proxies: [] as string[],
-    metadata_path: 'metadata.json',
-    download_path: 'output',
-    scan_thread_cnt: 3,
-    download_thread_cnt: 5,
+  const config = ref<AppConfig>({
+    ...DEFAULT_CONFIG,
+    cookies: localStorage.getItem(STORAGE_KEYS.COOKIES) || DEFAULT_CONFIG.cookies,
     storage_strategy:
-      (localStorage.getItem('eh_storage_strategy') as 'eh_id' | 'traditional') ||
-      'traditional',
+      (localStorage.getItem(STORAGE_KEYS.STRATEGY) as AppConfig['storage_strategy']) ||
+      DEFAULT_CONFIG.storage_strategy,
   })
 
   const sidecarOnline = ref(false)
 
-  // 2. 聲明式同步：利用 watch 監聽 config 的任何變化
-  // 一旦變動，自動同步到 localStorage 與 Electron 主進程
-  watch(
-    config,
-    (newConfig) => {
-      // 同步核心設定到 localStorage 使其啟動即用
-      if (newConfig.cookies !== undefined) {
-        localStorage.setItem('eh_cookies', newConfig.cookies)
-      }
-      if (newConfig.storage_strategy) {
-        localStorage.setItem('eh_storage_strategy', newConfig.storage_strategy)
-      }
+  const syncConfig = (newConfig: AppConfig) => {
+    localStorage.setItem(STORAGE_KEYS.COOKIES, newConfig.cookies)
+    localStorage.setItem(STORAGE_KEYS.STRATEGY, newConfig.storage_strategy)
 
-      // 同步全體配置到 Electron 主進程 (進而同步至 Go sidecar)
-      if (window.api && window.api.saveConfig) {
-        // 使用序列化副本避免 Proxy 傳輸問題
-        window.api.saveConfig(JSON.parse(JSON.stringify(newConfig)))
-      }
-    },
-    { deep: true }, // 強制深度監聽
-  )
-
-  // 3. sidecar 健康檢查
-  const checkSidecarHealth = async () => {
-    if (window.api && window.api.checkSidecarHealth) {
-      try {
-        const result = await window.api.checkSidecarHealth()
-        sidecarOnline.value = result.success
-      } catch (e) {
-        sidecarOnline.value = false
-      }
+    if (window.api?.saveConfig) {
+      window.api.saveConfig(toRaw(newConfig))
     }
   }
 
-  // 4. 初始化邏輯：從主進程加載檔案配置
-  async function initConfig() {
-    if (window.api && window.api.getConfig) {
+  watch(config, (val) => syncConfig(val), { deep: true })
+
+  const checkSidecarHealth = async () => {
+    if (!window.api?.checkSidecarHealth) return
+    try {
+      const result = await window.api.checkSidecarHealth()
+      sidecarOnline.value = result.success
+    } catch {
+      sidecarOnline.value = false
+    }
+  }
+
+  async function init() {
+    if (window.api?.getConfig) {
       const savedConfig = await window.api.getConfig()
       if (savedConfig) {
-        const cookiesInLocal = localStorage.getItem('eh_cookies')
-        // 合併配置，但保留 localStorage 中的 cookies 作為最終事實來源
-        Object.assign(config, {
+        config.value = {
+          ...config.value,
           ...savedConfig,
-          cookies: cookiesInLocal || savedConfig.cookies || '',
-        })
+          cookies:
+            localStorage.getItem(STORAGE_KEYS.COOKIES) || savedConfig.cookies || '',
+        }
       }
     }
-    checkSidecarHealth()
+    await checkSidecarHealth()
   }
 
-  // 啟動與定時檢查
-  initConfig()
+  init()
   setInterval(checkSidecarHealth, 5000)
 
-  // 5. 更新函數：現在只需修改物件，持久化會由 watch 自動處理
-  function updateConfig(newConfig: any) {
-    Object.assign(config, newConfig)
+  function updateConfig(newConfig: Partial<AppConfig>) {
+    config.value = { ...config.value, ...newConfig }
   }
 
   return {
@@ -81,5 +85,6 @@ export const useConfigStore = defineStore('config', () => {
     sidecarOnline,
     updateConfig,
     checkSidecarHealth,
+    init,
   }
 })
