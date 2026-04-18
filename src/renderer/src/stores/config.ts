@@ -10,7 +10,9 @@ export const useConfigStore = defineStore('config', () => {
     download_path: 'output',
     scan_thread_cnt: 3,
     download_thread_cnt: 5,
-    storage_strategy: 'traditional' as 'eh_id' | 'traditional',
+    storage_strategy:
+      (localStorage.getItem('eh_storage_strategy') as 'eh_id' | 'traditional') ||
+      'traditional',
   })
 
   const sidecarOnline = ref(false)
@@ -20,9 +22,12 @@ export const useConfigStore = defineStore('config', () => {
   watch(
     config,
     (newConfig) => {
-      // 同步 cookies 到 localStorage
+      // 同步核心設定到 localStorage 使其啟動即用
       if (newConfig.cookies !== undefined) {
         localStorage.setItem('eh_cookies', newConfig.cookies)
+      }
+      if (newConfig.storage_strategy) {
+        localStorage.setItem('eh_storage_strategy', newConfig.storage_strategy)
       }
 
       // 同步全體配置到 Electron 主進程 (進而同步至 Go sidecar)

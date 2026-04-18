@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useConfigStore } from '../../stores/config'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Position, SwitchButton } from '@element-plus/icons-vue'
@@ -32,14 +32,30 @@ const memberId = computed(() => {
   return cookie ? cookie.value : null
 })
 
-onMounted(() => {
-  // Initialize from store
-  storageStrategy.value = configStore.config.storage_strategy
-  proxyPool.value = configStore.config.proxies.join('\n')
-  scanThreads.value = configStore.config.scan_thread_cnt
-  downloadThreads.value = configStore.config.download_thread_cnt
+const syncLocalState = () => {
+  storageStrategy.value = configStore.config.storage_strategy || 'traditional'
+  proxyPool.value = (configStore.config.proxies || []).join('\n')
+  scanThreads.value = configStore.config.scan_thread_cnt || 3
+  downloadThreads.value = configStore.config.download_thread_cnt || 5
   cookies.value = configStore.config.cookies || ''
+}
+
+// Initial sync
+onMounted(() => {
+  syncLocalState()
 })
+
+// Watch for store changes (like after initialization or external updates)
+// but only sync if the local state hasn't been modified by user yet, 
+// OR simply sync once when config is loaded.
+watch(() => configStore.config, () => {
+  // If the user is currently looking at the settings, we should be careful 
+  // about overwriting their typing. However, during app init, this is necessary.
+  // We check isModified - if NOT modified, it's safe to sync from store.
+  if (!isModified.value) {
+    syncLocalState()
+  }
+}, { deep: true })
 
 const isModified = computed(() => {
   const currentProxies = proxyPool.value
@@ -49,11 +65,16 @@ const isModified = computed(() => {
 
   const storeProxies = [...(configStore.config.proxies || [])]
 
+  // IMPORTANT: Ensure consistency with syncLocalState defaults
+  const storeStrategy = configStore.config.storage_strategy || 'traditional'
+  const storeScanThreads = configStore.config.scan_thread_cnt || 3
+  const storeDownloadThreads = configStore.config.download_thread_cnt || 5
+
   return (
-    storageStrategy.value !== configStore.config.storage_strategy ||
+    storageStrategy.value !== storeStrategy ||
     JSON.stringify(currentProxies) !== JSON.stringify(storeProxies) ||
-    scanThreads.value !== configStore.config.scan_thread_cnt ||
-    downloadThreads.value !== configStore.config.download_thread_cnt
+    scanThreads.value !== storeScanThreads ||
+    downloadThreads.value !== storeDownloadThreads
   )
 })
 
