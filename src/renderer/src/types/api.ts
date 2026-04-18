@@ -27,6 +27,8 @@ export interface FetchPageResponse {
 export interface SearchLibraryPayload {
   keywords: string
   fields: string[]
+  minRating?: number
+  includeExpunged?: boolean
 }
 
 /** searchLibrary IPC response */
