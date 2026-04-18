@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { useLibraryStore } from '@renderer/stores/library'
 
@@ -9,6 +9,13 @@ const libraryStore = useLibraryStore()
 const searchTag = ref('')
 const ratings = ref(0)
 const expunged = ref(false)
+
+const first = ref(0)
+const pageSize = 50
+
+const paginatedGalleries = computed(() =>
+  libraryStore.galleries.slice(first.value, first.value + pageSize),
+)
 
 onMounted(() => {
   libraryStore.checkLibraryExists()
@@ -45,12 +52,16 @@ const handleSearch = async () => {
     return
   }
 
-  const result = await libraryStore.searchLibrary(searchTag.value)
+  const result = await libraryStore.searchLibrary(searchTag.value, {
+    minRating: ratings.value || undefined,
+    includeExpunged: expunged.value,
+  })
+  first.value = 0
   if (result.success) {
     toast.add({
       severity: 'success',
-      summary: 'Search Results',
-      detail: `Found ${result.count} galleries`,
+      summary: 'Done',
+      detail: `Found ${result.count} results`,
       life: 3000,
     })
   } else {
@@ -64,12 +75,10 @@ const handleSearch = async () => {
 }
 
 const handleOpenLink = (link: string) => {
-  if (window.api && window.api.openFolder) {
-    window.api.openFolder(link)
-  }
+  window.api.openFolder(link)
 }
 
-const getCategoryClass = (cat: string) => {
+const getCategoryClass = (cat: string | undefined) => {
   const c = (cat || '').toLowerCase()
   if (c.includes('doujinshi')) return 'bg-eh-cat-doujinshi'
   if (c.includes('manga')) return 'bg-eh-cat-manga'
@@ -168,7 +177,7 @@ const formatPosted = (ts: any) => {
     <div v-else class="gallery-grid flex-1 overflow-y-auto pr-2">
       <div class="flex flex-col gap-3">
         <div
-          v-for="g in libraryStore.galleries"
+          v-for="g in paginatedGalleries"
           :key="g.gid || g.link"
           class="eh-panel-card flex overflow-hidden hover:border-eh-accent transition-all duration-200 cursor-pointer hover:shadow-md"
           @click="handleOpenLink(g.link)"
@@ -245,7 +254,8 @@ const formatPosted = (ts: any) => {
       class="flex justify-center pt-2"
     >
       <Paginator
-        :rows="100"
+        v-model:first="first"
+        :rows="pageSize"
         :totalRecords="libraryStore.galleries.length"
         template="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink"
         class="!bg-transparent !p-0"
