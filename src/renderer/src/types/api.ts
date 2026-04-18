@@ -2,6 +2,7 @@
 import type { LibraryGallery } from '@renderer/stores/library'
 import type { DownloadGallery } from '@renderer/stores/download'
 import type { ScheduledTask } from '@renderer/stores/scheduler'
+import type { LogEntry } from '@renderer/types/log'
 
 /** 單筆 gallery 清單項目（fetchPage 回傳的原始資料） */
 export interface FetchedItem {
@@ -61,11 +62,8 @@ export interface ArchiveProgressEvent {
   progress: number
 }
 
-/** onLog 事件資料 */
-export interface SidecarLogEvent {
-  level: 'info' | 'warn' | 'error' | 'debug'
-  message: string
-}
+/** onLog 事件資料（從 sidecar 收到的原始事件，無 timestamp） */
+export type SidecarLogEvent = Omit<LogEntry, 'timestamp'>
 
 /** triggerSchedulerTask IPC response */
 export interface TriggerSchedulerResponse {
