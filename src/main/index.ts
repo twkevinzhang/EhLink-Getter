@@ -516,6 +516,21 @@ ipcMain.handle('download-gallery', async (_, payload: any) => {
   })
 })
 
+ipcMain.handle('trigger-scheduler-task', async (_, taskId: string) => {
+  // @ts-ignore - We need access to the schedulerService instance
+  const schedulerService = (global as any).schedulerService
+  if (schedulerService) {
+    const tasks = (schedulerService.store.get('scheduler.tasks') as any[]) || []
+    const task = tasks.find(t => t.id === taskId)
+    if (task) {
+      schedulerService.runTask(task)
+      return { success: true }
+    }
+    return { success: false, error: 'Task not found' }
+  }
+  return { success: false, error: 'Scheduler service not initialized' }
+})
+
 ipcMain.handle('open-folder', async (_, folderPath: string) => {
   if (folderPath) {
     shell.openPath(folderPath)
@@ -569,6 +584,8 @@ app.whenReady().then(() => {
   downloadService = new DownloadService(mainWindow)
   const schedulerService = new SchedulerService(mainWindow, downloadService)
   schedulerService.start()
+  // Store in global for IPC access
+  ;(global as any).schedulerService = schedulerService
 
   // Sync config to sidecar once it's up
   const syncConfig = async (retries = 5) => {

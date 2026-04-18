@@ -106,6 +106,29 @@ const formatStatus = (status: string) => {
     default: return 'contrast'
   }
 }
+
+const handleTriggerNow = async (taskId: string) => {
+  try {
+    const result = await window.api.triggerSchedulerTask(taskId)
+    if (result.success) {
+      toast.add({
+        severity: 'info',
+        summary: 'Task Triggered',
+        detail: 'The task has been started manually.',
+        life: 3000
+      })
+    } else {
+      throw new Error(result.error)
+    }
+  } catch (err: any) {
+    toast.add({
+      severity: 'error',
+      summary: 'Trigger Failed',
+      detail: err.message,
+      life: 5000
+    })
+  }
+}
 </script>
 
 <template>
@@ -287,11 +310,21 @@ const formatStatus = (status: string) => {
                   text 
                   rounded 
                   size="small"
-                  :severity="task.status === 'enabled' ? 'warn' : 'success'"
-                  @click="schedulerStore.toggleTask(task.id)"
-                />
-                <Button 
-                  icon="pi pi-trash" 
+                   :severity="task.status === 'enabled' ? 'warn' : 'success'"
+                   @click="schedulerStore.toggleTask(task.id)"
+                 />
+                 <Button 
+                   icon="pi pi-bolt" 
+                   text 
+                   rounded 
+                   size="small"
+                   severity="info"
+                   v-tooltip="'Trigger Now'"
+                   :loading="task.status === 'running'"
+                   @click="handleTriggerNow(task.id)"
+                 />
+                 <Button 
+                   icon="pi pi-trash" 
                   text 
                   rounded 
                   size="small"

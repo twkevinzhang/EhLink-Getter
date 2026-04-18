@@ -47,6 +47,7 @@ const api = {
   downloadGallery: (payload: any) => ipcRenderer.invoke('download-gallery', payload),
   onDownloadStatusUpdate: (callback: any) =>
     ipcRenderer.on('download-status-update', (_event, value) => callback(value)),
+  triggerSchedulerTask: (taskId: string) => ipcRenderer.invoke('trigger-scheduler-task', taskId),
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
