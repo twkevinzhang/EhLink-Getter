@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"sidecar/internal/models"
+	"strconv"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/go-resty/resty/v2"
@@ -107,21 +108,23 @@ func (s *EhScraperService) FetchPageWithToken(ctx context.Context, targetURL str
 		return nil, err
 	}
 
+	// Apply the token to the URL correctly
 	if nextToken != "" {
 		query := reqURL.Query()
-		// Determine if it's a page number or a token
-		isNum := true
-		for _, c := range nextToken {
-			if c < '0' || c > '9' {
-				isNum = false
-				break
+		// Token is now formatted as "key=value" from our helper
+		if strings.Contains(nextToken, "=") {
+			parts := strings.SplitN(nextToken, "=", 2)
+			if len(parts) == 2 {
+				query.Set(parts[0], parts[1])
 			}
-		}
-
-		if isNum {
-			query.Set("page", nextToken)
 		} else {
-			query.Set("next", nextToken)
+			// Backward compatibility: try to guess
+			_, err := strconv.Atoi(nextToken)
+			if err == nil {
+				query.Set("page", nextToken)
+			} else {
+				query.Set("next", nextToken)
+			}
 		}
 		reqURL.RawQuery = query.Encode()
 	}
@@ -147,27 +150,78 @@ func (s *EhScraperService) FetchPageWithToken(ctx context.Context, targetURL str
 
 	// Find next page/token
 	var nextVal string
-	doc.Find("table.ptt a").Each(func(i int, sel *goquery.Selection) {
-		if sel.Text() == ">" {
-			href, exists := sel.Attr("href")
-			if exists {
-				nextURL, _ := url.Parse(href)
-				nextQS := nextURL.Query()
-				if val := nextQS.Get("next"); val != "" {
-					nextVal = val
-				} else if val := nextQS.Get("page"); val != "" {
-					nextVal = val
-				} else if val := nextQS.Get("from"); val != "" {
-					nextVal = val
-				}
+
+	// DEBUG: Trace all navigation-like links
+	doc.Find("a").Each(func(i int, sel *goquery.Selection) {
+		href, exists := sel.Attr("href")
+		if !exists {
+			return
+		}
+
+		text := strings.ToLower(strings.TrimSpace(sel.Text()))
+		id, _ := sel.Attr("id")
+
+		// Broad match for any "Next" or ">" related links
+		isNextMatch := id == "dnext" || 
+			text == ">" || 
+			text == "»" || 
+			strings.Contains(text, "next") ||
+			(sel.HasClass("ptp") && text == ">")
+
+		if isNextMatch {
+			token := extractToken(href)
+			if token != "" {
+				nextVal = token
+				fmt.Printf("DEBUG: Found next token '%s' (text='%s')\n", nextVal, text)
 			}
 		}
 	})
+
+	// Fallback to ptt specific logic (older/gallery view)
+	if nextVal == "" {
+		doc.Find("table.ptt td.ptds").Next().Find("a").First().Each(func(i int, sel *goquery.Selection) {
+			href, exists := sel.Attr("href")
+			if exists {
+				nextVal = extractToken(href)
+				if nextVal != "" {
+					fmt.Printf("DEBUG: Found next token '%s' via ptds-next fallback\n", nextVal)
+				}
+			}
+		})
+	}
+
+	if nextVal == "" {
+		fmt.Println("DEBUG: No next token found on this page")
+	}
 
 	return map[string]interface{}{
 		"items": items,
 		"next":  nextVal,
 	}, nil
+}
+
+// Helper to extract next/page/from/prev token from URL AND its parameter name
+func extractToken(href string) string {
+	parseURL := href
+	if strings.HasPrefix(href, "?") {
+		parseURL = "https://e-hentai.org/" + href
+	}
+	
+	u, err := url.Parse(parseURL)
+	if err != nil {
+		return ""
+	}
+	
+	qs := u.Query()
+	// Priority: next > jump > page > from > prev
+	keys := []string{"next", "jump", "page", "from", "prev"}
+	for _, key := range keys {
+		if val := qs.Get(key); val != "" {
+			// Return formatted as "key=value" so FetchPageWithToken knows what to do
+			return key + "=" + val
+		}
+	}
+	return ""
 }
 
 func (s *EhScraperService) FetchGalleryMetadata(ctx context.Context, targetURL string) (*models.GalleryMetadata, error) {

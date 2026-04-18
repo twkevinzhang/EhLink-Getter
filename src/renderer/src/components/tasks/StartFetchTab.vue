@@ -12,7 +12,12 @@ const toPage = ref<string | number>(2)
 
 const handleStartFetch = () => {
   if (!pageLink.value) {
-    toast.add({ severity: 'warn', summary: 'Missing Link', detail: 'Please enter a page or search link', life: 3000 })
+    toast.add({
+      severity: 'warn',
+      summary: 'Missing Link',
+      detail: 'Please enter a page or search link',
+      life: 3000,
+    })
     return
   }
 
@@ -24,11 +29,33 @@ const handleStartFetch = () => {
       maxPages = parsed
     }
   }
+  // Parse start page
+  let start = 1
+  if (fromPage.value) {
+    const p = parseInt(fromPage.value.toString())
+    if (!isNaN(p) && p > 0) {
+      start = p
+    }
+  }
 
   scraperStore
-    .startFetching(pageLink.value, maxPages)
-    .then(() => toast.add({ severity: 'success', summary: 'Started', detail: 'Fetching task started', life: 3000 }))
-    .catch((err) => toast.add({ severity: 'error', summary: 'Error', detail: `Failed to start fetching: ${err.message}`, life: 5000 }))
+    .startFetching(pageLink.value, start, maxPages)
+    .then(() =>
+      toast.add({
+        severity: 'success',
+        summary: 'Started',
+        detail: 'Fetching task started',
+        life: 3000,
+      }),
+    )
+    .catch((err) =>
+      toast.add({
+        severity: 'error',
+        summary: 'Error',
+        detail: `Failed to start fetching: ${err.message}`,
+        life: 5000,
+      }),
+    )
 }
 </script>
 
@@ -37,7 +64,11 @@ const handleStartFetch = () => {
     <div class="eh-panel-card overflow-hidden">
       <div class="eh-header">Page / Search Link</div>
       <div class="p-4">
-        <InputText v-model="pageLink" placeholder="https://e-hentai.org/..." class="w-full !p-2" />
+        <InputText
+          v-model="pageLink"
+          placeholder="https://e-hentai.org/..."
+          class="w-full !p-2"
+        />
       </div>
     </div>
 
@@ -45,7 +76,7 @@ const handleStartFetch = () => {
       <div class="eh-header">Fetch Settings</div>
       <div class="p-4 flex flex-col gap-5">
         <div class="flex gap-8 items-center">
-          <span class="text-xs text-eh-muted font-bold uppercase">Range:</span>
+          <span class="text-xs text-eh-muted font-bold uppercase">Page:</span>
           <div class="flex items-center gap-2">
             <span class="text-xs">From:</span>
             <InputText v-model="fromPage" size="small" class="!w-16 !p-1 text-center" />
