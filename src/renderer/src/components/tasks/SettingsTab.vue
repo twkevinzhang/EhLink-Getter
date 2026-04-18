@@ -46,16 +46,20 @@ onMounted(() => {
 })
 
 // Watch for store changes (like after initialization or external updates)
-// but only sync if the local state hasn't been modified by user yet, 
+// but only sync if the local state hasn't been modified by user yet,
 // OR simply sync once when config is loaded.
-watch(() => configStore.config, () => {
-  // If the user is currently looking at the settings, we should be careful 
-  // about overwriting their typing. However, during app init, this is necessary.
-  // We check isModified - if NOT modified, it's safe to sync from store.
-  if (!isModified.value) {
-    syncLocalState()
-  }
-}, { deep: true })
+watch(
+  () => configStore.config,
+  () => {
+    // If the user is currently looking at the settings, we should be careful
+    // about overwriting their typing. However, during app init, this is necessary.
+    // We check isModified - if NOT modified, it's safe to sync from store.
+    if (!isModified.value) {
+      syncLocalState()
+    }
+  },
+  { deep: true },
+)
 
 const isModified = computed(() => {
   const currentProxies = proxyPool.value
@@ -203,12 +207,12 @@ const handleLogout = () => {
             <p class="text-eh-text/90 mb-2">
               <span class="font-bold">ZH:</span>
               EH_ID 優先策略。檔案將直接以畫廊 ID 命名（如
-              /123456），並可選用哈希分層，適合大規模收藏與自動化管理。
+              /123456），適合大規模收藏與自動化管理。
             </p>
             <p class="text-eh-muted italic">
               <span class="font-bold">EN:</span> EH_ID-based strategy. Files are named
-              directly by Gallery ID (e.g., /123456/), supporting hashed subdirectories to
-              ensure filesystem stability for massive collections.
+              directly by Gallery ID (e.g., /123456/). Optimized for large collections and
+              automation.
             </p>
           </template>
           <template v-else>

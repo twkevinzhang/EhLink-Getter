@@ -43,11 +43,8 @@ export const useDownloadStore = defineStore('download', () => {
     const id = idMatch ? idMatch[1] : 'unknown'
 
     if (configStore.config.storage_strategy === 'eh_id') {
-      // EH_ID Strategy Requirement:
-      // Use predefined structure: output/hashed/first2/next2/full_id/
-      const p1 = id.length >= 2 ? id.substring(0, 2) : '00'
-      const p2 = id.length >= 4 ? id.substring(2, 4) : '00'
-      return `output/hashed/${p1}/${p2}/${id}`
+      // EH_ID Strategy: Store directly by ID under output folder
+      return `output/${id}`
     }
 
     // Traditional Strategy Logic:

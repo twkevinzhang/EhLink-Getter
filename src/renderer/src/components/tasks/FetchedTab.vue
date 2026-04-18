@@ -26,7 +26,7 @@ const manualUrl = ref('')
 const displayPath = computed({
   get: () => {
     if (configStore.config.storage_strategy === 'eh_id') {
-      return 'output/hashed/{ID}'
+      return 'output/{ID}'
     }
     return targetPath.value
   },
