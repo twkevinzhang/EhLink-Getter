@@ -1,4 +1,4 @@
-import { BrowserWindow, app } from 'electron'
+import { type BrowserWindow, app } from 'electron'
 import axios from 'axios'
 import * as fs from 'fs'
 import { join, dirname } from 'path'
@@ -7,14 +7,12 @@ import archiver from 'archiver'
 import { registerFormat } from 'archiver'
 // @ts-ignore
 import zipEncryptable from 'archiver-zip-encryptable'
-import { AppConfig } from './config_service'
+import { parseTemplatePath } from '../../shared/src/utilities'
 
 export interface DownloadOptions {
-  url: string
-  targetTemplate: string
+  gallery: any // DownloadGallery
   isArchive?: boolean
   password?: string
-  metadata?: any // Optional pre-fetched metadata
 }
 
 export class DownloadService {
@@ -33,28 +31,18 @@ export class DownloadService {
     options: DownloadOptions,
   ): Promise<{ success: boolean; path?: string; error?: string }> {
     try {
-      const { url, targetTemplate, isArchive, password } = options
-
-      // 1. Fetch Metadata if not provided
-      let meta = options.metadata
-      if (!meta) {
-        const metaResp = await axios.get(`${this.SIDECAR_URL}/gallery/metadata`, {
-          params: { url },
-        })
-        meta = metaResp.data
-        if (meta.error) {
-          throw new Error(meta.error)
-        }
-      }
+      const { gallery: meta, isArchive, password } = options
+      const url = meta.link
 
       // 2. Resolve Path
-      const targetPath = this.resolvePath(targetTemplate, meta)
+      const targetPath =
+        meta.targetPath || parseTemplatePath(meta.targetTemplate || '', meta)
       if (!fs.existsSync(targetPath)) {
         fs.mkdirSync(targetPath, { recursive: true })
       }
 
-      // 3. Save metadata.json
-      fs.writeFileSync(join(targetPath, 'metadata.json'), JSON.stringify(meta, null, 2))
+      // 3. Save library.json
+      fs.writeFileSync(join(targetPath, 'library.json'), JSON.stringify(meta, null, 2))
 
       // 4. Download Images
       const imageLinks = meta.image_links || []
@@ -105,53 +93,19 @@ export class DownloadService {
       this.sendProgress(url, { status: 'Completed', progress: 100, completed: true })
       return { success: true, path: finalPath }
     } catch (error: any) {
-      this.sendProgress(options.url, {
+      console.error('[DownloadService] Error:', error)
+      const url = options.gallery?.link || 'unknown'
+      this.sendProgress(url, {
         status: `Error: ${error.message}`,
         level: 'error',
       })
-      return { success: false, error: error.message }
+      return { success: false, error: String(error.message || error) }
     }
   }
 
   /**
    * Resolves the download path based on placeholders.
    */
-  private resolvePath(template: string, meta: any): string {
-    const idMatch = meta.link.match(/\/g\/(\d+)\//)
-    const id = idMatch ? idMatch[1] : 'unknown'
-    const gid = meta.gid || id
-    const token = meta.token || ''
-
-    // 1. Prepare base path
-    let path = template
-    if (!path || path.trim() === '') {
-      try {
-        path = join(app.getPath('downloads'), '{EN_TITLE}')
-      } catch (e) {
-        path = join(app.getPath('userData'), 'downloads', '{EN_TITLE}')
-      }
-    }
-
-    // 2. Safety replacement for filesystem
-    const sanitize = (s: string) => (s || 'untitled').replace(/[\\/:*?"<>|]/g, '_')
-
-    const replacements: Record<string, string> = {
-      '{ID}': id,
-      '{GID}': gid,
-      '{TOKEN}': token,
-      '{EN_TITLE}': sanitize(meta.title),
-      '{JP_TITLE}': sanitize(meta.japanese_title || meta.title),
-      '{CATEGORY}': sanitize(meta.category || 'Other'),
-    }
-
-    // 3. Perform replacements on the path
-    Object.keys(replacements).forEach((key) => {
-      const regex = new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
-      path = path.replace(regex, replacements[key])
-    })
-
-    return path
-  }
 
   /**
    * Helper to ZIP a folder with optional password.
@@ -186,9 +140,17 @@ export class DownloadService {
   }
 
   private sendProgress(url: string, data: any) {
-    this.mainWindow?.webContents.send('download-status-update', {
-      url,
-      ...data,
-    })
+    try {
+      // Defensively ensure data is a plain serializable object to avoid "An object could not be cloned" errors
+      const payload = JSON.parse(
+        JSON.stringify({
+          url,
+          ...data,
+        }),
+      )
+      this.mainWindow?.webContents.send('download-status-update', payload)
+    } catch (e) {
+      console.error('Failed to send progress via IPC:', e)
+    }
   }
 }

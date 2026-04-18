@@ -1,8 +1,8 @@
-import { BrowserWindow } from 'electron'
+import { type BrowserWindow } from 'electron'
 import Store from 'electron-store'
 import axios from 'axios'
-import { ConfigService } from './config_service'
-import { DownloadService } from './download_service'
+import { SidecarConfigService } from './sidecar_config_service'
+import { type DownloadService } from './download_service'
 
 interface ScheduledTask {
   id: string
@@ -10,7 +10,7 @@ interface ScheduledTask {
   fromPage: number
   toPage: number | string
   scheduleTime: string
-  customDownloadPath?: string
+  templatePath?: string
   isArchive?: boolean
   archivePassword?: string
   lastRun?: string
@@ -21,7 +21,6 @@ interface ScheduledTask {
 
 export class SchedulerService {
   private store: Store
-  private configService: ConfigService
   private timer: NodeJS.Timeout | null = null
   private mainWindow: BrowserWindow | null = null
   private downloadService: DownloadService
@@ -29,7 +28,6 @@ export class SchedulerService {
 
   constructor(mainWindow: BrowserWindow | null, downloadService: DownloadService) {
     this.store = new Store()
-    this.configService = new ConfigService()
     this.mainWindow = mainWindow
     this.downloadService = downloadService
   }
@@ -83,7 +81,6 @@ export class SchedulerService {
       this.updateTaskState(task.id, { status: 'running' })
       this.logToRenderer(`Starting scheduled task: ${task.link}`)
 
-      const config = this.configService.loadConfig()
       let allItems: any[] = []
       let nextToken: string | undefined =
         task.fromPage > 1 ? (task.fromPage - 1).toString() : undefined
@@ -123,9 +120,10 @@ export class SchedulerService {
         try {
           // Centralized path resolution and downloading
           const result = await this.downloadService.downloadGallery({
-            url: item.link,
-            targetTemplate: task.customDownloadPath || '', // Fallback handled by DownloadService
-            storageStrategy: config.storage_strategy,
+            gallery: {
+              ...item,
+              targetTemplate: task.templatePath || '',
+            },
             isArchive: task.isArchive,
             password: task.archivePassword,
           })

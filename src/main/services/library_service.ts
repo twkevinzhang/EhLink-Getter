@@ -1,11 +1,11 @@
 import * as fs from 'fs'
 import * as readline from 'readline'
 
-export class MetadataService {
-  private metadataPath: string
+export class LibraryService {
+  private libraryPath: string
 
-  constructor(metadataPath: string) {
-    this.metadataPath = metadataPath
+  constructor(libraryPath: string) {
+    this.libraryPath = libraryPath
   }
 
   async findLinks(titleQuery: string, limit = 10): Promise<any[]> {
@@ -13,8 +13,8 @@ export class MetadataService {
   }
 
   async findMultipleLinks(queries: string[], limit = 1000, raw = false): Promise<any[]> {
-    if (!fs.existsSync(this.metadataPath)) {
-      throw new Error(`Metadata file not found: ${this.metadataPath}`)
+    if (!fs.existsSync(this.libraryPath)) {
+      throw new Error(`Library file not found: ${this.libraryPath}`)
     }
 
     const results: any[] = []
@@ -24,7 +24,7 @@ export class MetadataService {
 
     if (normalizedQueries.length === 0) return []
 
-    const fileStream = fs.createReadStream(this.metadataPath)
+    const fileStream = fs.createReadStream(this.libraryPath)
     const rl = readline.createInterface({
       input: fileStream,
       crlfDelay: Infinity,
