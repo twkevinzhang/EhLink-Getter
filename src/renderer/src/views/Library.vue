@@ -1,116 +1,63 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useDownloadStore } from '../stores/download'
-import { useConfigStore } from '../stores/config'
 import { useToast } from 'primevue/usetoast'
+import { useLibraryStore } from '@renderer/stores/library'
 
-const downloadStore = useDownloadStore()
-const configStore = useConfigStore()
 const toast = useToast()
+const libraryStore = useLibraryStore()
+
 const searchTag = ref('')
 const ratings = ref(0)
 const expunged = ref(false)
 
-const isMetadataDownloaded = ref(false)
-const downloading = ref(false)
-const downloadProgress = ref(0)
-
-const checkMetadata = async () => {
-  const exists = await window.api.checkMetadataExists()
-  console.log('[Library] Metadata exists check:', exists)
-  isMetadataDownloaded.value = exists
-  if (exists) {
-    // metadata_path is now handled internally in main process
-  }
-}
-
 onMounted(() => {
-  checkMetadata()
-  window.api.onDownloadProgress((data) => {
-    downloading.value = true
-    if (data.total > 0) {
-      downloadProgress.value = Math.round((data.loaded / data.total) * 100)
-    }
-  })
+  libraryStore.checkLibraryExists()
+  libraryStore.initProgressEventListener()
 })
 
 const handleDownloadMetadata = async () => {
-  try {
-    downloading.value = true
-    downloadProgress.value = 0
-    const result = await window.api.downloadMetadata()
-    downloading.value = false
-
-    if (result.success) {
-      isMetadataDownloaded.value = true
-      toast.add({
-        severity: 'success',
-        summary: 'Success',
-        detail: 'Metadata downloaded successfully!',
-        life: 3000,
-      })
-    } else {
-      toast.add({
-        severity: 'error',
-        summary: 'Download Failed',
-        detail: result.error,
-        life: 5000,
-      })
-    }
-  } catch (err: any) {
-    downloading.value = false
-    toast.add({ severity: 'error', summary: 'Error', detail: err.message, life: 5000 })
+  const result = await libraryStore.downloadLibrary()
+  if (result.success) {
+    toast.add({
+      severity: 'success',
+      summary: 'Success',
+      detail: 'Metadata downloaded successfully!',
+      life: 3000,
+    })
+  } else {
+    toast.add({
+      severity: 'error',
+      summary: 'Download Failed',
+      detail: result.error,
+      life: 5000,
+    })
   }
 }
 
 const handleSearch = async () => {
-  if (!isMetadataDownloaded.value) {
+  if (!libraryStore.isLibraryDownloaded) {
     toast.add({
       severity: 'warn',
       summary: 'Warning',
-      detail: 'Please download metadata first',
+      detail: 'Please download library first',
       life: 3000,
     })
     return
   }
-  try {
-    const payload = {
-      keywords: searchTag.value,
-      fields: [
-        'title',
-        'link',
-        'rating',
-        'category',
-        'thumb',
-        'language',
-        'posted',
-        'uploader',
-        'gid',
-        'tags',
-      ],
-    }
-    const response = await window.api.mapMetadata(payload)
-    if (response && response.results) {
-      downloadStore.libraryGalleries = response.results
-      toast.add({
-        severity: 'success',
-        summary: 'Search Results',
-        detail: `Found ${response.results.length} galleries`,
-        life: 3000,
-      })
-    } else if (response && response.error) {
-      toast.add({
-        severity: 'error',
-        summary: 'Search Failed',
-        detail: response.error,
-        life: 5000,
-      })
-    }
-  } catch (error: any) {
+
+  const result = await libraryStore.searchLibrary(searchTag.value)
+  if (result.success) {
+    toast.add({
+      severity: 'success',
+      summary: 'Search Results',
+      detail: `Found ${result.count} galleries`,
+      life: 3000,
+    })
+  } else {
     toast.add({
       severity: 'error',
-      summary: 'Search Error',
-      detail: error.message,
+      summary: 'Search Failed',
+      detail: result.error,
       life: 5000,
     })
   }
@@ -146,21 +93,23 @@ const formatPosted = (ts: any) => {
       <Button
         type="button"
         icon="pi pi-download"
-        :disabled="isMetadataDownloaded"
-        :loading="downloading"
+        :disabled="libraryStore.isLibraryDownloaded"
+        :loading="libraryStore.downloading"
         class="w-full !h-12 !font-bold"
         :label="
-          isMetadataDownloaded ? 'Metadata Database Ready' : 'Download metadata.json'
+          libraryStore.isLibraryDownloaded
+            ? 'Library Database Ready'
+            : 'Download library.json'
         "
         @click="handleDownloadMetadata"
       />
 
-      <div v-if="downloading" class="mt-2">
+      <div v-if="libraryStore.downloading" class="mt-2">
         <div class="flex justify-between text-xs mb-1 text-eh-muted">
-          <span>Downloading gdata.json from MEGA...</span>
-          <span>{{ downloadProgress }}%</span>
+          <span>Downloading library.json from MEGA...</span>
+          <span>{{ libraryStore.downloadProgress }}%</span>
         </div>
-        <ProgressBar :value="downloadProgress" class="!h-2">
+        <ProgressBar :value="libraryStore.downloadProgress" class="!h-2">
           <template #default><span></span></template>
         </ProgressBar>
       </div>
@@ -168,7 +117,7 @@ const formatPosted = (ts: any) => {
 
     <div class="relative">
       <Card
-        :class="{ 'opacity-50 grayscale select-none': !isMetadataDownloaded }"
+        :class="{ 'opacity-50 grayscale select-none': !libraryStore.isLibraryDownloaded }"
         class="!bg-eh-panel/20 !border-eh-border"
       >
         <template #content>
@@ -201,25 +150,25 @@ const formatPosted = (ts: any) => {
       </Card>
 
       <div
-        v-if="!isMetadataDownloaded"
+        v-if="!libraryStore.isLibraryDownloaded"
         class="absolute inset-0 z-50 cursor-not-allowed bg-black/5 backdrop-grayscale"
         @click.stop.prevent
       ></div>
     </div>
 
     <div
-      v-if="!isMetadataDownloaded"
+      v-if="!libraryStore.isLibraryDownloaded"
       class="flex-1 flex flex-col items-center justify-center text-eh-muted bg-eh-panel/50 rounded-lg border-2 border-dashed border-eh-border/30"
     >
       <i class="pi pi-database text-4xl mb-4 text-eh-border/50"></i>
-      <p class="font-bold">Metadata Database is required.</p>
+      <p class="font-bold">Library Database is required.</p>
       <p class="text-sm italic">Click the button above to download it (approx. 200MB).</p>
     </div>
 
     <div v-else class="gallery-grid flex-1 overflow-y-auto pr-2">
       <div class="flex flex-col gap-3">
         <div
-          v-for="g in downloadStore.libraryGalleries"
+          v-for="g in libraryStore.galleries"
           :key="g.gid || g.link"
           class="eh-panel-card flex overflow-hidden hover:border-eh-accent transition-all duration-200 cursor-pointer hover:shadow-md"
           @click="handleOpenLink(g.link)"
@@ -283,7 +232,7 @@ const formatPosted = (ts: any) => {
         </div>
 
         <div
-          v-if="downloadStore.libraryGalleries.length === 0"
+          v-if="libraryStore.galleries.length === 0"
           class="text-center py-20 text-eh-muted italic"
         >
           <p>No galleries found. Start searching or check your DB path.</p>
@@ -292,12 +241,12 @@ const formatPosted = (ts: any) => {
     </div>
 
     <div
-      v-if="isMetadataDownloaded && downloadStore.libraryGalleries.length > 0"
+      v-if="libraryStore.isLibraryDownloaded && libraryStore.galleries.length > 0"
       class="flex justify-center pt-2"
     >
       <Paginator
         :rows="100"
-        :totalRecords="downloadStore.libraryGalleries.length"
+        :totalRecords="libraryStore.galleries.length"
         template="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink"
         class="!bg-transparent !p-0"
       />

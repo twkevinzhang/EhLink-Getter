@@ -7,13 +7,13 @@ import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
 import Badge from 'primevue/badge'
 
-import SettingsTab from '../components/tasks/SettingsTab.vue'
-import StartFetchTab from '../components/tasks/StartFetchTab.vue'
-import FetchingTab from '../components/tasks/FetchingTab.vue'
-import FetchedTab from '../components/tasks/FetchedTab.vue'
-import DownloadingTab from '../components/tasks/DownloadingTab.vue'
-import { useFetchStore } from '../stores/fetch'
-import { useDownloadStore } from '../stores/download'
+import SettingsTab from '@renderer/components/tasks/SettingsTab.vue'
+import StartFetchTab from '@renderer/components/tasks/StartFetchTab.vue'
+import FetchingTab from '@renderer/components/tasks/FetchingTab.vue'
+import FetchedTab from '@renderer/components/tasks/FetchedTab.vue'
+import DownloadingTab from '@renderer/components/tasks/DownloadingTab.vue'
+import { useFetchStore } from '@renderer/stores/fetch'
+import { useDownloadStore } from '@renderer/stores/download'
 
 const activeTab = ref('settings')
 const fetchStore = useFetchStore()

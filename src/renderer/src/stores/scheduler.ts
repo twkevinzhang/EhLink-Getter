@@ -3,12 +3,12 @@ import { useElectronStorage } from '@renderer/composables/electron-storage'
 import { computed } from 'vue'
 
 export interface ScheduledTask {
-  id: string
+  taskId: string
   link: string
   fromPage: number
   toPage: number | string
   scheduleTime: string // Format: "HH:mm"
-  customDownloadPath?: string
+  templatePath?: string
   isArchive?: boolean
   archivePassword?: string
   lastRun?: string
@@ -25,11 +25,11 @@ export const useSchedulerStore = defineStore('scheduler', () => {
   })
 
   function addTask(
-    task: Omit<ScheduledTask, 'id' | 'status' | 'executionCount' | 'downloadedCount'>,
+    task: Omit<ScheduledTask, 'taskId' | 'status' | 'executionCount' | 'downloadedCount'>,
   ) {
     const newTask: ScheduledTask = {
       ...task,
-      id: Date.now().toString(),
+      taskId: Date.now().toString(),
       status: 'enabled',
       executionCount: 0,
       downloadedCount: 0,
@@ -37,30 +37,30 @@ export const useSchedulerStore = defineStore('scheduler', () => {
     tasks.value.push(newTask)
   }
 
-  function incrementExecution(id: string) {
-    const task = tasks.value.find((t) => t.id === id)
+  function incrementExecution(taskId: string) {
+    const task = tasks.value.find((t) => t.taskId === taskId)
     if (task) {
       task.executionCount++
       task.lastRun = new Date().toLocaleString()
     }
   }
 
-  function incrementDownloaded(id: string, count: number = 1) {
-    const task = tasks.value.find((t) => t.id === id)
+  function incrementDownloaded(taskId: string, count: number = 1) {
+    const task = tasks.value.find((t) => t.taskId === taskId)
     if (task) {
       task.downloadedCount += count
     }
   }
 
-  function removeTask(id: string) {
-    const idx = tasks.value.findIndex((t) => t.id === id)
+  function removeTask(taskId: string) {
+    const idx = tasks.value.findIndex((t) => t.taskId === taskId)
     if (idx !== -1) {
       tasks.value.splice(idx, 1)
     }
   }
 
-  function toggleTask(id: string) {
-    const task = tasks.value.find((t) => t.id === id)
+  function toggleTask(taskId: string) {
+    const task = tasks.value.find((t) => t.taskId === taskId)
     if (task) {
       task.status = task.status === 'enabled' ? 'disabled' : 'enabled'
     }

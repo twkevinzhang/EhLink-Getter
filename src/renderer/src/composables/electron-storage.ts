@@ -1,3 +1,4 @@
+import { plainValue } from '@renderer/utilities'
 import { ref, toRaw, watch, type Ref, type UnwrapRef } from 'vue'
 
 /**
@@ -32,8 +33,7 @@ export function useElectronStorage<T>(key: string, initialValue: T): Ref<UnwrapR
       if (isLoaded.value && window.api?.storeSet) {
         try {
           // Use JSON.parse(JSON.stringify()) to ensure the object is cloneable and free of Proxies/non-serializables
-          const plainValue = JSON.parse(JSON.stringify(toRaw(newValue)))
-          window.api.storeSet(key, plainValue)
+          window.api.storeSet(key, plainValue(newValue))
         } catch (err) {
           console.error(`[ElectronStorage] Failed to save key "${key}":`, err)
           console.error(`Value attempted to save:`, newValue)

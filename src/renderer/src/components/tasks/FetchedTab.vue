@@ -3,20 +3,18 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 import ToggleSwitch from 'primevue/toggleswitch'
-import { useFetchStore } from '../../stores/fetch'
-import { useDownloadStore } from '../../stores/download'
-import { useConfigStore } from '../../stores/config'
+import { useFetchStore } from '@renderer/stores/fetch'
+import { useDownloadStore } from '@renderer/stores/download'
 import { storeToRefs } from 'pinia'
 
 const scraperStore = useFetchStore()
 const downloadStore = useDownloadStore()
-const configStore = useConfigStore()
 const { galleries } = storeToRefs(scraperStore)
 const toast = useToast()
 const confirm = useConfirm()
 
 interface DraftGallery {
-  id: string
+  gid: string
   title: string
   link: string
 }
@@ -37,26 +35,26 @@ const searchQuery = ref('')
 // Selection state
 const selectedIds = ref<Set<string>>(new Set())
 
-const isGallerySelected = (id: string) => selectedIds.value.has(id)
+const isGallerySelected = (gid: string) => selectedIds.value.has(gid)
 
-const toggleGallery = (id: string) => {
-  if (selectedIds.value.has(id)) {
-    selectedIds.value.delete(id)
+const toggleGallery = (gid: string) => {
+  if (selectedIds.value.has(gid)) {
+    selectedIds.value.delete(gid)
   } else {
-    selectedIds.value.add(id)
+    selectedIds.value.add(gid)
   }
 }
 
 const isAllSelected = computed(() => {
   return (
     filteredGalleries.value.length > 0 &&
-    filteredGalleries.value.every((g: DraftGallery) => selectedIds.value.has(g.id))
+    filteredGalleries.value.every((g: DraftGallery) => selectedIds.value.has(g.gid))
   )
 })
 
 const isIndeterminate = computed(() => {
   const selectedInFiltered = filteredGalleries.value.filter((g: DraftGallery) =>
-    selectedIds.value.has(g.id),
+    selectedIds.value.has(g.gid),
   ).length
   return selectedInFiltered > 0 && selectedInFiltered < filteredGalleries.value.length
 })
@@ -64,9 +62,9 @@ const isIndeterminate = computed(() => {
 const toggleSelectAll = () => {
   const val = !isAllSelected.value
   if (val) {
-    filteredGalleries.value.forEach((g: DraftGallery) => selectedIds.value.add(g.id))
+    filteredGalleries.value.forEach((g: DraftGallery) => selectedIds.value.add(g.gid))
   } else {
-    filteredGalleries.value.forEach((g: DraftGallery) => selectedIds.value.delete(g.id))
+    filteredGalleries.value.forEach((g: DraftGallery) => selectedIds.value.delete(g.gid))
   }
 }
 
@@ -89,12 +87,12 @@ const paginatedGalleries = computed(() => {
 
 const isPageSelected = computed(() => {
   if (paginatedGalleries.value.length === 0) return false
-  return paginatedGalleries.value.every((g: DraftGallery) => selectedIds.value.has(g.id))
+  return paginatedGalleries.value.every((g: DraftGallery) => selectedIds.value.has(g.gid))
 })
 
 const isPageIndeterminate = computed(() => {
   const pageSelectedCount = paginatedGalleries.value.filter((g: DraftGallery) =>
-    selectedIds.value.has(g.id),
+    selectedIds.value.has(g.gid),
   ).length
   return pageSelectedCount > 0 && pageSelectedCount < paginatedGalleries.value.length
 })
@@ -102,9 +100,9 @@ const isPageIndeterminate = computed(() => {
 const toggleSelectPage = () => {
   const val = !isPageSelected.value
   if (val) {
-    paginatedGalleries.value.forEach((g: DraftGallery) => selectedIds.value.add(g.id))
+    paginatedGalleries.value.forEach((g: DraftGallery) => selectedIds.value.add(g.gid))
   } else {
-    paginatedGalleries.value.forEach((g: DraftGallery) => selectedIds.value.delete(g.id))
+    paginatedGalleries.value.forEach((g: DraftGallery) => selectedIds.value.delete(g.gid))
   }
 }
 
@@ -126,7 +124,7 @@ const handleAddManual = () => {
 
 const handleBrowse = async () => {
   try {
-    const result = await window.api.selectDirectory()
+    const result = await scraperStore.selectDirectory()
     if (result) {
       targetPath.value = result
     }
@@ -155,18 +153,21 @@ const handleAddSelectedToQueue = async () => {
     return
   }
 
-  const selectedGalleriesList = galleries.value.filter((g) => selectedIds.value.has(g.id))
+  const selectedGalleriesList = galleries.value.filter((g) =>
+    selectedIds.value.has(g.gid),
+  )
   const jobId = `draft-${Date.now()}`
   downloadStore.addToQueue(
     jobId,
     'Draft Selection',
     selectedGalleriesList,
+    targetPath.value,
     useZip.value,
     zipPass.value,
   )
 
   selectedGalleriesList.forEach((g) => {
-    scraperStore.removeGallery(g.id)
+    scraperStore.removeGallery(g.gid)
   })
 
   selectedIds.value.clear()
@@ -178,9 +179,9 @@ const handleAddSelectedToQueue = async () => {
   })
 }
 
-const handleDeleteGallery = (id: string) => {
-  scraperStore.removeGallery(id)
-  selectedIds.value.delete(id)
+const handleDeleteGallery = (gid: string) => {
+  scraperStore.removeGallery(gid)
+  selectedIds.value.delete(gid)
   if (paginatedGalleries.value.length === 0 && first.value > 0) {
     first.value = Math.max(0, first.value - pageSize.value)
   }
@@ -214,14 +215,7 @@ watch(searchQuery, () => {
 
 onMounted(async () => {
   if (!targetPath.value || targetPath.value.trim() === '') {
-    try {
-      const defaultPath = await downloadStore.getDefaultDownloadsPath()
-      if (defaultPath) {
-        targetPath.value = defaultPath + '/{EN_TITLE}'
-      }
-    } catch (error) {
-      console.error('Failed to get default downloads path:', error)
-    }
+    targetPath.value = await downloadStore.getDefaultDownloadsPath()
   }
 })
 </script>
@@ -292,24 +286,24 @@ onMounted(async () => {
         <div class="flex flex-col gap-1">
           <div
             v-for="g in paginatedGalleries"
-            :key="g.id"
+            :key="g.gid"
             class="flex items-center gap-3 p-2 bg-eh-panel/20 border-l-4 transition-all"
             :class="
-              isGallerySelected(g.id)
+              isGallerySelected(g.gid)
                 ? 'border-eh-accent bg-eh-panel/40 shadow-inner'
                 : 'border-eh-border hover:bg-eh-panel/30'
             "
           >
             <Checkbox
-              :modelValue="isGallerySelected(g.id)"
+              :modelValue="isGallerySelected(g.gid)"
               binary
-              @change="toggleGallery(g.id)"
+              @change="toggleGallery(g.gid)"
             />
             <div class="flex-1 min-w-0">
               <div
                 class="text-[12px] font-bold truncate transition-colors"
                 :class="
-                  isGallerySelected(g.id) ? 'text-eh-text' : 'text-eh-muted opacity-60'
+                  isGallerySelected(g.gid) ? 'text-eh-text' : 'text-eh-muted opacity-60'
                 "
               >
                 {{ g.title }}
@@ -325,7 +319,7 @@ onMounted(async () => {
               rounded
               size="small"
               class="!w-6 !h-6"
-              @click="handleDeleteGallery(g.id)"
+              @click="handleDeleteGallery(g.gid)"
             />
           </div>
 
@@ -375,7 +369,7 @@ onMounted(async () => {
           </div>
           <div class="flex gap-2 mt-1">
             <Button
-              v-for="p in ['{EN_TITLE}', '{ID}', '{JP_TITLE}']"
+              v-for="p in ['{EN_TITLE}', '{GID}', '{JP_TITLE}']"
               :key="p"
               :label="p"
               size="small"

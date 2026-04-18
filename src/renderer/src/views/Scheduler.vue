@@ -9,15 +9,15 @@ import InputText from 'primevue/inputtext'
 import DatePicker from 'primevue/datepicker'
 import Tag from 'primevue/tag'
 import ToggleSwitch from 'primevue/toggleswitch'
-import { useSchedulerStore } from '../stores/scheduler'
-import { useConfigStore } from '../stores/config'
+import { useSchedulerStore } from '@renderer/stores/scheduler'
 import { useToast } from 'primevue/usetoast'
-import SettingsTab from '../components/tasks/SettingsTab.vue'
+import SettingsTab from '@renderer/components/tasks/SettingsTab.vue'
 import { onMounted, computed, ref } from 'vue'
+import { useFetchStore } from '@renderer/stores/fetch'
 
 const activeTab = ref('settings')
 const schedulerStore = useSchedulerStore()
-const configStore = useConfigStore()
+const scraperStore = useFetchStore()
 const toast = useToast()
 
 // Add Task Form
@@ -25,14 +25,13 @@ const pageLink = ref('https://e-hentai.org/?f_cats=767')
 const fromPage = ref(1)
 const toPage = ref<string | number>(2)
 const scheduleTime = ref<Date | null>(new Date())
-const customPath = ref('')
 const useZip = ref(true)
 const zipPass = ref('')
 
 const displayPath = ref('')
 
 const handleSelectPath = async () => {
-  const path = await window.api.selectDirectory()
+  const path = await scraperStore.selectDirectory()
   if (path) {
     displayPath.value = path
   }
@@ -64,7 +63,7 @@ const handleAddTask = () => {
     fromPage: fromPage.value,
     toPage: toPage.value,
     scheduleTime: timeStr,
-    customDownloadPath: displayPath.value,
+    templatePath: displayPath.value,
     isArchive: useZip.value,
     archivePassword: zipPass.value,
   })
@@ -220,7 +219,7 @@ const handleTriggerNow = async (taskId: string) => {
                   </div>
                   <div class="flex gap-2 mt-1">
                     <Button
-                      v-for="p in ['{EN_TITLE}', '{ID}', '{JP_TITLE}']"
+                      v-for="p in ['{EN_TITLE}', '{GID}', '{JP_TITLE}']"
                       :key="p"
                       :label="p"
                       size="small"
@@ -282,7 +281,7 @@ const handleTriggerNow = async (taskId: string) => {
             </div>
             <div
               v-for="task in schedulerStore.sortedTasks"
-              :key="task.id"
+              :key="task.taskId"
               class="eh-panel-card p-4 flex items-center justify-between gap-4"
             >
               <div class="flex-1 flex flex-col gap-2 overflow-hidden">
@@ -307,12 +306,12 @@ const handleTriggerNow = async (taskId: string) => {
                 </div>
 
                 <div
-                  v-if="task.customDownloadPath"
+                  v-if="task.templatePath"
                   class="flex items-center gap-1.5 opacity-70"
                 >
                   <i class="pi pi-folder text-[10px] text-eh-accent"></i>
                   <span class="text-[10px] text-eh-accent truncate font-mono">{{
-                    task.customDownloadPath
+                    task.templatePath
                   }}</span>
                 </div>
 
@@ -357,17 +356,17 @@ const handleTriggerNow = async (taskId: string) => {
                   rounded
                   size="small"
                   :severity="task.status === 'enabled' ? 'warn' : 'success'"
-                  @click="schedulerStore.toggleTask(task.id)"
+                  @click="schedulerStore.toggleTask(task.taskId)"
                 />
                 <Button
+                  v-tooltip="'Trigger Now'"
                   icon="pi pi-bolt"
                   text
                   rounded
                   size="small"
                   severity="info"
-                  v-tooltip="'Trigger Now'"
                   :loading="task.status === 'running'"
-                  @click="handleTriggerNow(task.id)"
+                  @click="handleTriggerNow(task.taskId)"
                 />
                 <Button
                   icon="pi pi-trash"
@@ -375,7 +374,7 @@ const handleTriggerNow = async (taskId: string) => {
                   rounded
                   size="small"
                   severity="danger"
-                  @click="schedulerStore.removeTask(task.id)"
+                  @click="schedulerStore.removeTask(task.taskId)"
                 />
               </div>
             </div>

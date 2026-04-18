@@ -1,10 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch, toRaw } from 'vue'
-import { useLogStore } from './logs'
+import { useLogStore } from '@renderer/stores/logs'
 import { useElectronStorage } from '@renderer/composables/electron-storage'
+import { plainValue } from '@renderer/utilities'
 
 export interface FetchJob {
-  id: string
+  jobId: string
   link: string
   progress: number
   status: string
@@ -25,6 +26,14 @@ export const useFetchStore = defineStore('fetch', () => {
 
   const logStore = useLogStore()
 
+  async function selectDirectory() {
+    return await window.api.selectDirectory()
+  }
+
+  async function selectSavePath() {
+    return await window.api.selectSavePath()
+  }
+
   function addGallery(url: string, title?: string) {
     const pattern = /^https:\/\/e-hentai\.org\/g\/\d+\/[a-z0-9]+\/?$/
     if (!pattern.test(url)) {
@@ -36,15 +45,15 @@ export const useFetchStore = defineStore('fetch', () => {
     }
 
     fetchedGalleries.value.unshift({
-      id: `manual-${Date.now()}`,
+      gid: `manual-${Date.now()}`,
       title:
         title || `Manual Entry: ${url.split('/').filter(Boolean).slice(-2).join('/')}`,
       link: url,
     })
   }
 
-  function removeGallery(galleryId: string) {
-    const idx = fetchedGalleries.value.findIndex((g) => g.id === galleryId)
+  function removeGallery(gid: string) {
+    const idx = fetchedGalleries.value.findIndex((g) => g.gid === gid)
     if (idx !== -1) {
       fetchedGalleries.value.splice(idx, 1)
     }
@@ -65,7 +74,7 @@ export const useFetchStore = defineStore('fetch', () => {
   ) {
     const jobId = Date.now().toString()
     const newJob: FetchJob = {
-      id: jobId,
+      jobId: jobId,
       link: url,
       progress: 0,
       status: 'Starting...',
@@ -91,7 +100,7 @@ export const useFetchStore = defineStore('fetch', () => {
 
       // Removed aggressive existingJob inheritance that caused loops to skip if previous job finished
 
-      const jobIdx = fetchingJobs.value.findIndex((j) => j.id === jobId)
+      const jobIdx = fetchingJobs.value.findIndex((j) => j.jobId === jobId)
       if (jobIdx === -1) return
 
       fetchingJobs.value[jobIdx].state = 'fetching'
@@ -101,7 +110,7 @@ export const useFetchStore = defineStore('fetch', () => {
 
       while (isFirstPage || nextToken) {
         pageCount++
-        const currentJobIdx = fetchingJobs.value.findIndex((j) => j.id === jobId)
+        const currentJobIdx = fetchingJobs.value.findIndex((j) => j.jobId === jobId)
         if (currentJobIdx === -1) break
 
         if (fetchingJobs.value[currentJobIdx].state === 'paused') {
@@ -133,7 +142,7 @@ export const useFetchStore = defineStore('fetch', () => {
         fetchingJobs.value[currentJobIdx].currentPage = pageCount
         fetchingJobs.value[currentJobIdx].totalItems = allItems.length
 
-        const result = await window.api.fetchPage({ url, next: nextToken })
+        const result = await window.api.fetchPage(plainValue({ url, next: nextToken }))
 
         if (result && result.items) {
           allItems = [...allItems, ...result.items]
@@ -147,7 +156,7 @@ export const useFetchStore = defineStore('fetch', () => {
         if (!nextToken) break
       }
 
-      const finalJobIdx = fetchingJobs.value.findIndex((j) => j.id === jobId)
+      const finalJobIdx = fetchingJobs.value.findIndex((j) => j.jobId === jobId)
       if (finalJobIdx !== -1) {
         const job = fetchingJobs.value[finalJobIdx]
         job.progress = 100
@@ -155,9 +164,10 @@ export const useFetchStore = defineStore('fetch', () => {
         job.state = 'waiting'
 
         const newGalleries = allItems.map((item: any, idx: number) => ({
-          id: `${jobId}-${idx}`,
+          gid: item.gid || `${jobId}-${idx}`,
           title: item.title,
           link: item.link,
+          token: item.token,
           sourceJob: job.link,
         }))
 
@@ -170,7 +180,7 @@ export const useFetchStore = defineStore('fetch', () => {
       }
     } catch (error: any) {
       const message = error instanceof Error ? error.message : String(error)
-      const errorJobIdx = fetchingJobs.value.findIndex((j) => j.id === jobId)
+      const errorJobIdx = fetchingJobs.value.findIndex((j) => j.jobId === jobId)
       if (errorJobIdx !== -1) {
         fetchingJobs.value[errorJobIdx].status = `Error: ${message}`
         fetchingJobs.value[errorJobIdx].state = 'paused'
@@ -179,7 +189,7 @@ export const useFetchStore = defineStore('fetch', () => {
   }
 
   async function pauseFetching(jobId: string) {
-    const job = fetchingJobs.value.find((j) => j.id === jobId)
+    const job = fetchingJobs.value.find((j) => j.jobId === jobId)
     if (job && job.state === 'fetching') {
       job.state = 'paused'
       logStore.addLog({
@@ -190,7 +200,7 @@ export const useFetchStore = defineStore('fetch', () => {
   }
 
   async function resumeFetching(jobId: string) {
-    const job = fetchingJobs.value.find((j) => j.id === jobId)
+    const job = fetchingJobs.value.find((j) => j.jobId === jobId)
     if (!job || job.state !== 'paused') return
 
     try {
@@ -232,9 +242,10 @@ export const useFetchStore = defineStore('fetch', () => {
       job.state = 'waiting'
 
       const newGalleries = allItems.map((item: any, idx: number) => ({
-        id: `${jobId}-${idx}`,
+        gid: item.gid || `${jobId}-${idx}`,
         title: item.title,
         link: item.link,
+        token: item.token,
         sourceJob: job.link,
       }))
 
@@ -246,7 +257,7 @@ export const useFetchStore = defineStore('fetch', () => {
   }
 
   async function deleteFetchingJob(jobId: string) {
-    const index = fetchingJobs.value.findIndex((j) => j.id === jobId)
+    const index = fetchingJobs.value.findIndex((j) => j.jobId === jobId)
     if (index !== -1) {
       fetchingJobs.value.splice(index, 1)
       logStore.addLog({
@@ -260,6 +271,8 @@ export const useFetchStore = defineStore('fetch', () => {
     fetchingJobs,
     galleries: fetchedGalleries,
     activeFetchingJobs,
+    selectDirectory,
+    selectSavePath,
     startFetching,
     pauseFetching,
     resumeFetching,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useLogStore } from '../stores/logs'
+import { useLogStore } from '@renderer/stores/logs'
 
 const store = useLogStore()
 </script>

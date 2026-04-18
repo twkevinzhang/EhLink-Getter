@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useDownloadStore } from '../../stores/download'
+import { useDownloadStore } from '@renderer/stores/download'
 import { storeToRefs } from 'pinia'
 import { useToast } from 'primevue/usetoast'
 
@@ -8,7 +8,7 @@ const { downloadingJobs } = storeToRefs(downloadStore)
 const toast = useToast()
 
 const handlePauseAll = () => {
-  downloadingJobs.value.forEach((job) => downloadStore.pauseJob(job.id))
+  downloadingJobs.value.forEach((job) => downloadStore.pauseJob(job.jobId))
   toast.add({
     severity: 'info',
     summary: 'Paused',
@@ -84,7 +84,7 @@ const handleTerminateJob = (jobId: string) => {
       <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-4 bg-eh-panel/30">
         <div
           v-for="job in downloadingJobs"
-          :key="job.id"
+          :key="job.jobId"
           class="eh-panel-card bg-white/50 border border-eh-border/30 rounded-lg overflow-hidden flex flex-col transition-all"
         >
           <!-- Job Header -->
@@ -139,27 +139,27 @@ const handleTerminateJob = (jobId: string) => {
             <div class="flex gap-1">
               <template v-if="job.mode === 'pending'">
                 <Button
-                  icon="pi pi-play"
                   v-tooltip="'Start'"
+                  icon="pi pi-play"
                   rounded
                   text
                   size="small"
-                  @click.stop="handleResumeJob(job.id)"
+                  @click.stop="handleResumeJob(job.jobId)"
                 />
               </template>
               <template v-if="job.mode === 'running'">
                 <Button
-                  icon="pi pi-pause"
                   v-tooltip="'Pause'"
+                  icon="pi pi-pause"
                   severity="warn"
                   rounded
                   text
                   size="small"
-                  @click.stop="handlePauseJob(job.id)"
+                  @click.stop="handlePauseJob(job.jobId)"
                 />
                 <Button
-                  icon="pi pi-times"
                   v-tooltip="'Terminate'"
+                  icon="pi pi-times"
                   severity="danger"
                   rounded
                   text
@@ -170,16 +170,16 @@ const handleTerminateJob = (jobId: string) => {
               </template>
               <template v-if="job.mode === 'paused'">
                 <Button
-                  icon="pi pi-play"
                   v-tooltip="'Play'"
+                  icon="pi pi-play"
                   rounded
                   text
                   size="small"
-                  @click.stop="handleResumeJob(job.id)"
+                  @click.stop="handleResumeJob(job.jobId)"
                 />
                 <Button
-                  icon="pi pi-times"
                   v-tooltip="'Terminate'"
+                  icon="pi pi-times"
                   severity="danger"
                   rounded
                   text
@@ -189,16 +189,16 @@ const handleTerminateJob = (jobId: string) => {
               </template>
               <template v-if="job.mode === 'error'">
                 <Button
-                  icon="pi pi-refresh"
                   v-tooltip="'Restart'"
+                  icon="pi pi-refresh"
                   rounded
                   text
                   size="small"
-                  @click.stop="handleRestartJob(job.id)"
+                  @click.stop="handleRestartJob(job.jobId)"
                 />
                 <Button
-                  icon="pi pi-times"
                   v-tooltip="'Terminate'"
+                  icon="pi pi-times"
                   severity="danger"
                   rounded
                   text
@@ -228,7 +228,7 @@ const handleTerminateJob = (jobId: string) => {
               <tbody class="text-xs">
                 <tr
                   v-for="gal in job.galleries"
-                  :key="gal.id"
+                  :key="gal.gid"
                   class="border-t border-eh-border/10 hover:bg-white/40 transition-colors group"
                 >
                   <td class="p-2 text-center text-eh-text">

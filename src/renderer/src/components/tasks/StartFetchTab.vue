@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useFetchStore } from '../../stores/fetch'
+import { useFetchStore } from '@renderer/stores/fetch'
 import { useToast } from 'primevue/usetoast'
 
 const scraperStore = useFetchStore()

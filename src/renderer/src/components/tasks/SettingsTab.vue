@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
-import { useConfigStore } from '../../stores/config'
+import { useConfigStore } from '@renderer/stores/config'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 
@@ -89,7 +89,7 @@ const handleSave = () => {
 
 const handleLogin = async () => {
   try {
-    const result = await window.api.loginEHentai()
+    const result = await configStore.loginEHentai()
     if (result.success && result.cookies) {
       configStore.updateConfig({ ...configStore.config, cookies: result.cookies })
       toast.add({

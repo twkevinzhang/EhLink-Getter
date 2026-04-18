@@ -24,7 +24,7 @@ onMounted(() => {
     logStore.addLog(log)
   })
   window.api.onProgress((progress: any) => {
-    downloadStore.updateDownloadProgress(progress)
+    // TODO: update download progress
   })
   // Sync scheduler tasks from main process
   if (window.electron?.ipcRenderer) {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useFetchStore } from '../../stores/fetch'
+import { useFetchStore } from '@renderer/stores/fetch'
 import { storeToRefs } from 'pinia'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
@@ -78,7 +78,7 @@ const getStateColor = (state: string) => {
       <div class="p-4 flex-1 overflow-y-auto flex flex-col gap-3 bg-eh-panel/30">
         <div
           v-for="job in activeFetchingJobs"
-          :key="job.id"
+          :key="job.jobId"
           class="eh-panel-card p-3 !bg-white/40"
         >
           <div class="flex flex-col gap-2">
@@ -127,7 +127,7 @@ const getStateColor = (state: string) => {
                 severity="warn"
                 size="small"
                 class="flex-1 !text-[12px]"
-                @click="handlePause(job.id)"
+                @click="handlePause(job.jobId)"
               />
               <Button
                 v-if="job.state === 'paused'"
@@ -135,7 +135,7 @@ const getStateColor = (state: string) => {
                 icon="pi pi-play"
                 size="small"
                 class="flex-1 !bg-eh-border !border-eh-border !text-[12px]"
-                @click="handleResume(job.id)"
+                @click="handleResume(job.jobId)"
               />
               <Button
                 :disabled="job.state === 'fetching'"
@@ -145,7 +145,7 @@ const getStateColor = (state: string) => {
                 size="small"
                 outlined
                 class="flex-1 !text-[12px]"
-                @click="handleDelete(job.id)"
+                @click="handleDelete(job.jobId)"
               />
             </div>
           </div>

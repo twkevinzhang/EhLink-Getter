@@ -1,10 +1,11 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
-import { useConfigStore } from './config'
-import { useLogStore } from './logs'
+import { useLogStore } from '@renderer/stores/logs'
+import { parseTemplatePath } from '@shared/utilities'
+import { useElectronStorage } from '@renderer/composables/electron-storage'
+import { plainValue } from '@renderer/utilities'
 
 export interface DownloadGallery {
-  id: string
+  gid: string
   title: string
   link: string
   targetPath: string
@@ -17,7 +18,7 @@ export interface DownloadGallery {
 }
 
 export interface DownloadJob {
-  id: string
+  jobId: string
   title: string
   progress: number
   status: string
@@ -31,73 +32,37 @@ export interface DownloadJob {
 }
 
 export const useDownloadStore = defineStore('download', () => {
-  const downloadingJobs = ref<DownloadJob[]>([])
-  const completedTasks = ref<any[]>([])
-  const libraryGalleries = ref<any[]>([])
-  const configStore = useConfigStore()
+  const downloadingJobs = useElectronStorage<DownloadJob[]>('download.jobs', [])
+  const completedTasks = useElectronStorage<any[]>('download.completed', [])
   const logStore = useLogStore()
-  const defaultDownloadsPath = ref('')
 
-  async function init() {
-    try {
-      defaultDownloadsPath.value = await window.api.getDownloadsPath()
-    } catch (e) {
-      console.error('Failed to get downloads path:', e)
-    }
-  }
-
-  init()
-  function parsePath(path: string, gallery: any) {
-    const idMatch = gallery.link.match(/\/g\/(\d+)\//)
-    const id = idMatch ? idMatch[1] : 'unknown'
-
-    let path = template
-    if (!path || path.trim() === '') {
-      path = defaultDownloadsPath.value 
-        ? `${defaultDownloadsPath.value}/{EN_TITLE}`
-        : 'downloads/{EN_TITLE}'
-    }
-
-    // Traditional Strategy Logic and general placeholder replacement:
-    const enTitle = gallery.title
-    const jpTitle = gallery.title
-
-    path = path.replace(/{ID}/g, id)
-    path = path.replace(/{EN_TITLE}/g, enTitle)
-    path = path.replace(/{JP_TITLE}/g, jpTitle)
-
-    return path
+  async function getDefaultDownloadsPath() {
+    const defaultPath = await window.api.getDownloadsPath()
+    return defaultPath + '/{EN_TITLE}'
   }
 
   function addToQueue(
     jobId: string,
     title: string,
     galleries: any[],
+    targetTemplate: string,
     isArchive = false,
     password = '',
   ) {
-    const targetTemplate = '' // Default to empty, will be handled by DownloadService fallback if needed
+    const mappedGalleries: DownloadGallery[] = galleries.map((g) => ({
+      gid: g.gid || 'unknown',
+      title: g.title,
+      link: g.link,
+      targetPath: parseTemplatePath(targetTemplate, g),
+      isArchive,
+      imageCount: g.imageCount || 0,
+      status: 'Pending...',
+      progress: 0,
+      mode: 'pending',
+      password,
+    }))
 
-    const mappedGalleries: DownloadGallery[] = galleries.map((g) => {
-      const idMatch = g.link.match(/\/g\/(\d+)\//)
-      const id = idMatch ? idMatch[1] : 'unknown'
-      const targetPath = parsePath(targetTemplate, g)
-
-      return {
-        id,
-        title: g.title,
-        link: g.link,
-        targetPath,
-        isArchive: isArchive, // Use the passed parameter
-        imageCount: g.imageCount || 0,
-        status: 'Pending...',
-        progress: 0,
-        mode: 'pending',
-        password: password,
-      }
-    })
-
-    const existingJob = downloadingJobs.value.find((j) => j.id === jobId)
+    const existingJob = downloadingJobs.value.find((j) => j.jobId === jobId)
     if (existingJob) {
       existingJob.galleries = [...existingJob.galleries, ...mappedGalleries]
       existingJob.status = `Added ${galleries.length} more galleries.`
@@ -105,28 +70,28 @@ export const useDownloadStore = defineStore('download', () => {
     }
 
     const newJob: DownloadJob = {
-      id: jobId,
-      title: title,
+      jobId,
+      title,
       progress: 0,
       status: 'Waiting in queue...',
       mode: 'pending',
       galleries: mappedGalleries,
       isExpanded: true,
-      isArchive: isArchive,
-      password: password,
+      isArchive,
+      password,
     }
     downloadingJobs.value.unshift(newJob)
   }
 
   async function startJob(jobId: string) {
-    const job = downloadingJobs.value.find((j) => j.id === jobId)
+    const job = downloadingJobs.value.find((j) => j.jobId === jobId)
     if (job && (job.mode === 'pending' || job.mode === 'paused')) {
       await processDownload(job)
     }
   }
 
   function pauseJob(jobId: string) {
-    const job = downloadingJobs.value.find((j) => j.id === jobId)
+    const job = downloadingJobs.value.find((j) => j.jobId === jobId)
     if (job) {
       job.mode = 'paused'
       job.status = 'Paused'
@@ -137,7 +102,7 @@ export const useDownloadStore = defineStore('download', () => {
   }
 
   function stopJob(jobId: string) {
-    const job = downloadingJobs.value.find((j) => j.id === jobId)
+    const job = downloadingJobs.value.find((j) => j.jobId === jobId)
     if (job) {
       job.mode = 'paused'
       job.status = 'Stopped'
@@ -146,7 +111,7 @@ export const useDownloadStore = defineStore('download', () => {
   }
 
   function restartJob(jobId: string) {
-    const job = downloadingJobs.value.find((j) => j.id === jobId)
+    const job = downloadingJobs.value.find((j) => j.jobId === jobId)
     if (job) {
       job.progress = 0
       job.mode = 'pending'
@@ -191,12 +156,13 @@ export const useDownloadStore = defineStore('download', () => {
 
       try {
         // Centralized download logic in Main Process via DownloadService
-        const result = await window.api.downloadGallery({
-          url: gallery.link,
-          targetTemplate: gallery.targetPath,
-          isArchive: job.isArchive,
-          password: job.password,
-        })
+        const result = await window.api.downloadGallery(
+          plainValue({
+            gallery,
+            isArchive: job.isArchive,
+            password: job.password,
+          }),
+        )
 
         if (result.success) {
           gallery.mode = 'completed'
@@ -277,7 +243,6 @@ export const useDownloadStore = defineStore('download', () => {
   return {
     downloadingJobs,
     completedTasks,
-    libraryGalleries,
     getDefaultDownloadsPath,
     addToQueue,
     startJob,
