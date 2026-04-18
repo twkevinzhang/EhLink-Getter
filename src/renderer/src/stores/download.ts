@@ -38,14 +38,12 @@ export const useDownloadStore = defineStore('download', () => {
   const logStore = useLogStore()
 
   function parsePath(template: string, gallery: any) {
-    // Extract ID from link like https://e-hentai.org/g/123456/token/
     const idMatch = gallery.link.match(/\/g\/(\d+)\//)
     const id = idMatch ? idMatch[1] : 'unknown'
-    const strategy = configStore.config.storage_strategy
 
     let path = template
     if (!path || path.trim() === '') {
-      path = strategy === 'eh_id' ? 'output' : 'output/{EN_TITLE}'
+      path = 'output/{EN_TITLE}'
     }
 
     // Traditional Strategy Logic and general placeholder replacement:
@@ -55,10 +53,6 @@ export const useDownloadStore = defineStore('download', () => {
     path = path.replace(/{ID}/g, id)
     path = path.replace(/{EN_TITLE}/g, enTitle)
     path = path.replace(/{JP_TITLE}/g, jpTitle)
-
-    if (strategy === 'eh_id' && !path.includes(id)) {
-      path = `${path}/${id}`
-    }
 
     return path
   }
@@ -188,7 +182,6 @@ export const useDownloadStore = defineStore('download', () => {
         const result = await window.api.downloadGallery({
           url: gallery.link,
           targetTemplate: gallery.targetPath,
-          storageStrategy: configStore.config.storage_strategy,
           isArchive: job.isArchive,
           password: job.password
         })

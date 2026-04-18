@@ -9,7 +9,6 @@ const toast = useToast()
 const confirm = useConfirm()
 
 // Local refs for editing
-const storageStrategy = ref<'eh_id' | 'traditional'>('traditional')
 const proxyPool = ref('')
 const scanThreads = ref(3)
 const downloadThreads = ref(5)
@@ -32,7 +31,6 @@ const memberId = computed(() => {
 })
 
 const syncLocalState = () => {
-  storageStrategy.value = configStore.config.storage_strategy || 'traditional'
   proxyPool.value = (configStore.config.proxies || []).join('\n')
   scanThreads.value = configStore.config.scan_thread_cnt || 3
   downloadThreads.value = configStore.config.download_thread_cnt || 5
@@ -59,12 +57,10 @@ const isModified = computed(() => {
     .filter((p) => p.length > 0)
 
   const storeProxies = [...(configStore.config.proxies || [])]
-  const storeStrategy = configStore.config.storage_strategy || 'traditional'
   const storeScanThreads = configStore.config.scan_thread_cnt || 3
   const storeDownloadThreads = configStore.config.download_thread_cnt || 5
 
   return (
-    storageStrategy.value !== storeStrategy ||
     JSON.stringify(currentProxies) !== JSON.stringify(storeProxies) ||
     scanThreads.value !== storeScanThreads ||
     downloadThreads.value !== storeDownloadThreads
@@ -73,7 +69,6 @@ const isModified = computed(() => {
 
 const handleSave = () => {
   const newConfig = {
-    storage_strategy: storageStrategy.value,
     proxies: proxyPool.value
       .split('\n')
       .map((p) => p.trim())
@@ -193,46 +188,6 @@ const handleLogout = () => {
       </div>
     </div>
 
-    <div class="eh-panel-card overflow-hidden">
-      <div class="eh-header">Storage Strategy</div>
-      <div class="p-4 flex flex-col gap-3">
-        <div class="flex gap-4">
-          <div class="flex items-center">
-            <RadioButton v-model="storageStrategy" inputId="strategy1" value="eh_id" />
-            <label for="strategy1" class="ml-2 text-sm cursor-pointer">EH_ID Strategy</label>
-          </div>
-          <div class="flex items-center">
-            <RadioButton v-model="storageStrategy" inputId="strategy2" value="traditional" />
-            <label for="strategy2" class="ml-2 text-sm cursor-pointer">Traditional</label>
-          </div>
-        </div>
-
-        <div
-          class="mt-2 p-3 bg-eh-sidebar/30 border border-eh-border/30 rounded text-xs leading-relaxed transition-all"
-        >
-          <template v-if="storageStrategy === 'eh_id'">
-            <div class="text-eh-accent font-bold mb-1">EH_ID Strategy</div>
-            <p class="text-eh-muted font-medium mb-2">
-              <span class="font-bold whitespace-nowrap">ZH:</span>
-              EH_ID 優先策略。檔案將直接以畫廊 ID 命名，適合大規模收藏。
-            </p>
-            <p class="text-eh-muted italic">
-              <span class="font-bold text-[10px]">EN:</span> Files are named by Gallery ID. Optimized for large collections.
-            </p>
-          </template>
-          <template v-else>
-            <div class="text-eh-accent font-bold mb-1">Traditional</div>
-            <p class="text-eh-muted font-medium mb-2">
-              <span class="font-bold whitespace-nowrap">ZH:</span>
-              傳統平鋪策略。資料夾名稱即為標題，方便檔案瀏覽器手動尋找。
-            </p>
-            <p class="text-eh-muted italic">
-              <span class="font-bold text-[10px]">EN:</span> Folders use titles. Convenient for manual manual management.
-            </p>
-          </template>
-        </div>
-      </div>
-    </div>
 
     <div class="eh-panel-card overflow-hidden">
       <div class="eh-header">Request Management</div>

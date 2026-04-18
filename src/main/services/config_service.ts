@@ -7,7 +7,6 @@ export interface AppConfig {
   proxies: string[]
   scan_thread_cnt: number
   download_thread_cnt: number
-  storage_strategy: 'eh_id' | 'traditional'
 }
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -15,7 +14,6 @@ const DEFAULT_CONFIG: AppConfig = {
   proxies: [],
   scan_thread_cnt: 3,
   download_thread_cnt: 5,
-  storage_strategy: 'traditional',
 }
 
 export class ConfigService {

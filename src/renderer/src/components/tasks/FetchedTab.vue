@@ -27,12 +27,7 @@ const zipPass = ref('')
 const manualUrl = ref('')
 
 const displayPath = computed({
-  get: () => {
-    if (configStore.config.storage_strategy === 'eh_id') {
-      return 'output/{ID}'
-    }
-    return targetPath.value
-  },
+  get: () => targetPath.value,
   set: (val) => {
     targetPath.value = val
   }
@@ -353,23 +348,15 @@ onMounted(async () => {
         <div class="flex flex-col gap-2">
           <label class="text-[10px] text-eh-muted font-bold uppercase flex items-center gap-2">
             Target Path:
-            <span
-              v-if="configStore.config.storage_strategy === 'eh_id'"
-              class="text-red-400 font-normal lowercase italic"
-            >
-              (Locked by EH_ID Strategy)
-            </span>
           </label>
           <div class="flex gap-2">
             <InputText
               v-model="displayPath"
-              :disabled="configStore.config.storage_strategy === 'eh_id'"
               size="small"
               class="flex-1 !p-1.5 !text-xs"
             />
             <Button
               label="Browse"
-              :disabled="configStore.config.storage_strategy === 'eh_id'"
               size="small"
               outlined
               class="!py-1 !px-3"
@@ -381,7 +368,6 @@ onMounted(async () => {
               v-for="p in ['{EN_TITLE}', '{ID}', '{JP_TITLE}']"
               :key="p"
               :label="p"
-              :disabled="configStore.config.storage_strategy === 'eh_id'"
               size="small"
               text
               class="!text-[10px] !p-1 !bg-eh-panel/20"

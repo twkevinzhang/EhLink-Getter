@@ -12,7 +12,6 @@ import { AppConfig } from './config_service'
 export interface DownloadOptions {
   url: string
   targetTemplate: string
-  storageStrategy: 'eh_id' | 'traditional'
   isArchive?: boolean
   password?: string
   metadata?: any // Optional pre-fetched metadata
@@ -32,7 +31,7 @@ export class DownloadService {
    */
   async downloadGallery(options: DownloadOptions): Promise<{ success: boolean; path?: string; error?: string }> {
     try {
-      const { url, targetTemplate, storageStrategy, isArchive, password } = options
+      const { url, targetTemplate, isArchive, password } = options
       
       // 1. Fetch Metadata if not provided
       let meta = options.metadata
@@ -47,7 +46,7 @@ export class DownloadService {
       }
 
       // 2. Resolve Path
-      const targetPath = this.resolvePath(targetTemplate, storageStrategy, meta)
+      const targetPath = this.resolvePath(targetTemplate, meta)
       if (!fs.existsSync(targetPath)) {
         fs.mkdirSync(targetPath, { recursive: true })
       }
@@ -111,9 +110,9 @@ export class DownloadService {
   }
 
   /**
-   * Resolves the download path based on strategy and placeholders.
+   * Resolves the download path based on placeholders.
    */
-  private resolvePath(template: string, strategy: string, meta: any): string {
+  private resolvePath(template: string, meta: any): string {
     const idMatch = meta.link.match(/\/g\/(\d+)\//)
     const id = idMatch ? idMatch[1] : 'unknown'
     const gid = meta.gid || id
@@ -122,7 +121,7 @@ export class DownloadService {
     // 1. Prepare base path
     let path = template
     if (!path || path.trim() === '') {
-      path = strategy === 'eh_id' ? 'output' : 'output/{EN_TITLE}'
+      path = 'output/{EN_TITLE}'
     }
 
     // 2. Safety replacement for filesystem
@@ -142,11 +141,6 @@ export class DownloadService {
       const regex = new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
       path = path.replace(regex, replacements[key])
     })
-
-    // 4. For eh_id strategy, append id if not already present in path
-    if (strategy === 'eh_id' && !path.includes(id)) {
-      path = join(path, id)
-    }
 
     return path
   }

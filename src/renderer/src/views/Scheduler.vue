@@ -29,27 +29,17 @@ const customPath = ref('')
 const useZip = ref(true)
 const zipPass = ref('')
 
-const displayPath = computed({
-  get: () => {
-    if (configStore.config.storage_strategy === 'eh_id') {
-      return 'output/{ID}'
-    }
-    return customPath.value
-  },
-  set: (val) => {
-    customPath.value = val
-  }
-})
+const displayPath = ref('')
 
 const handleSelectPath = async () => {
   const path = await window.api.selectDirectory()
   if (path) {
-    customPath.value = path
+    displayPath.value = path
   }
 }
 
 const handlePlaceholder = (placeholder: string) => {
-  customPath.value = (customPath.value || '') + placeholder
+  displayPath.value = (displayPath.value || '') + placeholder
 }
 
 const handleAddTask = () => {
@@ -74,7 +64,7 @@ const handleAddTask = () => {
     fromPage: fromPage.value,
     toPage: toPage.value,
     scheduleTime: timeStr,
-    customDownloadPath: configStore.config.storage_strategy === 'traditional' ? customPath.value : '',
+    customDownloadPath: displayPath.value,
     isArchive: useZip.value,
     archivePassword: zipPass.value
   })
@@ -90,10 +80,10 @@ const handleAddTask = () => {
 }
 
 onMounted(async () => {
-  if (!customPath.value) {
+  if (!displayPath.value) {
     const defaultPath = await window.api.getDownloadsPath()
     if (defaultPath) {
-      customPath.value = defaultPath + '/{EN_TITLE}'
+      displayPath.value = defaultPath + '/{EN_TITLE}'
     }
   }
 })
@@ -188,23 +178,15 @@ const handleTriggerNow = async (taskId: string) => {
                 <div class="flex flex-col gap-2">
                   <label class="text-[10px] text-eh-muted font-bold uppercase flex items-center justify-between">
                     Target Path:
-                    <Tag 
-                      v-if="configStore.config.storage_strategy === 'eh_id'" 
-                      value="EH_ID Strategy Lock" 
-                      severity="secondary" 
-                      class="!text-[8px]" 
-                    />
                   </label>
                   <div class="flex gap-2">
                     <InputText 
                       v-model="displayPath" 
-                      :disabled="configStore.config.storage_strategy === 'eh_id'"
                       size="small" 
                       class="flex-1 !p-1.5 !text-xs" 
                     />
                     <Button 
                       label="Browse" 
-                      :disabled="configStore.config.storage_strategy === 'eh_id'"
                       size="small"
                       outlined
                       class="!py-1 !px-3"
@@ -216,7 +198,6 @@ const handleTriggerNow = async (taskId: string) => {
                       v-for="p in ['{EN_TITLE}', '{ID}', '{JP_TITLE}']"
                       :key="p"
                       :label="p"
-                      :disabled="configStore.config.storage_strategy === 'eh_id'"
                       size="small"
                       text
                       class="!text-[10px] !p-1 !bg-eh-panel/20"
@@ -243,7 +224,7 @@ const handleTriggerNow = async (taskId: string) => {
                 </div>
 
                 <p class="text-[9px] text-eh-muted italic mt-1 border-t border-eh-border/30 pt-2">
-                  * Note: custom paths are only applied when using <b>Traditional</b> storage strategy.
+                  * Note: placeholders will be replaced with actual gallery information.
                 </p>
               </div>
             </div>
