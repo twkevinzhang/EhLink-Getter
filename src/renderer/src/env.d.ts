@@ -1,11 +1,22 @@
-import { ElectronAPI } from '@electron-toolkit/preload'
+import { type ElectronAPI } from '@electron-toolkit/preload'
 
 interface SidecarAPI {
+  // config module
   getConfig: () => Promise<any>
-  checkSidecarHealth: () => Promise<{ success: boolean }>
-  searchMetadata: (query: string) => Promise<{ results: any[] }>
-  mapMetadata: (payload: any) => Promise<{ results: any[]; error?: string }>
   saveConfig: (config: any) => Promise<{ success: boolean; error?: string }>
+  checkSidecarHealth: () => Promise<{ success: boolean }>
+  loginEHentai: () => Promise<{ success: boolean; cookies?: string; error?: string }>
+
+  // library module
+  searchLibrary: (payload: any) => Promise<{ results: any[]; error?: string }>
+  checkLibraryExists: () => Promise<boolean>
+  downloadLibrary: () => Promise<{ success: boolean; path?: string; error?: string }>
+  onDownloadProgress: (
+    callback: (data: { loaded: number; total: number }) => void,
+  ) => void
+  openFolder: (path?: string) => Promise<void>
+
+  // fetch module
   fetchPage: (payload: {
     url: string
     next?: string
@@ -30,27 +41,25 @@ interface SidecarAPI {
   }) => Promise<{ success: boolean; error?: string }>
   selectDirectory: () => Promise<string | null>
   selectSavePath: () => Promise<string | null>
-  openFolder: (path?: string) => Promise<void>
+
+  // app.vue
   onLog: (callback: (log: any) => void) => void
   onProgress: (callback: (data: any) => void) => void
-  onTaskComplete: (callback: (data: any) => void) => void
-  getUserDataPath: () => Promise<string>
+
+  // download module
   getDownloadsPath: () => Promise<string>
-  getGalleryMetadata: (payload: { url: string }) => Promise<any>
-  storeSet: (key: string, val: any) => Promise<void>
-  storeGet: (key: string) => Promise<any>
-  archiveFolder: (payload: {
-    folderPath: string
-    outputPath: string
-    password?: string
-  }) => Promise<{ success: boolean; error?: string; size?: number }>
   onArchiveProgress: (callback: (data: any) => void) => void
-  loginEHentai: () => Promise<{ success: boolean; cookies?: string; error?: string }>
-  downloadMetadata: () => Promise<{ success: boolean; path?: string; error?: string }>
-  checkMetadataExists: () => Promise<boolean>
-  onDownloadProgress: (
-    callback: (data: { loaded: number; total: number }) => void,
-  ) => void
+  downloadGallery: (
+    payload: any,
+  ) => Promise<{ success: boolean; path?: string; error?: string }>
+  onDownloadStatusUpdate: (callback: (data: any) => void) => void
+
+  // electron-storage composable
+  storeGet: (key: string) => Promise<any>
+  storeSet: (key: string, val: any) => Promise<void>
+
+  // scheduler module
+  triggerSchedulerTask: (taskId: string) => Promise<any>
 }
 
 declare global {
