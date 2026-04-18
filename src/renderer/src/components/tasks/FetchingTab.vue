@@ -1,31 +1,37 @@
 <script setup lang="ts">
 import { useFetchStore } from '../../stores/fetch'
 import { storeToRefs } from 'pinia'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { useToast } from 'primevue/usetoast'
+import { useConfirm } from 'primevue/useconfirm'
 
 const scraperStore = useFetchStore()
 const { activeFetchingJobs } = storeToRefs(scraperStore)
+const toast = useToast()
+const confirm = useConfirm()
 
 const handlePause = async (jobId: string) => {
   await scraperStore.pauseFetching(jobId)
-  ElMessage.success('Task paused')
+  toast.add({ severity: 'success', summary: 'Paused', detail: 'Task paused', life: 3000 })
 }
 
 const handleResume = async (jobId: string) => {
   await scraperStore.resumeFetching(jobId)
-  ElMessage.success('Task resumed')
+  toast.add({ severity: 'success', summary: 'Resumed', detail: 'Task resumed', life: 3000 })
 }
 
 const handleDelete = async (jobId: string) => {
-  try {
-    await ElMessageBox.confirm('Are you sure you want to delete this task?', 'Warning', {
-      type: 'warning',
-    })
-    scraperStore.deleteFetchingJob(jobId)
-    ElMessage.success('Task deleted')
-  } catch (e) {
-    // User cancelled dialog
-  }
+  confirm.require({
+    message: 'Are you sure you want to delete this task?',
+    header: 'Delete Confirmation',
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: 'Delete',
+    rejectLabel: 'Cancel',
+    acceptClass: 'p-button-danger',
+    accept: () => {
+      scraperStore.deleteFetchingJob(jobId)
+      toast.add({ severity: 'success', summary: 'Deleted', detail: 'Task deleted', life: 3000 })
+    }
+  })
 }
 
 const getStateLabel = (state: string) => {
@@ -44,13 +50,13 @@ const getStateLabel = (state: string) => {
 const getStateColor = (state: string) => {
   switch (state) {
     case 'waiting':
-      return 'text-gray-500'
+      return 'bg-gray-200 text-gray-600'
     case 'fetching':
-      return 'text-blue-600'
+      return 'bg-blue-100 text-blue-700'
     case 'paused':
-      return 'text-orange-500'
+      return 'bg-orange-100 text-orange-700'
     default:
-      return 'text-gray-500'
+      return 'bg-gray-100 text-gray-500'
   }
 }
 </script>
@@ -82,11 +88,16 @@ const getStateColor = (state: string) => {
             </div>
 
             <!-- Progress bar and status -->
-            <div class="flex items-center gap-4">
-              <el-progress :percentage="job.progress" class="flex-1" />
-              <span class="text-[11px] w-32 text-right font-bold text-eh-text">{{
-                job.status
-              }}</span>
+            <div class="flex flex-col gap-1">
+              <ProgressBar :value="job.progress" class="!h-2">
+                <template #default>
+                  <span></span>
+                </template>
+              </ProgressBar>
+              <div class="flex justify-between items-center text-[10px] font-bold text-eh-text">
+                <span>PROGRESS</span>
+                <span>{{ job.status }}</span>
+              </div>
             </div>
 
             <!-- Stats -->
@@ -97,40 +108,33 @@ const getStateColor = (state: string) => {
 
             <!-- Action buttons -->
             <div class="flex gap-2 mt-2">
-              <!-- Pause button (only when fetching) -->
-              <el-button
+              <Button
                 v-if="job.state === 'fetching'"
+                label="暫停"
+                icon="pi pi-pause"
+                severity="warn"
                 size="small"
-                type="warning"
-                plain
-                class="flex-1"
+                class="flex-1 !text-[12px]"
                 @click="handlePause(job.id)"
-              >
-                暫停
-              </el-button>
-
-              <!-- Resume button (only when paused) -->
-              <el-button
+              />
+              <Button
                 v-if="job.state === 'paused'"
+                label="恢復"
+                icon="pi pi-play"
                 size="small"
-                type="primary"
-                class="flex-1"
+                class="flex-1 !bg-eh-border !border-eh-border !text-[12px]"
                 @click="handleResume(job.id)"
-              >
-                恢復
-              </el-button>
-
-              <!-- Delete button (disabled when fetching) -->
-              <el-button
+              />
+              <Button
                 :disabled="job.state === 'fetching'"
+                label="刪除"
+                icon="pi pi-trash"
+                severity="danger"
                 size="small"
-                type="danger"
-                plain
-                class="flex-1"
+                outlined
+                class="flex-1 !text-[12px]"
                 @click="handleDelete(job.id)"
-              >
-                刪除
-              </el-button>
+              />
             </div>
           </div>
         </div>
@@ -144,7 +148,3 @@ const getStateColor = (state: string) => {
     </div>
   </div>
 </template>
-
-<style scoped>
-/* Scoped styles */
-</style>

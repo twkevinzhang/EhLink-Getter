@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import Toast from 'primevue/toast'
+import ConfirmDialog from 'primevue/confirmdialog'
 import { useLogStore } from './stores/logs'
 import { useConfigStore } from './stores/config'
 import { useDownloadStore } from './stores/download'
 import TaskManager from './views/TaskManager.vue'
 import Library from './views/Library.vue'
 import SystemLogs from './components/SystemLogs.vue'
-import { Monitor, Search, DataLine } from '@element-plus/icons-vue'
 
 const logStore = useLogStore()
 const configStore = useConfigStore()
@@ -25,104 +26,89 @@ onMounted(() => {
 </script>
 
 <template>
+  <Toast />
+  <ConfirmDialog />
   <div class="h-screen w-screen flex flex-col bg-eh-bg text-eh-muted overflow-hidden p-2">
     <!-- Main Decorative Border Container -->
     <div
       class="flex-1 flex border border-eh-border rounded-sm overflow-hidden bg-eh-bg shadow-[0_0_10px_rgba(0,0,0,0.1)]"
     >
-      <el-container class="h-full">
-        <!-- Sidebar -->
-        <el-aside
-          width="200px"
-          class="bg-eh-sidebar border-r border-eh-border flex flex-col"
-        >
-          <!-- logo / title area -->
+      <!-- Sidebar -->
+      <aside class="w-[200px] bg-eh-sidebar border-r border-eh-border flex flex-col">
+        <!-- logo / title area -->
+        <div class="p-4 border-b border-eh-border bg-eh-panel flex flex-col items-center gap-1">
+          <div class="text-[10px] uppercase tracking-widest text-eh-text font-bold">E-Hentai</div>
           <div
-            class="p-4 border-b border-eh-border bg-eh-panel flex flex-col items-center gap-1"
+            class="font-serif italic text-eh-text text-xl border-y border-eh-border px-2 py-1 my-1"
           >
-            <div class="text-[10px] uppercase tracking-widest text-eh-text font-bold">
-              E-Hentai
-            </div>
+            Link Getter
+          </div>
+        </div>
+
+        <nav class="flex-1 pt-4 flex flex-col gap-1 px-2">
+          <button
+            class="flex items-center gap-3 p-3 rounded-sm transition-all text-sm font-medium"
+            :class="
+              activeTab === 'task-manager'
+                ? 'bg-eh-border text-white shadow-sm'
+                : 'text-eh-text hover:bg-eh-panel/50'
+            "
+            @click="activeTab = 'task-manager'"
+          >
+            <i class="pi pi-desktop"></i>
+            <span>Task Manager</span>
+          </button>
+          <button
+            class="flex items-center gap-3 p-3 rounded-sm transition-all text-sm font-medium"
+            :class="
+              activeTab === 'library'
+                ? 'bg-eh-border text-white shadow-sm'
+                : 'text-eh-text hover:bg-eh-panel/50'
+            "
+            @click="activeTab = 'library'"
+          >
+            <i class="pi pi-search"></i>
+            <span>Library</span>
+          </button>
+          <button
+            class="flex items-center gap-3 p-3 rounded-sm transition-all text-sm font-medium"
+            :class="
+              activeTab === 'system-logs'
+                ? 'bg-eh-border text-white shadow-sm'
+                : 'text-eh-text hover:bg-eh-panel/50'
+            "
+            @click="activeTab = 'system-logs'"
+          >
+            <i class="pi pi-database"></i>
+            <span>System Logs</span>
+          </button>
+        </nav>
+
+        <div class="p-4 border-t border-eh-border bg-eh-panel">
+          <div class="flex items-center gap-2 text-[0.7rem] text-eh-text font-bold">
             <div
-              class="font-serif italic text-eh-text text-xl border-y border-eh-border px-2 py-1 my-1"
-            >
-              Link Getter
-            </div>
+              class="w-1.5 h-1.5 rounded-full"
+              :class="{
+                'bg-green-500 animate-pulse shadow-[0_0_5px_#22c55e]': configStore.sidecarOnline,
+                'bg-red-500 shadow-[0_0_5px_#ef4444]': !configStore.sidecarOnline
+              }"
+            ></div>
+            <span> SIDECAR: {{ configStore.sidecarOnline ? 'ONLINE' : 'OFFLINE' }} </span>
           </div>
+        </div>
+      </aside>
 
-          <el-menu
-            :defaultActive="activeTab"
-            class="!bg-transparent !border-r-0 flex-1 pt-4"
-            @select="(key: string) => (activeTab = key)"
-          >
-            <el-menu-item index="task-manager" class="eh-menu-item">
-              <el-icon><Monitor /></el-icon>
-              <span>Task Manager</span>
-            </el-menu-item>
-            <el-menu-item index="library" class="eh-menu-item">
-              <el-icon><Search /></el-icon>
-              <span>Library</span>
-            </el-menu-item>
-            <el-menu-item index="system-logs" class="eh-menu-item">
-              <el-icon><DataLine /></el-icon>
-              <span>System Logs</span>
-            </el-menu-item>
-          </el-menu>
-
-          <div class="p-4 border-t border-eh-border bg-eh-panel">
-            <div class="flex items-center gap-2 text-[0.7rem] text-eh-text font-bold">
-              <div
-                class="w-1.5 h-1.5 rounded-full"
-                :class="{
-                  'bg-green-500 animate-pulse shadow-[0_0_5px_#22c55e]':
-                    configStore.sidecarOnline,
-                  'bg-red-500 shadow-[0_0_5px_#ef4444]': !configStore.sidecarOnline,
-                }"
-              ></div>
-              <span>
-                SIDECAR: {{ configStore.sidecarOnline ? 'ONLINE' : 'OFFLINE' }}
-              </span>
-            </div>
-          </div>
-        </el-aside>
-
-        <!-- Main Content -->
-        <el-main class="p-6 flex-1 relative bg-eh-bg overflow-y-auto">
-          <TaskManager v-if="activeTab === 'task-manager'" />
-          <Library v-if="activeTab === 'library'" />
-          <SystemLogs v-if="activeTab === 'system-logs'" />
-        </el-main>
-      </el-container>
+      <!-- Main Content -->
+      <main class="p-6 flex-1 relative bg-eh-bg overflow-y-auto">
+        <TaskManager v-if="activeTab === 'task-manager'" />
+        <Library v-if="activeTab === 'library'" />
+        <SystemLogs v-if="activeTab === 'system-logs'" />
+      </main>
     </div>
   </div>
 </template>
 
 <style>
-/* 
-  Global Element Plus overrides that are easier to keep here 
-  or in assets/tailwind.css. We'll keep some deep specificity fixers.
-*/
-
-.el-input__wrapper {
-  @apply !bg-eh-bg !shadow-none !border !border-eh-border !text-eh-text;
-}
-
-.el-textarea__inner {
-  @apply !bg-eh-bg !shadow-none !border !border-eh-border !text-eh-text;
-}
-
-.el-card__header {
-  @apply !border-b-eh-border;
-}
-
-.el-select .el-input__wrapper {
-  @apply !bg-eh-bg;
-}
-
-.el-tag {
-  @apply !bg-eh-border !border-eh-border !text-eh-accent;
-}
-
 /* Custom scrollbar for webkit */
 ::-webkit-scrollbar {
   width: 6px;
@@ -135,5 +121,14 @@ onMounted(() => {
 
 ::-webkit-scrollbar-thumb {
   @apply bg-eh-panel rounded-full hover:bg-primary;
+}
+
+/* Ensure PrimeVue components match our EH theme where needed */
+.p-inputtext {
+  @apply !bg-eh-bg !border-eh-border !text-eh-text !rounded-sm;
+}
+
+.p-button {
+  @apply !rounded-sm;
 }
 </style>

@@ -20,28 +20,6 @@
   }
 }
 
-/* Element Plus Classic EH Overrides */
-:root {
-  --el-color-primary: #5c0d11;
-  --el-bg-color: #edeae0;
-  --el-fill-color-blank: #edeae0;
-  --el-text-color-primary: #444444;
-  --el-border-color: #5c0d11;
-}
-
-/* Sidebar Specific */
-.el-menu {
-  @apply !border-r-0;
-}
-
-.el-menu-item {
-  @apply !text-eh-muted;
-}
-
-.el-menu-item.is-active {
-  @apply !text-eh-text !font-bold !bg-white/30;
-}
-
 /* Category Badges Styling */
 .cat-badge {
   @apply px-2 py-0.5 rounded-sm text-white text-[11px] font-bold shadow-sm;

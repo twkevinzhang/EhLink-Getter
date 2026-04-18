@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { Search, Download } from '@element-plus/icons-vue'
 import { useDownloadStore } from '../stores/download'
 import { useConfigStore } from '../stores/config'
-import { ElMessage } from 'element-plus'
+import { useToast } from 'primevue/usetoast'
 
 const downloadStore = useDownloadStore()
 const configStore = useConfigStore()
+const toast = useToast()
 const searchTag = ref('')
 const ratings = ref(0)
 const expunged = ref(false)
@@ -48,26 +48,25 @@ const handleDownloadMetadata = async () => {
       const userDataPath = await window.api.getUserDataPath()
       const pathSeparator = window.electron.process.platform === 'win32' ? '\\' : '/'
       configStore.updateConfig({ metadata_path: `${userDataPath}${pathSeparator}metadata.json` })
-      ElMessage.success('Metadata downloaded successfully!')
+      toast.add({ severity: 'success', summary: 'Success', detail: 'Metadata downloaded successfully!', life: 3000 })
     } else {
-      ElMessage.error(`Download failed: ${result.error}`)
+      toast.add({ severity: 'error', summary: 'Download Failed', detail: result.error, life: 5000 })
     }
   } catch (err: any) {
     downloading.value = false
-    ElMessage.error(`Error: ${err.message}`)
+    toast.add({ severity: 'error', summary: 'Error', detail: err.message, life: 5000 })
   }
 }
 
 const handleSearch = async () => {
   if (!isMetadataDownloaded.value) {
-    ElMessage.warning('Please download metadata first')
+    toast.add({ severity: 'warn', summary: 'Warning', detail: 'Please download metadata first', life: 3000 })
     return
   }
   try {
     const payload = {
       metadata_path: configStore.config.metadata_path,
       keywords: searchTag.value,
-      // Requesting all common fields from metadata.json
       fields: [
         'title',
         'link',
@@ -84,12 +83,12 @@ const handleSearch = async () => {
     const response = await window.api.mapMetadata(payload)
     if (response && response.results) {
       downloadStore.libraryGalleries = response.results
-      ElMessage.success(`Found ${response.results.length} galleries`)
+      toast.add({ severity: 'success', summary: 'Search Results', detail: `Found ${response.results.length} galleries`, life: 3000 })
     } else if (response && response.error) {
-      ElMessage.error(`Search failed: ${response.error}`)
+      toast.add({ severity: 'error', summary: 'Search Failed', detail: response.error, life: 5000 })
     }
   } catch (error: any) {
-    ElMessage.error(`Search failed: ${error.message}`)
+    toast.add({ severity: 'error', summary: 'Search Error', detail: error.message, life: 5000 })
   }
 }
 
@@ -118,68 +117,67 @@ const formatPosted = (ts: any) => {
 </script>
 
 <template>
-  <div class="library-view h-full flex flex-col gap-6">
+  <div class="library-view h-full flex flex-col gap-6 p-4">
     <div class="download-section flex flex-col gap-2">
-      <el-button
-        type="primary"
-        :icon="Download"
+      <Button
+        type="button"
+        icon="pi pi-download"
         :disabled="isMetadataDownloaded"
         :loading="downloading"
-        size="large"
-        class="w-full"
+        class="w-full !h-12 !font-bold"
+        :label="isMetadataDownloaded ? 'Metadata Database Ready' : 'Download metadata.json'"
         @click="handleDownloadMetadata"
-      >
-        {{ isMetadataDownloaded ? 'Metadata Database Ready' : 'Download metadata.json' }}
-      </el-button>
+      />
+      
       <div v-if="downloading" class="mt-2">
         <div class="flex justify-between text-xs mb-1 text-eh-muted">
           <span>Downloading gdata.json from MEGA...</span>
           <span>{{ downloadProgress }}%</span>
         </div>
-        <el-progress :percentage="downloadProgress" :show-text="false" :stroke-width="10" striped />
+        <ProgressBar :value="downloadProgress" class="!h-2">
+           <template #default><span></span></template>
+        </ProgressBar>
       </div>
     </div>
 
-    <div style="position: relative;">
-      <el-card :class="{ 'opacity-50 grayscale select-none': !isMetadataDownloaded }">
-        <template #header>
-          <div class="flex items-center gap-4">
-            <el-input
-              v-model="searchTag"
-              placeholder="language:chinese tag:color ..."
-              class="flex-1"
-              @keyup.enter="handleSearch"
-            >
-              <template #append>
-                <el-button :icon="Search" @click="handleSearch">Search</el-button>
-              </template>
-            </el-input>
+    <div class="relative">
+      <Card :class="{ 'opacity-50 grayscale select-none': !isMetadataDownloaded }" class="!bg-eh-panel/20 !border-eh-border">
+        <template #content>
+          <div class="flex flex-col gap-4">
+            <div class="flex gap-2">
+              <InputText
+                v-model="searchTag"
+                placeholder="language:chinese tag:color ..."
+                class="flex-1 !p-2"
+                @keyup.enter="handleSearch"
+              />
+              <Button icon="pi pi-search" label="Search" @click="handleSearch" />
+            </div>
+            <div class="flex items-center gap-6 text-sm text-eh-muted">
+              <div class="flex items-center gap-2">
+                <Checkbox v-model="expunged" binary inputId="expunged-check" />
+                <label for="expunged-check" class="text-xs uppercase font-bold cursor-pointer">Expunged</label>
+              </div>
+              <div class="flex items-center gap-3">
+                <span class="text-xs uppercase font-bold">Rating ></span>
+                <Rating v-model="ratings" :stars="5" />
+              </div>
+            </div>
           </div>
         </template>
-        <div class="flex items-center gap-6 text-sm text-eh-muted">
-          <el-checkbox v-model="expunged" label="Expunged" />
-          <div class="flex items-center gap-2">
-            <span>Rating > </span>
-            <el-rate v-model="ratings" />
-          </div>
-        </div>
-      </el-card>
-      <!-- Blocking Overlay using explicit styles -->
+      </Card>
+      
       <div
         v-if="!isMetadataDownloaded"
-        style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; cursor: not-allowed; background: rgba(0, 0, 0, 0.05); backdrop-filter: grayscale(1);"
+        class="absolute inset-0 z-50 cursor-not-allowed bg-black/5 backdrop-grayscale"
         @click.stop.prevent
-        @mousedown.stop.prevent
-        @mouseup.stop.prevent
-        @keydown.stop.prevent
-        @contextmenu.stop.prevent
       ></div>
     </div>
 
-    <div v-if="!isMetadataDownloaded" class="flex-1 flex flex-col items-center justify-center text-eh-muted bg-eh-panel rounded-lg border border-dashed border-eh-border">
-      <el-icon size="48" class="mb-4"><Download /></el-icon>
-      <p>Metadata Database is required for Library functionality.</p>
-      <p class="text-sm">Click the button above to download it (approx. 200MB).</p>
+    <div v-if="!isMetadataDownloaded" class="flex-1 flex flex-col items-center justify-center text-eh-muted bg-eh-panel/50 rounded-lg border-2 border-dashed border-eh-border/30">
+      <i class="pi pi-database text-4xl mb-4 text-eh-border/50"></i>
+      <p class="font-bold">Metadata Database is required.</p>
+      <p class="text-sm italic">Click the button above to download it (approx. 200MB).</p>
     </div>
 
     <div v-else class="gallery-grid flex-1 overflow-y-auto pr-2">
@@ -187,24 +185,21 @@ const formatPosted = (ts: any) => {
         <div
           v-for="g in downloadStore.libraryGalleries"
           :key="g.gid || g.link"
-          class="eh-panel-card flex overflow-hidden hover:border-eh-accent transition-colors cursor-pointer"
+          class="eh-panel-card flex overflow-hidden hover:border-eh-accent transition-all duration-200 cursor-pointer hover:shadow-md"
           @click="handleOpenLink(g.link)"
         >
           <!-- Thumbnail Section -->
           <div
-            class="w-[120px] aspect-[2/3] bg-eh-panel border-r border-eh-border flex items-center justify-center text-eh-muted shrink-0 overflow-hidden"
+            class="w-[100px] aspect-[2/3] bg-eh-sidebar border-r border-eh-border flex items-center justify-center text-eh-muted shrink-0 overflow-hidden"
           >
             <img v-if="g.thumb" :src="g.thumb" class="w-full h-full object-cover" />
-            <span v-else class="text-[10px] text-center px-1">[ No Thumb ]</span>
+            <i v-else class="pi pi-image text-2xl opacity-20"></i>
           </div>
 
           <!-- Metadata Section -->
-          <div class="flex-1 p-3 flex flex-col gap-2">
+          <div class="flex-1 p-3 flex flex-col gap-2 min-w-0">
             <div class="flex items-start justify-between gap-4">
-              <span
-                class="font-bold text-eh-text hover:underline text-sm leading-tight line-clamp-2"
-                >{{ g.title }}</span
-              >
+              <span class="font-bold text-eh-text hover:underline text-sm leading-tight line-clamp-2 min-w-0">{{ g.title }}</span>
               <div class="cat-badge shrink-0" :class="getCategoryClass(g.category)">
                 {{ g.category || 'Unknown' }}
               </div>
@@ -213,65 +208,62 @@ const formatPosted = (ts: any) => {
             <div class="flex flex-wrap gap-1 mt-1">
               <span
                 v-if="g.language"
-                class="text-[10px] px-1 bg-eh-sidebar border border-eh-border rounded-sm text-eh-muted"
+                class="text-[9px] px-1.5 py-0.5 bg-eh-sidebar border border-eh-border/30 rounded-sm text-eh-muted uppercase font-bold"
               >
                 {{ g.language }}
               </span>
               <span
                 v-for="tag in (g.tags || []).slice(0, 5)"
                 :key="tag"
-                class="text-[10px] px-1 bg-eh-sidebar border border-eh-border rounded-sm text-eh-muted"
+                class="text-[9px] px-1.5 py-0.5 bg-white/40 border border-eh-border/20 rounded-sm text-eh-muted"
               >
                 {{ tag }}
               </span>
-              <span v-if="(g.tags || []).length > 5" class="text-[10px] text-eh-muted"
-                >...</span
-              >
+              <span v-if="(g.tags || []).length > 5" class="text-[9px] text-eh-muted flex items-center">...</span>
             </div>
 
-            <div
-              class="flex items-center justify-between text-[11px] text-eh-muted mt-auto"
-            >
+            <div class="flex items-center justify-between text-[10px] text-eh-muted mt-auto">
               <div class="flex items-center gap-2">
-                <el-rate :modelValue="Number(g.rating) || 0" disabled size="small" />
-                <span>{{ g.rating }}</span>
+                <Rating :modelValue="Number(g.rating) || 0" disabled :stars="5" />
+                <span class="font-bold">{{ g.rating }}</span>
               </div>
               <div class="flex items-center gap-3">
-                <span v-if="g.uploader" class="italic">{{ g.uploader }}</span>
+                <span v-if="g.uploader" class="italic truncate max-w-[80px]">{{ g.uploader }}</span>
                 <span class="font-mono">{{ formatPosted(g.posted) }}</span>
               </div>
             </div>
           </div>
         </div>
-        <div
-          v-if="downloadStore.libraryGalleries.length === 0"
-          class="text-center py-20 text-eh-muted"
-        >
-          <p>No galleries found. Ensure "Metadata DB Path" is correct in Settings.</p>
+        
+        <div v-if="downloadStore.libraryGalleries.length === 0" class="text-center py-20 text-eh-muted italic">
+          <p>No galleries found. Start searching or check your DB path.</p>
         </div>
       </div>
     </div>
 
-    <div class="flex justify-center p-4">
-      <el-pagination
-        layout="prev, pager, next"
-        :total="downloadStore.libraryGalleries.length"
-        :pageSize="100"
+    <div v-if="isMetadataDownloaded && downloadStore.libraryGalleries.length > 0" class="flex justify-center pt-2">
+      <Paginator
+        :rows="100"
+        :totalRecords="downloadStore.libraryGalleries.length"
+        template="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink"
+        class="!bg-transparent !p-0"
       />
     </div>
   </div>
 </template>
 
 <style scoped>
-:deep(.el-rate) {
-  --el-rate-fill-color: #ffae00;
-}
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
-  /* stylelint-disable-next-line value-no-vendor-prefix */
   -webkit-box-orient: vertical;
-  line-clamp: 2;
   overflow: hidden;
+}
+
+:deep(.p-rating-item) {
+   @apply !w-3 !h-3;
+}
+:deep(.p-rating-icon) {
+   @apply text-yellow-500 !text-[10px];
 }
 </style>

@@ -27,14 +27,13 @@ const store = useLogStore()
           ></div>
           Output Console
         </span>
-        <el-button
-          link
+        <Button
+          label="CLEAR LOGS"
           size="small"
-          class="!text-eh-accent !text-[11px] hover:underline"
+          text
+          class="!text-eh-accent !text-[11px] hover:underline !p-0"
           @click="store.logs = []"
-        >
-          CLEAR LOGS
-        </el-button>
+        />
       </div>
 
       <div

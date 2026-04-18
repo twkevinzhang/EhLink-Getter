@@ -1,36 +1,25 @@
 <script setup lang="ts">
 import { useDownloadStore } from '../../stores/download'
 import { storeToRefs } from 'pinia'
-import { ElMessage } from 'element-plus'
-import {
-  Folder,
-  Files,
-  VideoPause,
-  VideoPlay,
-  RefreshRight,
-  CloseBold,
-  ArrowRight,
-  ArrowDown,
-  Close,
-  Remove,
-} from '@element-plus/icons-vue'
+import { useToast } from 'primevue/usetoast'
 
 const downloadStore = useDownloadStore()
 const { downloadingJobs } = storeToRefs(downloadStore)
+const toast = useToast()
 
 const handlePauseAll = () => {
   downloadingJobs.value.forEach((job) => downloadStore.pauseJob(job.id))
-  ElMessage.info('All downloads paused')
+  toast.add({ severity: 'info', summary: 'Paused', detail: 'All downloads paused', life: 3000 })
 }
 
 const handleStartAll = () => {
   downloadStore.startAllJobs()
-  ElMessage.success('Started all pending/paused downloads')
+  toast.add({ severity: 'success', summary: 'Started', detail: 'Started all pending/paused downloads', life: 3000 })
 }
 
 const handleClear = () => {
   downloadingJobs.value = downloadingJobs.value.filter((j) => j.mode !== 'completed')
-  ElMessage.success('Cleared completed jobs')
+  toast.add({ severity: 'success', summary: 'Cleared', detail: 'Cleared completed jobs', life: 3000 })
 }
 
 const toggleJob = (job: any) => {
@@ -60,10 +49,8 @@ const handleTerminateJob = (jobId: string) => {
       <div class="eh-header flex justify-between items-center">
         <span>Active Downloads</span>
         <div class="flex gap-2">
-          <el-button size="small" type="primary" @click="handleStartAll"
-            >Start All</el-button
-          >
-          <el-button size="small" plain @click="handlePauseAll">Pause All</el-button>
+          <Button label="Start All" icon="pi pi-play" size="small" @click="handleStartAll" />
+          <Button label="Pause All" icon="pi pi-pause" severity="secondary" size="small" outlined @click="handlePauseAll" />
         </div>
       </div>
 
@@ -78,14 +65,10 @@ const handleTerminateJob = (jobId: string) => {
             class="flex items-center gap-3 p-3 bg-eh-bg/40 cursor-pointer hover:bg-eh-bg/60 transition-colors"
             @click="toggleJob(job)"
           >
-            <el-icon class="text-eh-text">
-              <component :is="job.isExpanded ? ArrowDown : ArrowRight" />
-            </el-icon>
+            <i :class="['pi', job.isExpanded ? 'pi-chevron-down' : 'pi-chevron-right', 'text-eh-text text-[12px]']"></i>
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between gap-4">
-                <span class="text-sm font-bold text-eh-text truncate">{{
-                  job.title
-                }}</span>
+                <span class="text-sm font-bold text-eh-text truncate">{{ job.title }}</span>
                 <div class="flex items-center gap-3">
                   <div
                     class="text-[10px] px-2 py-0.5 rounded border font-bold uppercase"
@@ -93,23 +76,16 @@ const handleTerminateJob = (jobId: string) => {
                       'text-green-500 border-green-500': job.mode === 'completed',
                       'text-red-500 border-red-500': job.mode === 'error',
                       'text-eh-accent border-eh-accent': job.mode === 'running',
-                      'text-gray-400 border-gray-400':
-                        job.mode === 'paused' || job.mode === 'pending',
+                      'text-gray-400 border-gray-400': job.mode === 'paused' || job.mode === 'pending',
                     }"
                   >
                     {{ job.mode }}
                   </div>
                   <div class="w-32 flex flex-col items-end gap-1">
-                    <el-progress
-                      :percentage="job.isArchiving ? job.archiveProgress : job.progress"
-                      :stroke-width="8"
-                      :showText="false"
-                      :status="job.isArchiving ? 'warning' : ''"
-                    />
-                    <span
-                      v-if="job.isArchiving"
-                      class="text-[9px] text-eh-accent font-bold"
-                    >
+                    <ProgressBar :value="job.isArchiving ? job.archiveProgress : job.progress" class="!h-2 w-full">
+                      <template #default><span></span></template>
+                    </ProgressBar>
+                    <span v-if="job.isArchiving" class="text-[9px] text-eh-accent font-bold">
                       ARCHIVING {{ job.archiveProgress }}%
                     </span>
                   </div>
@@ -118,88 +94,34 @@ const handleTerminateJob = (jobId: string) => {
             </div>
 
             <!-- Job Actions -->
-            <template v-if="job.mode === 'pending'">
-              <el-tooltip content="Start" placement="top">
-                <el-button
-                  circle
-                  size="small"
-                  :icon="VideoPlay"
-                  @click.stop="handleResumeJob(job.id)"
-                />
-              </el-tooltip>
-            </template>
-            <template v-if="job.mode === 'running'">
-              <el-tooltip content="Pause" placement="top">
-                <el-button
-                  circle
-                  size="small"
-                  :icon="VideoPause"
-                  @click.stop="handlePauseJob(job.id)"
-                />
-              </el-tooltip>
-              <el-tooltip content="Terminate" placement="top">
-                <el-button
-                  disabled
-                  circle
-                  size="small"
-                  type="primary"
-                  :icon="Close"
-                  @click.stop="handleTerminateJob(job.id)"
-                />
-              </el-tooltip>
-            </template>
-            <template v-if="job.mode === 'paused'">
-              <el-tooltip content="Play" placement="top">
-                <el-button
-                  circle
-                  size="small"
-                  type="primary"
-                  :icon="VideoPlay"
-                  @click.stop="handleResumeJob(job.id)"
-                />
-              </el-tooltip>
-              <el-tooltip content="Terminate" placement="top">
-                <el-button
-                  circle
-                  size="small"
-                  type="primary"
-                  :icon="Close"
-                  @click.stop="handleTerminateJob(job.id)"
-                />
-              </el-tooltip>
-            </template>
-            <template v-if="job.mode === 'error'">
-              <el-tooltip content="Restart" placement="top">
-                <el-button
-                  circle
-                  size="small"
-                  :icon="RefreshRight"
-                  @click.stop="handleRestartJob(job.id)"
-                />
-              </el-tooltip>
-              <el-tooltip content="Terminate" placement="top">
-                <el-button
-                  circle
-                  size="small"
-                  :icon="Close"
-                  @click.stop="handleTerminateJob(job.id)"
-                />
-              </el-tooltip>
-            </template>
+            <div class="flex gap-1">
+              <template v-if="job.mode === 'pending'">
+                <Button icon="pi pi-play" v-tooltip="'Start'" rounded text size="small" @click.stop="handleResumeJob(job.id)" />
+              </template>
+              <template v-if="job.mode === 'running'">
+                <Button icon="pi pi-pause" v-tooltip="'Pause'" severity="warn" rounded text size="small" @click.stop="handlePauseJob(job.id)" />
+                <Button icon="pi pi-times" v-tooltip="'Terminate'" severity="danger" rounded text size="small" disabled @click.stop="handleTerminateJob(job.id)" />
+              </template>
+              <template v-if="job.mode === 'paused'">
+                <Button icon="pi pi-play" v-tooltip="'Play'" rounded text size="small" @click.stop="handleResumeJob(job.id)" />
+                <Button icon="pi pi-times" v-tooltip="'Terminate'" severity="danger" rounded text size="small" @click.stop="handleTerminateJob(job.id)" />
+              </template>
+              <template v-if="job.mode === 'error'">
+                <Button icon="pi pi-refresh" v-tooltip="'Restart'" rounded text size="small" @click.stop="handleRestartJob(job.id)" />
+                <Button icon="pi pi-times" v-tooltip="'Terminate'" severity="danger" rounded text size="small" @click.stop="handleTerminateJob(job.id)" />
+              </template>
+            </div>
           </div>
 
           <!-- Gallery List (Collapsible) -->
-          <div
-            v-show="job.isExpanded"
-            class="overflow-x-auto border-t border-eh-border/20"
-          >
+          <div v-show="job.isExpanded" class="overflow-x-auto border-t border-eh-border/20">
             <table class="w-full text-left border-collapse min-w-[800px]">
               <thead class="bg-eh-bg/10 text-[11px] text-eh-muted uppercase">
                 <tr>
-                  <th class="p-2 w-10"></th>
+                  <th class="p-2 w-10 text-center">Type</th>
                   <th class="p-2 min-w-[200px]">Gallery Title</th>
-                  <th class="p-2">Download Path</th>
-                  <th class="p-2 w-24 text-center">Images</th>
+                  <th class="p-2">Path</th>
+                  <th class="p-2 w-20 text-center">Images</th>
                   <th class="p-2 w-32">Status</th>
                   <th class="p-2 w-20"></th>
                 </tr>
@@ -210,19 +132,15 @@ const handleTerminateJob = (jobId: string) => {
                   :key="gal.id"
                   class="border-t border-eh-border/10 hover:bg-white/40 transition-colors group"
                 >
-                  <td class="p-2 text-center">
-                    <el-icon
-                      :class="gal.isArchive ? 'text-eh-cat-fictional' : 'text-eh-accent'"
-                    >
-                      <component :is="gal.isArchive ? Files : Folder" />
-                    </el-icon>
+                  <td class="p-2 text-center text-eh-text">
+                    <i :class="['pi', gal.isArchive ? 'pi-file-pdf' : 'pi-folder', 'text-[14px]']"></i>
                   </td>
                   <td class="p-2">
                     <div class="truncate max-w-[300px]" :title="gal.title">
                       {{ gal.title }}
                     </div>
                   </td>
-                  <td class="p-2 font-mono text-[10px] text-eh-muted">
+                  <td class="p-2 font-mono text-[9px] text-eh-muted">
                     <div class="truncate max-w-[250px]" :title="gal.targetPath">
                       {{ gal.targetPath }}
                     </div>
@@ -230,51 +148,37 @@ const handleTerminateJob = (jobId: string) => {
                   <td class="p-2 text-center">{{ gal.imageCount }}</td>
                   <td class="p-2">
                     <div class="flex flex-col gap-1">
-                      <div class="flex justify-between items-center text-[10px]">
-                        <span>{{ gal.status }}</span>
-                        <span>{{ gal.progress }}%</span>
+                      <div class="flex justify-between items-center text-[9px] whitespace-nowrap">
+                        <span class="truncate pr-2">{{ gal.status }}</span>
+                        <span class="font-bold">{{ gal.progress }}%</span>
                       </div>
-                      <el-progress
-                        :percentage="gal.progress"
-                        :stroke-width="4"
-                        :showText="false"
-                        :status="
-                          gal.mode === 'error'
-                            ? 'exception'
-                            : gal.mode === 'completed'
-                              ? 'success'
-                              : ''
-                        "
-                      />
+                      <ProgressBar :value="gal.progress" class="!h-1">
+                        <template #default><span></span></template>
+                      </ProgressBar>
                     </div>
                   </td>
-                  <td class="p-2 text-right">
-                    <!-- Individual Gallery Actions (Simplified for now) -->
-                  </td>
+                  <td class="p-2"></td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
 
-        <div
-          v-if="downloadingJobs.length === 0"
-          class="text-center py-10 text-eh-muted text-xs italic"
-        >
+        <div v-if="downloadingJobs.length === 0" class="text-center py-10 text-eh-muted text-xs italic">
           No active downloads
         </div>
       </div>
     </div>
 
     <div class="flex gap-2">
-      <el-button
-        danger
-        plain
+      <Button
+        label="Clear Finished"
+        icon="pi pi-trash"
+        severity="danger"
+        outlined
         class="flex-1 !rounded-none !h-10 font-bold uppercase tracking-widest"
         @click="handleClear"
-      >
-        Clear Finished
-      </el-button>
+      />
     </div>
   </div>
 </template>

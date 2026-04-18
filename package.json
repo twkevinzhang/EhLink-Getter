@@ -19,21 +19,23 @@
   },
   "dependencies": {
     "@electron-toolkit/utils": "^3.0.0",
+    "@primevue/themes": "^4.5.4",
     "@vueuse/core": "^14.1.0",
     "archiver": "^7.0.1",
     "archiver-zip-encryptable": "^1.0.10",
     "axios": "^1.6.2",
-    "megajs": "^1.3.4",
     "combined-stream": "^1.0.8",
     "electron-store": "8.2.0",
-    "form-data": "^4.0.5"
+    "form-data": "^4.0.5",
+    "megajs": "^1.3.4",
+    "primeicons": "^7.0.0",
+    "primevue": "^4.5.5"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^2.0.0",
     "@electron-toolkit/eslint-config-ts": "^2.0.0",
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/tsconfig": "^1.0.1",
-    "@element-plus/icons-vue": "^2.3.2",
     "@rushstack/eslint-patch": "^1.6.0",
     "@types/node": "^20.10.4",
     "@typescript-eslint/eslint-plugin": "^8.58.2",
@@ -45,7 +47,6 @@
     "electron": "^28.0.0",
     "electron-builder": "^24.9.1",
     "electron-vite": "^2.0.0",
-    "element-plus": "^2.4.4",
     "eslint": "^8.55.0",
     "eslint-plugin-frontmatter": "^0.0.8",
     "eslint-plugin-md": "^1.0.19",
@@ -60,6 +61,7 @@
     "prettier": "^3.8.3",
     "tailwindcss": "3.4.17",
     "typescript": "^5.9.3",
+    "unplugin-vue-components": "^32.0.0",
     "vite": "^5.0.7",
     "vue": "^3.3.11",
     "vue-tsc": "^3.2.1"

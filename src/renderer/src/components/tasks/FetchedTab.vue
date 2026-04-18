@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { Folder, Delete, Plus } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { useToast } from 'primevue/usetoast'
+import { useConfirm } from 'primevue/useconfirm'
+import ToggleSwitch from 'primevue/toggleswitch'
 import { useFetchStore } from '../../stores/fetch'
 import { useDownloadStore } from '../../stores/download'
 import { useConfigStore } from '../../stores/config'
@@ -11,6 +12,8 @@ const scraperStore = useFetchStore()
 const downloadStore = useDownloadStore()
 const configStore = useConfigStore()
 const { galleries } = storeToRefs(scraperStore)
+const toast = useToast()
+const confirm = useConfirm()
 
 interface DraftGallery {
   id: string
@@ -32,17 +35,18 @@ const displayPath = computed({
   },
   set: (val) => {
     targetPath.value = val
-  },
+  }
 })
 
 // Pagination state
-const currentPage = ref(1)
+const first = ref(0)
 const pageSize = ref(20)
+const currentPage = computed(() => Math.floor(first.value / pageSize.value) + 1)
 
 // Filter state
 const searchQuery = ref('')
 
-// Tab state for selecting all
+// Selection state
 const selectedIds = ref<Set<string>>(new Set())
 
 const isGallerySelected = (id: string) => selectedIds.value.has(id)
@@ -64,7 +68,7 @@ const isAllSelected = computed(() => {
 
 const isIndeterminate = computed(() => {
   const selectedInFiltered = filteredGalleries.value.filter((g: DraftGallery) =>
-    selectedIds.value.has(g.id),
+    selectedIds.value.has(g.id)
   ).length
   return selectedInFiltered > 0 && selectedInFiltered < filteredGalleries.value.length
 })
@@ -83,13 +87,13 @@ const filteredGalleries = computed(() => {
   if (!query) return galleries.value
   return galleries.value.filter(
     (g: DraftGallery) =>
-      g.title.toLowerCase().includes(query) || g.link.toLowerCase().includes(query),
+      g.title.toLowerCase().includes(query) || g.link.toLowerCase().includes(query)
   )
 })
 
 // Pagination Computed
 const paginatedGalleries = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
+  const start = first.value
   const end = start + pageSize.value
   return filteredGalleries.value.slice(start, end)
 })
@@ -101,12 +105,13 @@ const isPageSelected = computed(() => {
 
 const isPageIndeterminate = computed(() => {
   const pageSelectedCount = paginatedGalleries.value.filter((g: DraftGallery) =>
-    selectedIds.value.has(g.id),
+    selectedIds.value.has(g.id)
   ).length
   return pageSelectedCount > 0 && pageSelectedCount < paginatedGalleries.value.length
 })
 
-const toggleSelectPage = (val: boolean) => {
+const toggleSelectPage = () => {
+  const val = !isPageSelected.value
   if (val) {
     paginatedGalleries.value.forEach((g: DraftGallery) => selectedIds.value.add(g.id))
   } else {
@@ -119,9 +124,9 @@ const handleAddManual = () => {
     if (!manualUrl.value) return
     scraperStore.addGallery(manualUrl.value)
     manualUrl.value = ''
-    ElMessage.success('Gallery added to draft')
+    toast.add({ severity: 'success', summary: 'Added', detail: 'Gallery added to draft', life: 3000 })
   } catch (error: any) {
-    ElMessage.error(error.message)
+    toast.add({ severity: 'error', summary: 'Error', detail: error.message, life: 5000 })
   }
 }
 
@@ -132,7 +137,7 @@ const handleBrowse = async () => {
       targetPath.value = result
     }
   } catch (error) {
-    ElMessage.error('Failed to select folder')
+    toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to select folder', life: 5000 })
   }
 }
 
@@ -142,70 +147,64 @@ const handlePlaceholder = (placeholder: string) => {
 
 const handleAddSelectedToQueue = async () => {
   if (selectedIds.value.size === 0) {
-    ElMessage.warning('No galleries selected')
+    toast.add({ severity: 'warn', summary: 'Warning', detail: 'No galleries selected', life: 3000 })
     return
   }
 
   const selectedGalleriesList = galleries.value.filter((g) => selectedIds.value.has(g.id))
-
-  // Group into a single job or separate?
-  // For Draft list, users might expect them to be added together.
   const jobId = `draft-${Date.now()}`
   downloadStore.addToQueue(
     jobId,
     'Draft Selection',
     selectedGalleriesList,
     useZip.value,
-    zipPass.value,
+    zipPass.value
   )
 
-  // Remove from drafts
   selectedGalleriesList.forEach((g) => {
     scraperStore.removeGallery(g.id)
   })
 
   selectedIds.value.clear()
-  ElMessage.success(`Added ${selectedGalleriesList.length} galleries to download queue`)
+  toast.add({
+    severity: 'success',
+    summary: 'Queued',
+    detail: `Added ${selectedGalleriesList.length} galleries to download queue`,
+    life: 3000
+  })
 }
 
 const handleDeleteGallery = (id: string) => {
   scraperStore.removeGallery(id)
   selectedIds.value.delete(id)
-  // Adjust page if current page became empty
-  if (paginatedGalleries.value.length === 0 && currentPage.value > 1) {
-    currentPage.value--
+  if (paginatedGalleries.value.length === 0 && first.value > 0) {
+    first.value = Math.max(0, first.value - pageSize.value)
   }
 }
 
-const handleClearDrafts = async () => {
-  try {
-    await ElMessageBox.confirm(
-      'This will clear all items in the draft list. Continue?',
-      'Warning',
-      {
-        confirmButtonText: 'Clear All',
-        cancelButtonText: 'Cancel',
-        type: 'warning',
-      },
-    )
-    scraperStore.clearGalleries()
-    selectedIds.value.clear()
-    currentPage.value = 1
-    ElMessage.success('Draft list cleared')
-  } catch (error) {
-    // User cancelled
-  }
+const handleClearDrafts = () => {
+  confirm.require({
+    message: 'This will clear all items in the draft list. Continue?',
+    header: 'Clear Drafts',
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: 'Clear All',
+    rejectLabel: 'Cancel',
+    acceptClass: 'p-button-danger',
+    accept: () => {
+      scraperStore.clearGalleries()
+      selectedIds.value.clear()
+      first.value = 0
+      toast.add({ severity: 'success', summary: 'Cleared', detail: 'Draft list cleared', life: 3000 })
+    }
+  })
 }
 
-// Update config when target path changes
 watch(targetPath, (val) => configStore.updateConfig({ download_path: val }))
 
-// Reset page when filter changes
 watch(searchQuery, () => {
-  currentPage.value = 1
+  first.value = 0
 })
 
-// Initialize default download path
 onMounted(async () => {
   if (!targetPath.value || targetPath.value.trim() === '') {
     try {
@@ -226,12 +225,13 @@ onMounted(async () => {
     <div class="eh-panel-card">
       <div class="eh-header">Add Gallery Link</div>
       <div class="p-4 flex gap-2">
-        <el-input
+        <InputText
           v-model="manualUrl"
+          class="flex-1 !p-2"
           placeholder="https://e-hentai.org/g/XXXXX/XXXXXX/"
           @keyup.enter="handleAddManual"
         />
-        <el-button type="primary" :icon="Plus" @click="handleAddManual">Add</el-button>
+        <Button label="Add" icon="pi pi-plus" @click="handleAddManual" />
       </div>
     </div>
 
@@ -242,60 +242,64 @@ onMounted(async () => {
       </div>
 
       <!-- Filter Input or Action -->
-      <div class="flex px-4 py-2 border-b border-eh-border/50 bg-eh-panel/5 gap-4">
-        <el-input
+      <div class="flex px-4 py-2 border-b border-eh-border/50 bg-eh-panel/5 gap-4 items-center">
+        <InputText
           v-model="searchQuery"
-          class="w-1/2"
+          class="w-1/2 !p-1.5 !text-xs"
           placeholder="Filter by title or link..."
-          size="small"
-          clearable
         />
 
         <div class="flex items-center gap-2">
-          <el-checkbox
+          <Checkbox
             :modelValue="isPageSelected"
             :indeterminate="isPageIndeterminate"
-            class="!mr-0"
+            binary
             @change="toggleSelectPage"
           />
-          <span class="text-[10px] uppercase font-bold text-eh-accent">Select Page</span>
+          <span class="text-[10px] uppercase font-bold text-eh-accent">Page</span>
         </div>
         <div class="flex items-center gap-2">
-          <el-checkbox
+          <Checkbox
             :modelValue="isAllSelected"
             :indeterminate="isIndeterminate"
-            class="!mr-0"
+            binary
             @change="toggleSelectAll"
           />
-          <span class="text-[10px] uppercase font-bold text-eh-accent"
-            >Select Filtered</span
-          >
+          <span class="text-[10px] uppercase font-bold text-eh-accent">Filtered</span>
         </div>
-        <el-button type="primary" :icon="Delete" @click="handleClearDrafts"
-          >Clear List</el-button
-        >
+        <div class="flex-1"></div>
+        <Button
+          label="Clear List"
+          icon="pi pi-trash"
+          severity="danger"
+          text
+          size="small"
+          class="!text-[10px] !p-1"
+          @click="handleClearDrafts"
+        />
       </div>
 
-      <div class="p-4 flex-1 overflow-y-auto bg-white/30">
-        <div class="flex flex-col gap-2">
+      <div class="p-2 flex-1 overflow-y-auto bg-white/30">
+        <div class="flex flex-col gap-1">
           <div
             v-for="g in paginatedGalleries"
             :key="g.id"
-            class="flex items-center gap-3 p-2 bg-eh-panel/20 border-l-4"
+            class="flex items-center gap-3 p-2 bg-eh-panel/20 border-l-4 transition-all"
             :class="
               isGallerySelected(g.id)
-                ? 'border-eh-accent bg-eh-panel/40'
-                : 'border-eh-border'
+                ? 'border-eh-accent bg-eh-panel/40 shadow-inner'
+                : 'border-eh-border hover:bg-eh-panel/30'
             "
           >
-            <el-checkbox
+            <Checkbox
               :modelValue="isGallerySelected(g.id)"
+              binary
               @change="toggleGallery(g.id)"
             />
             <div class="flex-1 min-w-0">
               <div
-                class="text-[12px] font-bold truncate"
-                :class="!isGallerySelected(g.id) && 'text-eh-muted opacity-60'"
+                class="text-[12px] font-bold truncate transition-colors"
+                :class="isGallerySelected(g.id) ? 'text-eh-text' : 'text-eh-muted opacity-60'"
               >
                 {{ g.title }}
               </div>
@@ -303,12 +307,13 @@ onMounted(async () => {
                 {{ g.link }}
               </div>
             </div>
-            <el-button
-              type="danger"
+            <Button
+              icon="pi pi-times"
+              severity="danger"
+              text
+              rounded
               size="small"
-              circle
-              plain
-              :icon="Delete"
+              class="!w-6 !h-6"
               @click="handleDeleteGallery(g.id)"
             />
           </div>
@@ -325,14 +330,14 @@ onMounted(async () => {
       <!-- Pagination -->
       <div
         v-if="filteredGalleries.length > pageSize"
-        class="p-2 border-t border-eh-border flex justify-center bg-eh-panel/10"
+        class="border-t border-eh-border bg-eh-panel/10"
       >
-        <el-pagination
-          v-model:currentPage="currentPage"
-          :pageSize="pageSize"
-          layout="prev, pager, next"
-          :total="filteredGalleries.length"
-          small
+        <Paginator
+          v-model:first="first"
+          :rows="pageSize"
+          :totalRecords="filteredGalleries.length"
+          template="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink"
+          class="!bg-transparent !p-1"
         />
       </div>
     </div>
@@ -342,72 +347,57 @@ onMounted(async () => {
       <div class="eh-header">Download Configuration</div>
       <div class="p-4 flex flex-col gap-4 text-xs">
         <div class="flex flex-col gap-2">
-          <label
-            class="text-[10px] text-eh-muted font-bold uppercase flex items-center gap-2"
-          >
+          <label class="text-[10px] text-eh-muted font-bold uppercase flex items-center gap-2">
             Target Path:
             <span
               v-if="configStore.config.storage_strategy === 'eh_id'"
               class="text-red-400 font-normal lowercase italic"
             >
-              (Disabled: Locked by EH_ID Strategy)
+              (Locked by EH_ID Strategy)
             </span>
           </label>
           <div class="flex gap-2">
-            <el-input
+            <InputText
               v-model="displayPath"
               :disabled="configStore.config.storage_strategy === 'eh_id'"
               size="small"
-              class="flex-1"
+              class="flex-1 !p-1.5 !text-xs"
             />
-            <el-button
+            <Button
+              label="Browse"
               :disabled="configStore.config.storage_strategy === 'eh_id'"
               size="small"
+              outlined
+              class="!py-1 !px-3"
               @click="handleBrowse"
-              >Browse</el-button
-            >
+            />
           </div>
           <div class="flex gap-2 mt-1">
-            <el-button
+            <Button
+              v-for="p in ['{EN_TITLE}', '{ID}', '{JP_TITLE}']"
+              :key="p"
+              :label="p"
               :disabled="configStore.config.storage_strategy === 'eh_id'"
               size="small"
-              plain
-              @click="handlePlaceholder('{EN_TITLE}')"
-              >{EN_TITLE}</el-button
-            >
-            <el-button
-              :disabled="configStore.config.storage_strategy === 'eh_id'"
-              size="small"
-              plain
-              @click="handlePlaceholder('{ID}')"
-              >{ID}</el-button
-            >
-            <el-button
-              :disabled="configStore.config.storage_strategy === 'eh_id'"
-              size="small"
-              plain
-              @click="handlePlaceholder('{JP_TITLE}')"
-              >{JP_TITLE}</el-button
-            >
+              text
+              class="!text-[10px] !p-1 !bg-eh-panel/20"
+              @click="handlePlaceholder(p)"
+            />
           </div>
         </div>
 
-        <div class="flex items-center gap-4 mt-2">
+        <div class="flex items-center gap-6 mt-2">
           <div class="flex items-center gap-2">
             <span class="text-[10px] text-eh-muted font-bold uppercase">Archive</span>
-            <el-switch
-              v-model="useZip"
-              size="small"
-              style="--el-switch-off-color: #dcdfe6"
-            />
+            <ToggleSwitch v-model="useZip" />
           </div>
           <div v-if="useZip" class="flex items-center gap-2 flex-1">
             <span class="text-[10px] text-eh-muted font-bold uppercase">password:</span>
-            <el-input
+            <InputText
               v-model="zipPass"
               size="small"
-              placeholder="Leave empty for no password"
-              class="flex-1"
+              placeholder="Optional"
+              class="flex-1 !p-1.5 !text-xs"
             />
           </div>
         </div>
@@ -415,43 +405,18 @@ onMounted(async () => {
     </div>
 
     <div class="flex gap-2">
-      <el-button
-        type="primary"
-        class="flex-[2] !rounded-none !h-10 font-bold uppercase tracking-widest"
+      <Button
+        :label="`Start Download (${selectedIds.size} Selected)`"
         :disabled="selectedIds.size === 0"
+        class="w-full !bg-eh-border !border-eh-border !rounded-none !h-10 font-bold uppercase tracking-widest"
         @click="handleAddSelectedToQueue"
-      >
-        Start Download ({{ selectedIds.size }} Selected)
-      </el-button>
+      />
     </div>
   </div>
 </template>
 
 <style scoped>
-/* Keep consistent transitions */
 .eh-panel-card {
   transition: all 0.2s ease;
-}
-</style>
-
-<style scoped>
-.fetched-tasks-collapse :deep(.el-collapse-item) {
-  @apply eh-panel-card !bg-eh-panel/50 mb-3;
-}
-
-.fetched-tasks-collapse :deep(.el-collapse-item__header) {
-  @apply !bg-transparent !border-b-0 px-3 py-2;
-}
-
-.fetched-tasks-collapse :deep(.el-collapse-item__wrap) {
-  @apply !bg-transparent !border-b-0;
-}
-
-.fetched-tasks-collapse :deep(.el-collapse-item__content) {
-  @apply pb-3 px-3;
-}
-
-.fetched-tasks-collapse :deep(.el-collapse-item__arrow) {
-  @apply text-eh-accent;
 }
 </style>

@@ -42,7 +42,8 @@ export const useConfigStore = defineStore('config', () => {
     localStorage.setItem(STORAGE_KEYS.STRATEGY, newConfig.storage_strategy)
 
     if (window.api?.saveConfig) {
-      window.api.saveConfig(toRaw(newConfig))
+      // Use JSON parse/stringify to ensure the object is cloneable across the IPC bridge
+      window.api.saveConfig(JSON.parse(JSON.stringify(newConfig)))
     }
   }
 

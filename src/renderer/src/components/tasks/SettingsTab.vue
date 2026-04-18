@@ -1,20 +1,19 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { useConfigStore } from '../../stores/config'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Position, SwitchButton } from '@element-plus/icons-vue'
+import { useToast } from 'primevue/usetoast'
+import { useConfirm } from 'primevue/useconfirm'
 
 const configStore = useConfigStore()
+const toast = useToast()
+const confirm = useConfirm()
 
 // Local refs for editing
-const metadataPath = ref('')
 const storageStrategy = ref<'eh_id' | 'traditional'>('traditional')
 const proxyPool = ref('')
 const scanThreads = ref(3)
 const downloadThreads = ref(5)
-const cookies = ref('')
 
-// Computed based directly on store for SSOT
 const parsedCookies = computed(() => {
   try {
     return JSON.parse(configStore.config.cookies || '[]')
@@ -37,28 +36,20 @@ const syncLocalState = () => {
   proxyPool.value = (configStore.config.proxies || []).join('\n')
   scanThreads.value = configStore.config.scan_thread_cnt || 3
   downloadThreads.value = configStore.config.download_thread_cnt || 5
-  cookies.value = configStore.config.cookies || ''
 }
 
-// Initial sync
 onMounted(() => {
   syncLocalState()
 })
 
-// Watch for store changes (like after initialization or external updates)
-// but only sync if the local state hasn't been modified by user yet,
-// OR simply sync once when config is loaded.
 watch(
   () => configStore.config,
   () => {
-    // If the user is currently looking at the settings, we should be careful
-    // about overwriting their typing. However, during app init, this is necessary.
-    // We check isModified - if NOT modified, it's safe to sync from store.
     if (!isModified.value) {
       syncLocalState()
     }
   },
-  { deep: true },
+  { deep: true }
 )
 
 const isModified = computed(() => {
@@ -68,8 +59,6 @@ const isModified = computed(() => {
     .filter((p) => p.length > 0)
 
   const storeProxies = [...(configStore.config.proxies || [])]
-
-  // IMPORTANT: Ensure consistency with syncLocalState defaults
   const storeStrategy = configStore.config.storage_strategy || 'traditional'
   const storeScanThreads = configStore.config.scan_thread_cnt || 3
   const storeDownloadThreads = configStore.config.download_thread_cnt || 5
@@ -91,42 +80,56 @@ const handleSave = () => {
       .filter((p) => p.length > 0),
     scan_thread_cnt: scanThreads.value,
     download_thread_cnt: downloadThreads.value,
-    cookies: configStore.config.cookies, // Use store value
-    download_path: configStore.config.download_path, // Keep existing
+    cookies: configStore.config.cookies,
+    download_path: configStore.config.download_path
   }
 
   configStore.updateConfig(newConfig)
-  ElMessage.success('Settings saved and synced to backend')
+  toast.add({
+    severity: 'success',
+    summary: 'Saved',
+    detail: 'Settings saved and synced to backend',
+    life: 3000
+  })
 }
 
 const handleLogin = async () => {
   try {
     const result = await window.api.loginEHentai()
     if (result.success && result.cookies) {
-      // Sync immediately to store (and thus localStorage)
       configStore.updateConfig({ ...configStore.config, cookies: result.cookies })
-      ElMessage.success('Successfully logged in and captured cookies. Settings synced.')
+      toast.add({
+        severity: 'success',
+        summary: 'Login Success',
+        detail: 'Captured cookies and synced settings.',
+        life: 3000
+      })
     } else if (result.error) {
-      ElMessage.warning(result.error)
+      toast.add({ severity: 'warn', summary: 'Login Warning', detail: result.error, life: 5000 })
     }
   } catch (error: any) {
-    ElMessage.error(`Login failed: ${error.message}`)
+    toast.add({
+      severity: 'error',
+      summary: 'Login Failed',
+      detail: error.message,
+      life: 5000
+    })
   }
 }
 
 const handleLogout = () => {
-  ElMessageBox.confirm('Are you sure you want to logout?', 'Warning', {
-    confirmButtonText: 'Logout',
-    cancelButtonText: 'Cancel',
-    type: 'warning',
-  })
-    .then(() => {
-      cookies.value = ''
-      // Sync immediately to store (and thus localStorage)
+  confirm.require({
+    message: 'Are you sure you want to logout?',
+    header: 'Logout Confirmation',
+    icon: 'pi pi-exclamation-triangle',
+    rejectLabel: 'Cancel',
+    acceptLabel: 'Logout',
+    acceptClass: 'p-button-danger',
+    accept: () => {
       configStore.updateConfig({ ...configStore.config, cookies: '' })
-      ElMessage.success('Logged out successfully')
-    })
-    .catch(() => {})
+      toast.add({ severity: 'success', summary: 'Logged Out', detail: 'Successfully logged out', life: 3000 })
+    }
+  })
 }
 </script>
 
@@ -137,29 +140,32 @@ const handleLogout = () => {
       <div class="p-4 flex flex-col gap-3">
         <div class="flex items-center justify-between mt-2">
           <label class="text-xs text-eh-muted font-bold uppercase">Cookies </label>
-          <el-button
+          <Button
             v-if="!isLoggedIn"
-            type="primary"
-            link
+            label="Login to E-Hentai"
+            icon="pi pi-sign-in"
+            text
             size="small"
             @click="handleLogin"
-          >
-            <el-icon class="mr-1"><Position /></el-icon>
-            Login to E-Hentai
-          </el-button>
-          <el-button v-else type="danger" link size="small" @click="handleLogout">
-            <el-icon class="mr-1"><SwitchButton /></el-icon>
-            Logout
-          </el-button>
+          />
+          <Button
+            v-else
+            label="Logout"
+            icon="pi pi-sign-out"
+            severity="danger"
+            text
+            size="small"
+            @click="handleLogout"
+          />
         </div>
 
         <template v-if="isLoggedIn">
           <div
-            class="mt-1 p-3 bg-eh-surface-hover border border-eh-border rounded flex items-center justify-between"
+            class="mt-1 p-3 bg-eh-sidebar/50 border border-eh-border rounded flex items-center justify-between"
           >
             <div class="flex flex-col">
               <span class="text-xs text-eh-muted uppercase font-bold">Status</span>
-              <span class="text-sm text-green-400 font-bold"
+              <span class="text-sm text-green-700 font-bold"
                 >Logged in as ID: {{ memberId }}</span
               >
             </div>
@@ -174,18 +180,15 @@ const handleLogout = () => {
         </template>
         <template v-else>
           <span class="text-xs text-eh-muted">
-            like [{"name": "ipb_pass_hash", "domain": ".e-hentai.org", ...}, ...]
+            Format: [{"name": "ipp_pass_hash", ...}, ...]
           </span>
-          <el-input
-            class="border border-eh-border"
+          <Textarea
+            class="w-full !p-2"
             :modelValue="configStore.config.cookies"
-            type="textarea"
-            :rows="4"
-            placeholder="For ExHentai access"
-            @update:modelValue="
-              (val: any) =>
-                configStore.updateConfig({ ...configStore.config, cookies: val })
-            "
+            rows="4"
+            placeholder="JSON format cookies"
+            autoResize
+            @update:modelValue="(val: string) => configStore.updateConfig({ ...configStore.config, cookies: val })"
           />
         </template>
       </div>
@@ -194,37 +197,38 @@ const handleLogout = () => {
     <div class="eh-panel-card overflow-hidden">
       <div class="eh-header">Storage Strategy</div>
       <div class="p-4 flex flex-col gap-3">
-        <el-radio-group v-model="storageStrategy">
-          <el-radio value="eh_id">EH_ID Strategy</el-radio>
-          <el-radio value="traditional">Traditional</el-radio>
-        </el-radio-group>
+        <div class="flex gap-4">
+          <div class="flex items-center">
+            <RadioButton v-model="storageStrategy" inputId="strategy1" value="eh_id" />
+            <label for="strategy1" class="ml-2 text-sm cursor-pointer">EH_ID Strategy</label>
+          </div>
+          <div class="flex items-center">
+            <RadioButton v-model="storageStrategy" inputId="strategy2" value="traditional" />
+            <label for="strategy2" class="ml-2 text-sm cursor-pointer">Traditional</label>
+          </div>
+        </div>
 
         <div
-          class="mt-2 p-3 bg-eh-surface/50 border border-eh-border/30 rounded text-xs leading-relaxed transition-all"
+          class="mt-2 p-3 bg-eh-sidebar/30 border border-eh-border/30 rounded text-xs leading-relaxed transition-all"
         >
           <template v-if="storageStrategy === 'eh_id'">
             <div class="text-eh-accent font-bold mb-1">EH_ID Strategy</div>
-            <p class="text-eh-text/90 mb-2">
-              <span class="font-bold">ZH:</span>
-              EH_ID 優先策略。檔案將直接以畫廊 ID 命名（如
-              /123456），適合大規模收藏與自動化管理。
+            <p class="text-eh-muted font-medium mb-2">
+              <span class="font-bold whitespace-nowrap">ZH:</span>
+              EH_ID 優先策略。檔案將直接以畫廊 ID 命名，適合大規模收藏。
             </p>
             <p class="text-eh-muted italic">
-              <span class="font-bold">EN:</span> EH_ID-based strategy. Files are named
-              directly by Gallery ID (e.g., /123456/). Optimized for large collections and
-              automation.
+              <span class="font-bold text-[10px]">EN:</span> Files are named by Gallery ID. Optimized for large collections.
             </p>
           </template>
           <template v-else>
             <div class="text-eh-accent font-bold mb-1">Traditional</div>
-            <p class="text-eh-text/90 mb-2">
-              <span class="font-bold">ZH:</span>
-              傳統平鋪策略。畫廊直接存放於下載根目錄，資料夾名稱即為標題，方便直接透過檔案瀏覽器手動尋找與管理。
+            <p class="text-eh-muted font-medium mb-2">
+              <span class="font-bold whitespace-nowrap">ZH:</span>
+              傳統平鋪策略。資料夾名稱即為標題，方便檔案瀏覽器手動尋找。
             </p>
             <p class="text-eh-muted italic">
-              <span class="font-bold">EN:</span> Traditional strategy. Galleries are
-              stored directly in the root download directory with their titles as folder
-              names. Convenient for manual browsing and management via file explorer.
+              <span class="font-bold text-[10px]">EN:</span> Folders use titles. Convenient for manual manual management.
             </p>
           </template>
         </div>
@@ -238,41 +242,35 @@ const handleLogout = () => {
           <label class="text-xs text-eh-muted font-bold uppercase"
             >Proxy Pool (one per line):</label
           >
-          <el-input
+          <Textarea
             v-model="proxyPool"
-            type="textarea"
-            :rows="3"
+            rows="3"
+            class="w-full !p-2"
             placeholder="socks5://127.0.0.1:1080"
           />
         </div>
         <div class="flex gap-10">
           <div class="flex flex-col gap-1">
             <label class="text-xs text-eh-muted font-bold uppercase">Scan Threads:</label>
-            <el-input-number v-model="scanThreads" :min="1" :max="10" />
+            <InputNumber v-model="scanThreads" showButtons :min="1" :max="10" buttonLayout="horizontal" class="h-8" inputClass="!w-12 !h-8 !p-1 !text-center" />
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-xs text-eh-muted font-bold uppercase"
               >Download Threads:</label
             >
-            <el-input-number v-model="downloadThreads" :min="1" :max="20" />
+            <InputNumber v-model="downloadThreads" showButtons :min="1" :max="20" buttonLayout="horizontal" class="h-8" inputClass="!w-12 !h-8 !p-1 !text-center" />
           </div>
         </div>
       </div>
     </div>
 
     <div class="mt-4 pt-4 border-t border-eh-border mb-4">
-      <el-button
-        type="primary"
-        class="w-full !rounded-none !h-10 font-bold uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
+      <Button
+        :label="isModified ? 'Save Changes' : 'Up to date'"
         :disabled="!isModified"
+        class="w-full !bg-eh-border !border-eh-border !rounded-none !h-10 font-bold uppercase tracking-widest"
         @click="handleSave"
-      >
-        {{ isModified ? 'Save Changes' : 'Up to date' }}
-      </el-button>
+      />
     </div>
   </div>
 </template>
-
-<style scoped>
-/* Scoped overrides */
-</style>
