@@ -6,6 +6,7 @@ import { spawn, type ChildProcess } from 'child_process'
 import axios from 'axios'
 import { MetadataService } from './services/metadata_service'
 import { ConfigService } from './services/config_service'
+import { SchedulerService } from './services/scheduler_service'
 import { DownloadService } from './services/download_service'
 import Store from 'electron-store'
 import archiver from 'archiver'
@@ -566,6 +567,8 @@ app.whenReady().then(() => {
   createWindow()
 
   downloadService = new DownloadService(mainWindow)
+  const schedulerService = new SchedulerService(mainWindow, downloadService)
+  schedulerService.start()
 
   // Sync config to sidecar once it's up
   const syncConfig = async (retries = 5) => {
