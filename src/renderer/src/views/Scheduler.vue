@@ -8,16 +8,13 @@ import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import DatePicker from 'primevue/datepicker'
 import Tag from 'primevue/tag'
-import ToggleSwitch from 'primevue/toggleswitch'
 import { useSchedulerStore } from '@renderer/stores/scheduler'
+import DownloadConfigPanel from '@renderer/components/shared/DownloadConfigPanel.vue'
 import { useToast } from 'primevue/usetoast'
 import SettingsTab from '@renderer/components/tasks/SettingsTab.vue'
 import { onMounted, computed, ref } from 'vue'
-import { useFetchStore } from '@renderer/stores/fetch'
-
 const activeTab = ref('settings')
 const schedulerStore = useSchedulerStore()
-const scraperStore = useFetchStore()
 const toast = useToast()
 
 // Add Task Form
@@ -29,17 +26,6 @@ const useZip = ref(true)
 const zipPass = ref('')
 
 const displayPath = ref('')
-
-const handleSelectPath = async () => {
-  const path = await scraperStore.selectDirectory()
-  if (path) {
-    displayPath.value = path
-  }
-}
-
-const handlePlaceholder = (placeholder: string) => {
-  displayPath.value = (displayPath.value || '') + placeholder
-}
 
 const handleAddTask = () => {
   if (!pageLink.value || !scheduleTime.value) {
@@ -193,71 +179,11 @@ const handleTriggerNow = async (taskId: string) => {
               </div>
             </div>
 
-            <div class="eh-panel-card overflow-hidden">
-              <div class="eh-header">Download Configuration</div>
-              <div class="p-4 flex flex-col gap-4 text-xs">
-                <!-- Path Selection -->
-                <div class="flex flex-col gap-2">
-                  <label
-                    class="text-[10px] text-eh-muted font-bold uppercase flex items-center justify-between"
-                  >
-                    Target Path:
-                  </label>
-                  <div class="flex gap-2">
-                    <InputText
-                      v-model="displayPath"
-                      size="small"
-                      class="flex-1 !p-1.5 !text-xs"
-                    />
-                    <Button
-                      label="Browse"
-                      size="small"
-                      outlined
-                      class="!py-1 !px-3"
-                      @click="handleSelectPath"
-                    />
-                  </div>
-                  <div class="flex gap-2 mt-1">
-                    <Button
-                      v-for="p in ['{EN_TITLE}', '{GID}', '{JP_TITLE}']"
-                      :key="p"
-                      :label="p"
-                      size="small"
-                      text
-                      class="!text-[10px] !p-1 !bg-eh-panel/20"
-                      @click="handlePlaceholder(p)"
-                    />
-                  </div>
-                </div>
-
-                <!-- Archive Settings -->
-                <div class="flex items-center gap-6 mt-2">
-                  <div class="flex items-center gap-2">
-                    <span class="text-[10px] text-eh-muted font-bold uppercase"
-                      >Archive</span
-                    >
-                    <ToggleSwitch v-model="useZip" />
-                  </div>
-                  <div v-if="useZip" class="flex items-center gap-2 flex-1">
-                    <span class="text-[10px] text-eh-muted font-bold uppercase"
-                      >password:</span
-                    >
-                    <InputText
-                      v-model="zipPass"
-                      size="small"
-                      placeholder="Optional"
-                      class="flex-1 !p-1.5 !text-xs"
-                    />
-                  </div>
-                </div>
-
-                <p
-                  class="text-[9px] text-eh-muted italic mt-1 border-t border-eh-border/30 pt-2"
-                >
-                  * Note: placeholders will be replaced with actual gallery information.
-                </p>
-              </div>
-            </div>
+            <DownloadConfigPanel
+              v-model="displayPath"
+              v-model:useZip="useZip"
+              v-model:zipPass="zipPass"
+            />
 
             <div class="mt-4 pt-4 border-t border-eh-border">
               <Button

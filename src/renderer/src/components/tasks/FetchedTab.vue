@@ -2,8 +2,8 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
-import ToggleSwitch from 'primevue/toggleswitch'
 import { useFetchStore } from '@renderer/stores/fetch'
+import DownloadConfigPanel from '@renderer/components/shared/DownloadConfigPanel.vue'
 import { useDownloadStore } from '@renderer/stores/download'
 import { storeToRefs } from 'pinia'
 
@@ -129,26 +129,6 @@ const handleAddManual = () => {
   } catch (error: any) {
     toast.add({ severity: 'error', summary: 'Error', detail: error.message, life: 5000 })
   }
-}
-
-const handleBrowse = async () => {
-  try {
-    const result = await scraperStore.selectDirectory()
-    if (result) {
-      targetPath.value = result
-    }
-  } catch (error) {
-    toast.add({
-      severity: 'error',
-      summary: 'Error',
-      detail: 'Failed to select folder',
-      life: 5000,
-    })
-  }
-}
-
-const handlePlaceholder = (placeholder: string) => {
-  targetPath.value = (targetPath.value || '') + placeholder
 }
 
 const handleAddSelectedToQueue = async () => {
@@ -359,55 +339,11 @@ onMounted(async () => {
     </div>
 
     <!-- Configuration Panel -->
-    <div class="eh-panel-card">
-      <div class="eh-header">Download Configuration</div>
-      <div class="p-4 flex flex-col gap-4 text-xs">
-        <div class="flex flex-col gap-2">
-          <label
-            class="text-[10px] text-eh-muted font-bold uppercase flex items-center gap-2"
-          >
-            Target Path:
-          </label>
-          <div class="flex gap-2">
-            <InputText v-model="targetPath" size="small" class="flex-1 !p-1.5 !text-xs" />
-            <Button
-              label="Browse"
-              size="small"
-              outlined
-              class="!py-1 !px-3"
-              @click="handleBrowse"
-            />
-          </div>
-          <div class="flex gap-2 mt-1">
-            <Button
-              v-for="p in ['{EN_TITLE}', '{GID}', '{JP_TITLE}']"
-              :key="p"
-              :label="p"
-              size="small"
-              text
-              class="!text-[10px] !p-1 !bg-eh-panel/20"
-              @click="handlePlaceholder(p)"
-            />
-          </div>
-        </div>
-
-        <div class="flex items-center gap-6 mt-2">
-          <div class="flex items-center gap-2">
-            <span class="text-[10px] text-eh-muted font-bold uppercase">Archive</span>
-            <ToggleSwitch v-model="useZip" />
-          </div>
-          <div v-if="useZip" class="flex items-center gap-2 flex-1">
-            <span class="text-[10px] text-eh-muted font-bold uppercase">password:</span>
-            <InputText
-              v-model="zipPass"
-              size="small"
-              placeholder="Optional"
-              class="flex-1 !p-1.5 !text-xs"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
+    <DownloadConfigPanel
+      v-model="targetPath"
+      v-model:useZip="useZip"
+      v-model:zipPass="zipPass"
+    />
 
     <div class="flex gap-2">
       <Button
