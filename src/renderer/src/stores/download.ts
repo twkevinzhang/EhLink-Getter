@@ -38,14 +38,20 @@ export const useDownloadStore = defineStore('download', () => {
   const logStore = useLogStore()
 
   function parsePath(template: string, gallery: any) {
-    let path = template
     // Extract ID from link like https://e-hentai.org/g/123456/token/
     const idMatch = gallery.link.match(/\/g\/(\d+)\//)
     const id = idMatch ? idMatch[1] : 'unknown'
 
-    // Simple title parsing
-    // Usually: (Japanese) [English] or Title [English]
-    // Here we'll just use the whole title for both if not easily separable
+    if (configStore.config.storage_strategy === 'eh_id') {
+      // EH_ID Strategy Requirement:
+      // Use predefined structure: output/hashed/first2/next2/full_id/
+      const p1 = id.length >= 2 ? id.substring(0, 2) : '00'
+      const p2 = id.length >= 4 ? id.substring(2, 4) : '00'
+      return `output/hashed/${p1}/${p2}/${id}`
+    }
+
+    // Traditional Strategy Logic:
+    let path = template
     const enTitle = gallery.title
     const jpTitle = gallery.title
 
@@ -53,9 +59,6 @@ export const useDownloadStore = defineStore('download', () => {
     path = path.replace(/{EN_TITLE}/g, enTitle)
     path = path.replace(/{JP_TITLE}/g, jpTitle)
 
-    // Ensure it ends with a slash if it's a directory,
-    // but here we probably want the filename too.
-    // For now assume the template is the directory path.
     return path
   }
 

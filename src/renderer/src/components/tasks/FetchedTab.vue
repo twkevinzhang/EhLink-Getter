@@ -23,6 +23,18 @@ const useZip = ref(true)
 const zipPass = ref('')
 const manualUrl = ref('')
 
+const displayPath = computed({
+  get: () => {
+    if (configStore.config.storage_strategy === 'eh_id') {
+      return 'output/hashed/{ID}'
+    }
+    return targetPath.value
+  },
+  set: (val) => {
+    targetPath.value = val
+  },
+})
+
 // Pagination state
 const currentPage = ref(1)
 const pageSize = ref(20)
@@ -330,21 +342,51 @@ onMounted(async () => {
       <div class="eh-header">Download Configuration</div>
       <div class="p-4 flex flex-col gap-4 text-xs">
         <div class="flex flex-col gap-2">
-          <label class="text-[10px] text-eh-muted font-bold uppercase"
-            >Target Path:</label
+          <label
+            class="text-[10px] text-eh-muted font-bold uppercase flex items-center gap-2"
           >
+            Target Path:
+            <span
+              v-if="configStore.config.storage_strategy === 'eh_id'"
+              class="text-red-400 font-normal lowercase italic"
+            >
+              (Disabled: Locked by EH_ID Strategy)
+            </span>
+          </label>
           <div class="flex gap-2">
-            <el-input v-model="targetPath" size="small" class="flex-1" />
-            <el-button size="small" @click="handleBrowse">Browse</el-button>
+            <el-input
+              v-model="displayPath"
+              :disabled="configStore.config.storage_strategy === 'eh_id'"
+              size="small"
+              class="flex-1"
+            />
+            <el-button
+              :disabled="configStore.config.storage_strategy === 'eh_id'"
+              size="small"
+              @click="handleBrowse"
+              >Browse</el-button
+            >
           </div>
           <div class="flex gap-2 mt-1">
-            <el-button size="small" plain @click="handlePlaceholder('{EN_TITLE}')"
+            <el-button
+              :disabled="configStore.config.storage_strategy === 'eh_id'"
+              size="small"
+              plain
+              @click="handlePlaceholder('{EN_TITLE}')"
               >{EN_TITLE}</el-button
             >
-            <el-button size="small" plain @click="handlePlaceholder('{ID}')"
+            <el-button
+              :disabled="configStore.config.storage_strategy === 'eh_id'"
+              size="small"
+              plain
+              @click="handlePlaceholder('{ID}')"
               >{ID}</el-button
             >
-            <el-button size="small" plain @click="handlePlaceholder('{JP_TITLE}')"
+            <el-button
+              :disabled="configStore.config.storage_strategy === 'eh_id'"
+              size="small"
+              plain
+              @click="handlePlaceholder('{JP_TITLE}')"
               >{JP_TITLE}</el-button
             >
           </div>

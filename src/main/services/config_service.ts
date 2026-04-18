@@ -9,7 +9,7 @@ export interface AppConfig {
   download_path: string
   scan_thread_cnt: number
   download_thread_cnt: number
-  storage_strategy: 'logical' | 'traditional'
+  storage_strategy: 'eh_id' | 'traditional'
 }
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -19,7 +19,7 @@ const DEFAULT_CONFIG: AppConfig = {
   download_path: 'output',
   scan_thread_cnt: 3,
   download_thread_cnt: 5,
-  storage_strategy: 'logical',
+  storage_strategy: 'traditional',
 }
 
 export class ConfigService {

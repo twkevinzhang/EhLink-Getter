@@ -8,7 +8,7 @@ const configStore = useConfigStore()
 
 // Local refs for editing
 const metadataPath = ref('')
-const storageStrategy = ref<'logical' | 'traditional'>('logical')
+const storageStrategy = ref<'eh_id' | 'traditional'>('traditional')
 const proxyPool = ref('')
 const scanThreads = ref(3)
 const downloadThreads = ref(5)
@@ -39,6 +39,22 @@ onMounted(() => {
   scanThreads.value = configStore.config.scan_thread_cnt
   downloadThreads.value = configStore.config.download_thread_cnt
   cookies.value = configStore.config.cookies || ''
+})
+
+const isModified = computed(() => {
+  const currentProxies = proxyPool.value
+    .split('\n')
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0)
+
+  const storeProxies = [...(configStore.config.proxies || [])]
+
+  return (
+    storageStrategy.value !== configStore.config.storage_strategy ||
+    JSON.stringify(currentProxies) !== JSON.stringify(storeProxies) ||
+    scanThreads.value !== configStore.config.scan_thread_cnt ||
+    downloadThreads.value !== configStore.config.download_thread_cnt
+  )
 })
 
 const handleSave = () => {
@@ -152,11 +168,41 @@ const handleLogout = () => {
 
     <div class="eh-panel-card overflow-hidden">
       <div class="eh-header">Storage Strategy</div>
-      <div class="p-4">
+      <div class="p-4 flex flex-col gap-3">
         <el-radio-group v-model="storageStrategy">
-          <el-radio value="logical">Logical (Hashed)</el-radio>
-          <el-radio value="traditional">Traditional (Flat)</el-radio>
+          <el-radio value="eh_id">EH_ID Strategy</el-radio>
+          <el-radio value="traditional">Traditional</el-radio>
         </el-radio-group>
+
+        <div
+          class="mt-2 p-3 bg-eh-surface/50 border border-eh-border/30 rounded text-xs leading-relaxed transition-all"
+        >
+          <template v-if="storageStrategy === 'eh_id'">
+            <div class="text-eh-accent font-bold mb-1">EH_ID Strategy</div>
+            <p class="text-eh-text/90 mb-2">
+              <span class="font-bold">ZH:</span>
+              EH_ID 優先策略。檔案將直接以畫廊 ID 命名（如
+              /123456），並可選用哈希分層，適合大規模收藏與自動化管理。
+            </p>
+            <p class="text-eh-muted italic">
+              <span class="font-bold">EN:</span> EH_ID-based strategy. Files are named
+              directly by Gallery ID (e.g., /123456/), supporting hashed subdirectories to
+              ensure filesystem stability for massive collections.
+            </p>
+          </template>
+          <template v-else>
+            <div class="text-eh-accent font-bold mb-1">Traditional</div>
+            <p class="text-eh-text/90 mb-2">
+              <span class="font-bold">ZH:</span>
+              傳統平鋪策略。畫廊直接存放於下載根目錄，資料夾名稱即為標題，方便直接透過檔案瀏覽器手動尋找與管理。
+            </p>
+            <p class="text-eh-muted italic">
+              <span class="font-bold">EN:</span> Traditional strategy. Galleries are
+              stored directly in the root download directory with their titles as folder
+              names. Convenient for manual browsing and management via file explorer.
+            </p>
+          </template>
+        </div>
       </div>
     </div>
 
@@ -192,10 +238,12 @@ const handleLogout = () => {
     <div class="mt-4 pt-4 border-t border-eh-border mb-4">
       <el-button
         type="primary"
-        class="w-full !rounded-none !h-10 font-bold uppercase tracking-widest"
+        class="w-full !rounded-none !h-10 font-bold uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
+        :disabled="!isModified"
         @click="handleSave"
-        >Save Changes</el-button
       >
+        {{ isModified ? 'Save Changes' : 'Up to date' }}
+      </el-button>
     </div>
   </div>
 </template>

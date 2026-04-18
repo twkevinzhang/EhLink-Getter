@@ -10,7 +10,7 @@ export const useConfigStore = defineStore('config', () => {
     download_path: 'output',
     scan_thread_cnt: 3,
     download_thread_cnt: 5,
-    storage_strategy: 'logical' as 'logical' | 'traditional',
+    storage_strategy: 'traditional' as 'eh_id' | 'traditional',
   })
 
   const sidecarOnline = ref(false)
