@@ -37,7 +37,7 @@ export function useElectronStorage<T>(key: string, initialValue: T): Ref<UnwrapR
         console.error(`[ElectronStorage] Failed to save key "${key}":`, err)
       }
     },
-    { deep: true },
+    { deep: true, flush: 'sync' },
   )
 
   return data as Ref<UnwrapRef<T>>
