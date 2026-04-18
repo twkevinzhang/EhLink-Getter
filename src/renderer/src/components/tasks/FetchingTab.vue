@@ -44,14 +44,14 @@ const handleDelete = async (jobId: string) => {
   })
 }
 
-const getStateLabel = (state: string) => {
+const getStateLabel = (state: string): string => {
   switch (state) {
     case 'waiting':
-      return '等待中'
+      return 'Waiting'
     case 'fetching':
-      return '爬取中'
+      return 'Fetching'
     case 'paused':
-      return '已暫停'
+      return 'Paused'
     default:
       return state
   }
@@ -114,15 +114,15 @@ const getStateColor = (state: string) => {
 
             <!-- Stats -->
             <div class="flex gap-4 text-[10px] text-eh-muted">
-              <span>頁數: {{ job.currentPage }}</span>
-              <span>項目: {{ job.totalItems }}</span>
+              <span>Pages: {{ job.currentPage }}</span>
+              <span>Items: {{ job.totalItems }}</span>
             </div>
 
             <!-- Action buttons -->
             <div class="flex gap-2 mt-2">
               <Button
                 v-if="job.state === 'fetching'"
-                label="暫停"
+                label="Pause"
                 icon="pi pi-pause"
                 severity="warn"
                 size="small"
@@ -131,7 +131,7 @@ const getStateColor = (state: string) => {
               />
               <Button
                 v-if="job.state === 'paused'"
-                label="恢復"
+                label="Resume"
                 icon="pi pi-play"
                 size="small"
                 class="flex-1 !bg-eh-border !border-eh-border !text-[12px]"
@@ -139,7 +139,7 @@ const getStateColor = (state: string) => {
               />
               <Button
                 :disabled="job.state === 'fetching'"
-                label="刪除"
+                label="Delete"
                 icon="pi pi-trash"
                 severity="danger"
                 size="small"
