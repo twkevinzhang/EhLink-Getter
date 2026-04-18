@@ -1,8 +1,15 @@
 import { defineStore } from 'pinia'
+import { onScopeDispose } from 'vue'
 import { useLogStore } from '@renderer/stores/logs'
 import { parseTemplatePath } from '@shared/utilities'
 import { useElectronStorage } from '@renderer/composables/electron-storage'
 import { plainValue } from '@renderer/utilities'
+import type {
+  DownloadStatusEvent,
+  ArchiveProgressEvent,
+  DownloadGalleryPayload,
+} from '@renderer/types/api'
+import type { DraftGallery } from '@renderer/stores/fetch'
 
 export interface DownloadGallery {
   gid: string
@@ -31,10 +38,38 @@ export interface DownloadJob {
   isArchiving?: boolean
 }
 
+const MAX_CONCURRENT_JOBS = 3
+
 export const useDownloadStore = defineStore('download', () => {
   const downloadingJobs = useElectronStorage<DownloadJob[]>('download.jobs', [])
-  const completedTasks = useElectronStorage<any[]>('download.completed', [])
   const logStore = useLogStore()
+
+  const unsubscribeStatus = window.api.onDownloadStatusUpdate(
+    (data: DownloadStatusEvent) => {
+      for (const job of downloadingJobs.value) {
+        const gallery = job.galleries.find((g) => g.link === data.url)
+        if (gallery && gallery.mode === 'running') {
+          if (data.progress !== undefined) gallery.progress = data.progress
+          if (data.status) gallery.status = data.status
+          break
+        }
+      }
+    },
+  )
+
+  const unsubscribeArchive = window.api.onArchiveProgress(
+    (data: ArchiveProgressEvent) => {
+      const job = downloadingJobs.value.find((j) => j.jobId === data.jobId)
+      if (job) job.archiveProgress = data.progress
+    },
+  )
+
+  if (typeof unsubscribeStatus === 'function') {
+    onScopeDispose(unsubscribeStatus)
+  }
+  if (typeof unsubscribeArchive === 'function') {
+    onScopeDispose(unsubscribeArchive)
+  }
 
   async function getDefaultDownloadsPath() {
     const defaultPath = await window.api.getDownloadsPath()
@@ -44,7 +79,7 @@ export const useDownloadStore = defineStore('download', () => {
   function addToQueue(
     jobId: string,
     title: string,
-    galleries: any[],
+    galleries: DraftGallery[],
     targetTemplate: string,
     isArchive = false,
     password = '',
@@ -55,7 +90,7 @@ export const useDownloadStore = defineStore('download', () => {
       link: g.link,
       targetPath: parseTemplatePath(targetTemplate, g),
       isArchive,
-      imageCount: g.imageCount || 0,
+      imageCount: 0,
       status: 'Pending...',
       progress: 0,
       mode: 'pending',
@@ -69,7 +104,7 @@ export const useDownloadStore = defineStore('download', () => {
       return
     }
 
-    const newJob: DownloadJob = {
+    downloadingJobs.value.unshift({
       jobId,
       title,
       progress: 0,
@@ -79,8 +114,7 @@ export const useDownloadStore = defineStore('download', () => {
       isExpanded: true,
       isArchive,
       password,
-    }
-    downloadingJobs.value.unshift(newJob)
+    })
   }
 
   async function startJob(jobId: string) {
@@ -104,9 +138,11 @@ export const useDownloadStore = defineStore('download', () => {
   function stopJob(jobId: string) {
     const job = downloadingJobs.value.find((j) => j.jobId === jobId)
     if (job) {
-      job.mode = 'paused'
-      job.status = 'Stopped'
-      job.galleries.forEach((g) => (g.mode = 'paused'))
+      job.mode = 'error'
+      job.status = 'Terminated by user'
+      job.galleries.forEach((g) => {
+        if (g.mode !== 'completed') g.mode = 'error'
+      })
     }
   }
 
@@ -129,25 +165,21 @@ export const useDownloadStore = defineStore('download', () => {
     const pendingJobs = downloadingJobs.value.filter(
       (j) => j.mode === 'pending' || j.mode === 'paused',
     )
-    for (const job of pendingJobs) {
-      // Non-blocking start for each job
-      processDownload(job)
-    }
+    const batch = pendingJobs.slice(0, MAX_CONCURRENT_JOBS)
+    await Promise.all(batch.map((job) => processDownload(job)))
   }
 
   async function processDownload(job: DownloadJob) {
     if (job.mode === 'running') return
 
     job.mode = 'running'
-    const galleries = job.galleries
-    let completedGalleriesCount = 0
-    const totalGalleriesCount = galleries.length
+    let completedCount = 0
+    const total = job.galleries.length
 
-    for (const gallery of galleries) {
-      if ((job.mode as string) === 'paused' || (job.mode as string) === 'pending') break
-
+    for (const gallery of job.galleries) {
+      if ((job.mode as string) === 'paused' || (job.mode as string) === 'error') break
       if (gallery.mode === 'completed') {
-        completedGalleriesCount++
+        completedCount++
         continue
       }
 
@@ -155,71 +187,48 @@ export const useDownloadStore = defineStore('download', () => {
       gallery.status = 'Downloading...'
 
       try {
-        // Centralized download logic in Main Process via DownloadService
-        const result = await window.api.downloadGallery(
-          plainValue({
-            gallery,
-            isArchive: job.isArchive,
-            password: job.password,
-          }),
-        )
+        const payload: DownloadGalleryPayload = {
+          gallery,
+          isArchive: job.isArchive ?? false,
+          password: job.password ?? '',
+        }
+        const result = await window.api.downloadGallery(plainValue(payload))
 
         if (result.success) {
           gallery.mode = 'completed'
           gallery.progress = 100
           gallery.status = 'Completed'
-          completedGalleriesCount++
+          completedCount++
         } else {
           gallery.mode = 'error'
-          gallery.status = result.error || 'Failed'
+          gallery.status = result.error ?? 'Failed'
           logStore.addLog({
             level: 'error',
             message: `Download Error [${gallery.title}]: ${result.error}`,
           })
         }
-
-        job.progress = Math.round((completedGalleriesCount / totalGalleriesCount) * 100)
-        job.status = `Progress: ${completedGalleriesCount}/${totalGalleriesCount} galleries.`
-      } catch (error: any) {
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
         gallery.mode = 'error'
-        gallery.status = error.message
+        gallery.status = msg
         logStore.addLog({
           level: 'error',
-          message: `IPC Error [${gallery.title}]: ${error.message}`,
+          message: `IPC Error [${gallery.title}]: ${msg}`,
         })
       }
+
+      job.progress = Math.round((completedCount / total) * 100)
+      job.status = `Progress: ${completedCount}/${total} galleries.`
     }
 
-    if (completedGalleriesCount === totalGalleriesCount) {
+    if (completedCount === total) {
       job.mode = 'completed'
       job.status = job.isArchive ? 'Finished & Archived' : 'Finished'
-      completedTasks.value.unshift({
-        ...job,
-        date: new Date().toLocaleString(),
-      })
-    } else if ((job.mode as string) !== 'paused' && (job.mode as string) !== 'pending') {
+    } else if ((job.mode as string) !== 'paused' && (job.mode as string) !== 'error') {
       job.mode = 'error'
-      job.status = `Error: ${completedGalleriesCount}/${totalGalleriesCount} galleries completed`
+      job.status = `Error: ${completedCount}/${total} galleries completed`
     }
   }
-
-  // Listen for real-time status updates from DownloadService
-  window.api.onDownloadStatusUpdate((data: any) => {
-    // Find matching gallery across all active jobs
-    for (const job of downloadingJobs.value) {
-      const gallery = job.galleries.find((g) => g.link === data.url)
-      if (gallery && gallery.mode === 'running') {
-        if (data.progress !== undefined) {
-          gallery.progress = data.progress
-        }
-        if (data.status) {
-          gallery.status = data.status
-        }
-        // If one gallery has specific progress, we can update job summary too
-        break
-      }
-    }
-  })
 
   function clearFinishedJobs() {
     downloadingJobs.value = downloadingJobs.value.filter(
@@ -227,22 +236,8 @@ export const useDownloadStore = defineStore('download', () => {
     )
   }
 
-  // Listen for archive progress from main process
-  window.api.onArchiveProgress((data: any) => {
-    const job = downloadingJobs.value.find((j) => {
-      // Find job by checking if its derived path matches (simplified)
-      // or we could add a job linking mechanism.
-      // For now, let's assume we update the job that is currently "Archiving"
-      return j.isArchiving && j.mode === 'running'
-    })
-    if (job) {
-      job.archiveProgress = data.progress
-    }
-  })
-
   return {
     downloadingJobs,
-    completedTasks,
     getDefaultDownloadsPath,
     addToQueue,
     startJob,
