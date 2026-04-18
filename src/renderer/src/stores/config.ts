@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref, watch, toRaw } from 'vue'
+import { ref, watch } from 'vue'
+import { useStorage } from '@vueuse/core'
 
 export interface AppConfig {
   cookies: string
@@ -20,22 +21,28 @@ const DEFAULT_CONFIG: AppConfig = {
 }
 
 export const useConfigStore = defineStore('config', () => {
+  // 使用 useStorage 建立響應式的 cookies 持久化儲存
+  const cookiesStorage = useStorage(STORAGE_KEYS.COOKIES, DEFAULT_CONFIG.cookies)
+
   const config = ref<AppConfig>({
     ...DEFAULT_CONFIG,
-    cookies: localStorage.getItem(STORAGE_KEYS.COOKIES) || DEFAULT_CONFIG.cookies,
+    cookies: cookiesStorage.value,
   })
 
   const sidecarOnline = ref(false)
 
   const syncConfig = (newConfig: AppConfig) => {
-    localStorage.setItem(STORAGE_KEYS.COOKIES, newConfig.cookies)
+    // cookiesStorage 已經透過 useStorage 自動處理 localStorage 同步
+    // 但因為 config.cookies 改變時我們需要反映回 cookiesStorage
+    cookiesStorage.value = newConfig.cookies
 
     if (window.api?.saveConfig) {
-      // Use JSON parse/stringify to ensure the object is cloneable across the IPC bridge
+      // 使用 JSON parse/stringify 確保物件可克隆（跨 IPC 橋接）
       window.api.saveConfig(JSON.parse(JSON.stringify(newConfig)))
     }
   }
 
+  // 監聽整個 config 物件的變化
   watch(config, (val) => syncConfig(val), { deep: true })
 
   const checkSidecarHealth = async () => {
@@ -55,8 +62,8 @@ export const useConfigStore = defineStore('config', () => {
         config.value = {
           ...config.value,
           ...savedConfig,
-          cookies:
-            localStorage.getItem(STORAGE_KEYS.COOKIES) || savedConfig.cookies || '',
+          // 優先級：localStorage (useStorage) > savedConfig > DEFAULT
+          cookies: cookiesStorage.value || savedConfig.cookies || DEFAULT_CONFIG.cookies,
         }
       }
     }
