@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useDownloadStore } from '@renderer/stores/download'
+import type { DownloadJob } from '@renderer/stores/download'
 import { storeToRefs } from 'pinia'
 import { useToast } from 'primevue/usetoast'
 
@@ -28,16 +29,16 @@ const handleStartAll = () => {
 }
 
 const handleClear = () => {
-  downloadingJobs.value = downloadingJobs.value.filter((j) => j.mode !== 'completed')
+  downloadStore.clearFinishedJobs()
   toast.add({
     severity: 'success',
     summary: 'Cleared',
-    detail: 'Cleared completed jobs',
+    detail: 'Cleared finished/error jobs',
     life: 3000,
   })
 }
 
-const toggleJob = (job: any) => {
+const toggleJob = (job: DownloadJob) => {
   job.isExpanded = !job.isExpanded
 }
 
@@ -165,7 +166,7 @@ const handleTerminateJob = (jobId: string) => {
                   text
                   size="small"
                   disabled
-                  @click.stop="handleTerminateJob(job.id)"
+                  @click.stop="handleTerminateJob(job.jobId)"
                 />
               </template>
               <template v-if="job.mode === 'paused'">
@@ -184,7 +185,7 @@ const handleTerminateJob = (jobId: string) => {
                   rounded
                   text
                   size="small"
-                  @click.stop="handleTerminateJob(job.id)"
+                  @click.stop="handleTerminateJob(job.jobId)"
                 />
               </template>
               <template v-if="job.mode === 'error'">
@@ -203,7 +204,7 @@ const handleTerminateJob = (jobId: string) => {
                   rounded
                   text
                   size="small"
-                  @click.stop="handleTerminateJob(job.id)"
+                  @click.stop="handleTerminateJob(job.jobId)"
                 />
               </template>
             </div>
