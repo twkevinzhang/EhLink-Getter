@@ -7,15 +7,11 @@ import { useConfigStore } from './stores/config'
 import { useDownloadStore } from './stores/download'
 import TaskManager from './views/TaskManager.vue'
 import Library from './views/Library.vue'
-import Scheduler from './views/Scheduler.vue'
 import SystemLogs from './components/SystemLogs.vue'
-
-import { useSchedulerStore } from './stores/scheduler'
 
 const logStore = useLogStore()
 const configStore = useConfigStore()
 const downloadStore = useDownloadStore()
-const schedulerStore = useSchedulerStore()
 const activeTab = ref('task-manager')
 
 onMounted(() => {
@@ -26,12 +22,6 @@ onMounted(() => {
   window.api.onProgress((progress: any) => {
     downloadStore.updateDownloadProgress(progress)
   })
-  // Sync scheduler tasks from main process
-  if (window.electron?.ipcRenderer) {
-    window.electron.ipcRenderer.on('scheduler-updated', (_event, tasks) => {
-      schedulerStore.tasks = tasks
-    })
-  }
 })
 </script>
 
@@ -83,18 +73,6 @@ onMounted(() => {
           <button
             class="flex items-center gap-3 p-3 rounded-sm transition-all text-sm font-medium"
             :class="
-              activeTab === 'scheduler'
-                ? 'bg-eh-border text-white shadow-sm'
-                : 'text-eh-text hover:bg-eh-panel/50'
-            "
-            @click="activeTab = 'scheduler'"
-          >
-            <i class="pi pi-calendar-clock"></i>
-            <span>Scheduler</span>
-          </button>
-          <button
-            class="flex items-center gap-3 p-3 rounded-sm transition-all text-sm font-medium"
-            :class="
               activeTab === 'system-logs'
                 ? 'bg-eh-border text-white shadow-sm'
                 : 'text-eh-text hover:bg-eh-panel/50'
@@ -124,7 +102,6 @@ onMounted(() => {
       <main class="p-6 flex-1 relative bg-eh-bg overflow-y-auto">
         <TaskManager v-if="activeTab === 'task-manager'" />
         <Library v-if="activeTab === 'library'" />
-        <Scheduler v-if="activeTab === 'scheduler'" />
         <SystemLogs v-if="activeTab === 'system-logs'" />
       </main>
     </div>
