@@ -45,6 +45,7 @@ interface SidecarAPI {
     password?: string;
   }) => Promise<{ success: boolean; error?: string; size?: number }>;
   onArchiveProgress: (callback: (data: any) => void) => void;
+  loginEHentai: () => Promise<{ success: boolean; cookies?: string; error?: string }>;
 }
 
 declare global {

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
 import { useConfigStore } from "../../stores/config";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
+import { Position, SwitchButton } from "@element-plus/icons-vue";
 
 const configStore = useConfigStore();
 
@@ -12,6 +13,26 @@ const proxyPool = ref("");
 const scanThreads = ref(3);
 const downloadThreads = ref(5);
 const cookies = ref("");
+
+// Computed based directly on store for SSOT
+const parsedCookies = computed(() => {
+  try {
+    return JSON.parse(configStore.config.cookies || "[]");
+  } catch (e) {
+    return [];
+  }
+});
+
+const isLoggedIn = computed(() => {
+  return parsedCookies.value.some(
+    (c: any) => c.name === "ipb_member_id" && c.value,
+  );
+});
+
+const memberId = computed(() => {
+  const cookie = parsedCookies.value.find((c: any) => c.name === "ipb_member_id");
+  return cookie ? cookie.value : null;
+});
 
 onMounted(() => {
   // Initialize from store
@@ -31,12 +52,44 @@ const handleSave = () => {
       .filter((p) => p.length > 0),
     scan_thread_cnt: scanThreads.value,
     download_thread_cnt: downloadThreads.value,
-    cookies: cookies.value,
+    cookies: configStore.config.cookies, // Use store value
     download_path: configStore.config.download_path, // Keep existing
   };
 
   configStore.updateConfig(newConfig);
   ElMessage.success("Settings saved and synced to backend");
+};
+
+const handleLogin = async () => {
+  try {
+    const result = await window.api.loginEHentai();
+    if (result.success && result.cookies) {
+      // Sync immediately to store (and thus localStorage)
+      configStore.updateConfig({ ...configStore.config, cookies: result.cookies });
+      ElMessage.success(
+        "Successfully logged in and captured cookies. Settings synced.",
+      );
+    } else if (result.error) {
+      ElMessage.warning(result.error);
+    }
+  } catch (error: any) {
+    ElMessage.error(`Login failed: ${error.message}`);
+  }
+};
+
+const handleLogout = () => {
+  ElMessageBox.confirm("Are you sure you want to logout?", "Warning", {
+    confirmButtonText: "Logout",
+    cancelButtonText: "Cancel",
+    type: "warning",
+  })
+    .then(() => {
+      cookies.value = "";
+      // Sync immediately to store (and thus localStorage)
+      configStore.updateConfig({ ...configStore.config, cookies: "" });
+      ElMessage.success("Logged out successfully");
+    })
+    .catch(() => {});
 };
 </script>
 
@@ -45,19 +98,68 @@ const handleSave = () => {
     <div class="eh-panel-card overflow-hidden">
       <div class="eh-header">Core Configuration</div>
       <div class="p-4 flex flex-col gap-3">
-        <label class="text-xs text-eh-muted font-bold uppercase mt-2"
-          >Cookies
-        </label>
-        <span class="text-xs text-eh-muted">
-          like [{"name": "ipb_pass_hash", "domain": ".e-hentai.org", ...}, ...]
-        </span>
-        <el-input
-          class="border border-eh-border"
-          v-model="cookies"
-          type="textarea"
-          :rows="4"
-          placeholder="For ExHentai access"
-        />
+        <div class="flex items-center justify-between mt-2">
+          <label class="text-xs text-eh-muted font-bold uppercase"
+            >Cookies
+          </label>
+          <el-button
+            v-if="!isLoggedIn"
+            type="primary"
+            link
+            size="small"
+            @click="handleLogin"
+          >
+            <el-icon class="mr-1"><Position /></el-icon>
+            Login to E-Hentai
+          </el-button>
+          <el-button
+            v-else
+            type="danger"
+            link
+            size="small"
+            @click="handleLogout"
+          >
+            <el-icon class="mr-1"><SwitchButton /></el-icon>
+            Logout
+          </el-button>
+        </div>
+
+        <template v-if="isLoggedIn">
+          <div
+            class="mt-1 p-3 bg-eh-surface-hover border border-eh-border rounded flex items-center justify-between"
+          >
+            <div class="flex flex-col">
+              <span class="text-xs text-eh-muted uppercase font-bold"
+                >Status</span
+              >
+              <span class="text-sm text-green-400 font-bold"
+                >Logged in as ID: {{ memberId }}</span
+              >
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+              <span class="text-[10px] text-eh-muted uppercase"
+                >Session Active</span
+              >
+            </div>
+          </div>
+          <span class="text-[10px] text-eh-muted italic px-1 mt-1">
+            Cookie tokens are securely stored. To update, please logout first.
+          </span>
+        </template>
+        <template v-else>
+          <span class="text-xs text-eh-muted">
+            like [{"name": "ipb_pass_hash", "domain": ".e-hentai.org", ...}, ...]
+          </span>
+          <el-input
+            class="border border-eh-border"
+            :model-value="configStore.config.cookies"
+            @update:model-value="(val) => configStore.updateConfig({ ...configStore.config, cookies: val })"
+            type="textarea"
+            :rows="4"
+            placeholder="For ExHentai access"
+          />
+        </template>
       </div>
     </div>
 

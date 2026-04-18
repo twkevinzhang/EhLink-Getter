@@ -42,6 +42,7 @@ const api = {
   }) => ipcRenderer.invoke("archive-folder", payload),
   onArchiveProgress: (callback: any) =>
     ipcRenderer.on("archive-progress", (_event, value) => callback(value)),
+  loginEHentai: () => ipcRenderer.invoke("login-ehentai"),
 };
 
 // Use `contextBridge` APIs to expose Electron APIs to

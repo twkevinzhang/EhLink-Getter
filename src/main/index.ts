@@ -318,6 +318,52 @@ ipcMain.handle("search-metadata", async (_, query: string) => {
   }
 });
 
+ipcMain.handle("login-ehentai", async () => {
+  const authWindow = new BrowserWindow({
+    width: 800,
+    height: 600,
+    show: true,
+    autoHideMenuBar: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      partition: `temp_login_${Date.now()}` // 使用隨機 partition 確保環境絕對乾淨
+    },
+  });
+
+  const loginUrl = "https://forums.e-hentai.org/index.php?act=Login&CODE=00";
+  authWindow.loadURL(loginUrl);
+
+  return new Promise((resolve) => {
+    let completed = false;
+    const checkCookies = async () => {
+      if (completed) return;
+      const cookies = await authWindow.webContents.session.cookies.get({
+        domain: ".e-hentai.org",
+      });
+      const required = ["ipb_member_id", "ipb_pass_hash"];
+      const hasAll = required.every((name) =>
+        cookies.some((c) => c.name === name),
+      );
+
+      if (hasAll) {
+        completed = true;
+        const cookieString = JSON.stringify(cookies);
+        authWindow.close();
+        resolve({ success: true, cookies: cookieString });
+      }
+    };
+
+    authWindow.webContents.on("did-finish-load", checkCookies);
+    authWindow.on("close", () => {
+      if (!completed) {
+        completed = true;
+        resolve({ success: false, error: "Window closed by user" });
+      }
+    });
+  });
+});
+
 ipcMain.handle("get-config", async () => {
   return currentConfig;
 });
