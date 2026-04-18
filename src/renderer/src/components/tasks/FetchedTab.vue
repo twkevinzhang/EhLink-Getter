@@ -33,38 +33,42 @@ const currentPage = computed(() => Math.floor(first.value / pageSize.value) + 1)
 const searchQuery = ref('')
 
 // Selection state
-const selectedIds = ref<Set<string>>(new Set())
+const selectedIds = ref<string[]>([])
 
-const isGallerySelected = (gid: string) => selectedIds.value.has(gid)
+const isGallerySelected = (gid: string) => selectedIds.value.includes(gid)
 
 const toggleGallery = (gid: string) => {
-  if (selectedIds.value.has(gid)) {
-    selectedIds.value.delete(gid)
+  const idx = selectedIds.value.indexOf(gid)
+  if (idx !== -1) {
+    selectedIds.value.splice(idx, 1)
   } else {
-    selectedIds.value.add(gid)
+    selectedIds.value.push(gid)
   }
 }
 
 const isAllSelected = computed(() => {
   return (
     filteredGalleries.value.length > 0 &&
-    filteredGalleries.value.every((g: DraftGallery) => selectedIds.value.has(g.gid))
+    filteredGalleries.value.every((g: DraftGallery) => selectedIds.value.includes(g.gid))
   )
 })
 
 const isIndeterminate = computed(() => {
   const selectedInFiltered = filteredGalleries.value.filter((g: DraftGallery) =>
-    selectedIds.value.has(g.gid),
+    selectedIds.value.includes(g.gid),
   ).length
   return selectedInFiltered > 0 && selectedInFiltered < filteredGalleries.value.length
 })
 
 const toggleSelectAll = () => {
-  const val = !isAllSelected.value
-  if (val) {
-    filteredGalleries.value.forEach((g: DraftGallery) => selectedIds.value.add(g.gid))
+  if (isAllSelected.value) {
+    const filteredIds = new Set(filteredGalleries.value.map((g) => g.gid))
+    selectedIds.value = selectedIds.value.filter((id) => !filteredIds.has(id))
   } else {
-    filteredGalleries.value.forEach((g: DraftGallery) => selectedIds.value.delete(g.gid))
+    const toAdd = filteredGalleries.value
+      .map((g) => g.gid)
+      .filter((id) => !selectedIds.value.includes(id))
+    selectedIds.value = [...selectedIds.value, ...toAdd]
   }
 }
 
@@ -87,22 +91,27 @@ const paginatedGalleries = computed(() => {
 
 const isPageSelected = computed(() => {
   if (paginatedGalleries.value.length === 0) return false
-  return paginatedGalleries.value.every((g: DraftGallery) => selectedIds.value.has(g.gid))
+  return paginatedGalleries.value.every((g: DraftGallery) =>
+    selectedIds.value.includes(g.gid),
+  )
 })
 
 const isPageIndeterminate = computed(() => {
   const pageSelectedCount = paginatedGalleries.value.filter((g: DraftGallery) =>
-    selectedIds.value.has(g.gid),
+    selectedIds.value.includes(g.gid),
   ).length
   return pageSelectedCount > 0 && pageSelectedCount < paginatedGalleries.value.length
 })
 
 const toggleSelectPage = () => {
-  const val = !isPageSelected.value
-  if (val) {
-    paginatedGalleries.value.forEach((g: DraftGallery) => selectedIds.value.add(g.gid))
+  if (isPageSelected.value) {
+    const pageIds = new Set(paginatedGalleries.value.map((g) => g.gid))
+    selectedIds.value = selectedIds.value.filter((id) => !pageIds.has(id))
   } else {
-    paginatedGalleries.value.forEach((g: DraftGallery) => selectedIds.value.delete(g.gid))
+    const toAdd = paginatedGalleries.value
+      .map((g) => g.gid)
+      .filter((id) => !selectedIds.value.includes(id))
+    selectedIds.value = [...selectedIds.value, ...toAdd]
   }
 }
 
@@ -143,7 +152,7 @@ const handlePlaceholder = (placeholder: string) => {
 }
 
 const handleAddSelectedToQueue = async () => {
-  if (selectedIds.value.size === 0) {
+  if (selectedIds.value.length === 0) {
     toast.add({
       severity: 'warn',
       summary: 'Warning',
@@ -154,7 +163,7 @@ const handleAddSelectedToQueue = async () => {
   }
 
   const selectedGalleriesList = galleries.value.filter((g) =>
-    selectedIds.value.has(g.gid),
+    selectedIds.value.includes(g.gid),
   )
   const jobId = `draft-${Date.now()}`
   downloadStore.addToQueue(
@@ -170,7 +179,7 @@ const handleAddSelectedToQueue = async () => {
     scraperStore.removeGallery(g.gid)
   })
 
-  selectedIds.value.clear()
+  selectedIds.value = []
   toast.add({
     severity: 'success',
     summary: 'Queued',
@@ -181,7 +190,8 @@ const handleAddSelectedToQueue = async () => {
 
 const handleDeleteGallery = (gid: string) => {
   scraperStore.removeGallery(gid)
-  selectedIds.value.delete(gid)
+  const idx = selectedIds.value.indexOf(gid)
+  if (idx !== -1) selectedIds.value.splice(idx, 1)
   if (paginatedGalleries.value.length === 0 && first.value > 0) {
     first.value = Math.max(0, first.value - pageSize.value)
   }
@@ -197,7 +207,7 @@ const handleClearDrafts = () => {
     acceptClass: 'p-button-danger',
     accept: () => {
       scraperStore.clearGalleries()
-      selectedIds.value.clear()
+      selectedIds.value = []
       first.value = 0
       toast.add({
         severity: 'success',
@@ -211,6 +221,7 @@ const handleClearDrafts = () => {
 
 watch(searchQuery, () => {
   first.value = 0
+  selectedIds.value = []
 })
 
 onMounted(async () => {
@@ -400,8 +411,8 @@ onMounted(async () => {
 
     <div class="flex gap-2">
       <Button
-        :label="`Start Download (${selectedIds.size} Selected)`"
-        :disabled="selectedIds.size === 0"
+        :label="`Start Download (${selectedIds.length} Selected)`"
+        :disabled="selectedIds.length === 0"
         class="w-full !bg-eh-border !border-eh-border !rounded-none !h-10 font-bold uppercase tracking-widest"
         @click="handleAddSelectedToQueue"
       />
