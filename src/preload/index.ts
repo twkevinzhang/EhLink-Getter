@@ -1,63 +1,60 @@
-import { contextBridge, ipcRenderer } from "electron";
-import { exposeElectronAPI } from "@electron-toolkit/preload";
+import { contextBridge, ipcRenderer } from 'electron'
+import { exposeElectronAPI } from '@electron-toolkit/preload'
 
 // Custom APIs for renderer
 const api = {
-  getConfig: () => ipcRenderer.invoke("get-config"),
-  checkSidecarHealth: () => ipcRenderer.invoke("check-sidecar-health"),
-  searchMetadata: (query: string) =>
-    ipcRenderer.invoke("search-metadata", query),
-  mapMetadata: (payload: any) => ipcRenderer.invoke("map-metadata", payload),
-  saveConfig: (config: any) => ipcRenderer.invoke("save-config", config),
+  getConfig: () => ipcRenderer.invoke('get-config'),
+  checkSidecarHealth: () => ipcRenderer.invoke('check-sidecar-health'),
+  searchMetadata: (query: string) => ipcRenderer.invoke('search-metadata', query),
+  mapMetadata: (payload: any) => ipcRenderer.invoke('map-metadata', payload),
+  saveConfig: (config: any) => ipcRenderer.invoke('save-config', config),
   getGalleryMetadata: (payload: { url: string }) =>
-    ipcRenderer.invoke("get-gallery-metadata", payload),
+    ipcRenderer.invoke('get-gallery-metadata', payload),
   fetchPage: (payload: { url: string; next?: string }) =>
-    ipcRenderer.invoke("fetch-page", payload),
+    ipcRenderer.invoke('fetch-page', payload),
   saveCSV: (payload: { path: string; results: any[] }) =>
-    ipcRenderer.invoke("save-csv", JSON.parse(JSON.stringify(payload))),
+    ipcRenderer.invoke('save-csv', JSON.parse(JSON.stringify(payload))),
   saveJSON: (payload: { path: string; data: any }) =>
-    ipcRenderer.invoke("save-json", JSON.parse(JSON.stringify(payload))),
-  readJSON: (payload: { path: string }) =>
-    ipcRenderer.invoke("read-json", payload),
+    ipcRenderer.invoke('save-json', JSON.parse(JSON.stringify(payload))),
+  readJSON: (payload: { path: string }) => ipcRenderer.invoke('read-json', payload),
   downloadImage: (payload: { url: string; savePath: string }) =>
-    ipcRenderer.invoke("download-image", payload),
-  selectDirectory: () => ipcRenderer.invoke("select-directory"),
-  selectSavePath: () => ipcRenderer.invoke("select-save-path"),
-  openFolder: (path?: string) => ipcRenderer.invoke("open-folder", path),
+    ipcRenderer.invoke('download-image', payload),
+  selectDirectory: () => ipcRenderer.invoke('select-directory'),
+  selectSavePath: () => ipcRenderer.invoke('select-save-path'),
+  openFolder: (path?: string) => ipcRenderer.invoke('open-folder', path),
   onLog: (callback: any) =>
-    ipcRenderer.on("python-log", (_event, value) => callback(value)),
+    ipcRenderer.on('python-log', (_event, value) => callback(value)),
   onProgress: (callback: any) =>
-    ipcRenderer.on("python-progress", (_event, value) => callback(value)),
+    ipcRenderer.on('python-progress', (_event, value) => callback(value)),
   onTaskComplete: (callback: any) =>
-    ipcRenderer.on("python-task-complete", (_event, value) => callback(value)),
-  getUserDataPath: () => ipcRenderer.invoke("get-user-data-path"),
-  getDownloadsPath: () => ipcRenderer.invoke("get-downloads-path"),
-  storeGet: (key: string) => ipcRenderer.invoke("electron-store-get", key),
-  storeSet: (key: string, val: any) =>
-    ipcRenderer.invoke("electron-store-set", key, val),
+    ipcRenderer.on('python-task-complete', (_event, value) => callback(value)),
+  getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
+  getDownloadsPath: () => ipcRenderer.invoke('get-downloads-path'),
+  storeGet: (key: string) => ipcRenderer.invoke('electron-store-get', key),
+  storeSet: (key: string, val: any) => ipcRenderer.invoke('electron-store-set', key, val),
   archiveFolder: (payload: {
-    folderPath: string;
-    outputPath: string;
-    password?: string;
-  }) => ipcRenderer.invoke("archive-folder", payload),
+    folderPath: string
+    outputPath: string
+    password?: string
+  }) => ipcRenderer.invoke('archive-folder', payload),
   onArchiveProgress: (callback: any) =>
-    ipcRenderer.on("archive-progress", (_event, value) => callback(value)),
-  loginEHentai: () => ipcRenderer.invoke("login-ehentai"),
-};
+    ipcRenderer.on('archive-progress', (_event, value) => callback(value)),
+  loginEHentai: () => ipcRenderer.invoke('login-ehentai'),
+}
 
 // Use `contextBridge` APIs to expose Electron APIs to
 // renderer only if context isolation is enabled, otherwise
 // just add to the DOM global.
 if (process.contextIsolated) {
   try {
-    exposeElectronAPI();
-    contextBridge.exposeInMainWorld("api", api);
+    exposeElectronAPI()
+    contextBridge.exposeInMainWorld('api', api)
   } catch (error) {
-    console.error(error);
+    console.error(error)
   }
 } else {
   // @ts-ignore (define in dts)
-  window.electron = electronAPI;
+  window.electron = electronAPI
   // @ts-ignore (define in dts)
-  window.api = api;
+  window.api = api
 }

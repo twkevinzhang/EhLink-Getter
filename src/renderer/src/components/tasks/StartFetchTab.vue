@@ -1,37 +1,35 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { CaretRight } from "@element-plus/icons-vue";
-import { useFetchStore } from "../../stores/fetch";
-import { ElMessage } from "element-plus";
+import { ref } from 'vue'
+import { CaretRight } from '@element-plus/icons-vue'
+import { useFetchStore } from '../../stores/fetch'
+import { ElMessage } from 'element-plus'
 
-const scraperStore = useFetchStore();
+const scraperStore = useFetchStore()
 
-const pageLink = ref("https://e-hentai.org/?f_cats=767");
-const fromPage = ref(1);
-const toPage = ref<string | number>(2);
+const pageLink = ref('https://e-hentai.org/?f_cats=767')
+const fromPage = ref(1)
+const toPage = ref<string | number>(2)
 
 const handleStartFetch = () => {
   if (!pageLink.value) {
-    ElMessage.warning("Please enter a page or search link");
-    return;
+    ElMessage.warning('Please enter a page or search link')
+    return
   }
 
   // Parse max pages from toPage
-  let maxPages = Infinity;
-  if (toPage.value !== "All" && toPage.value !== "") {
-    const parsed = parseInt(toPage.value.toString());
+  let maxPages = Infinity
+  if (toPage.value !== 'All' && toPage.value !== '') {
+    const parsed = parseInt(toPage.value.toString())
     if (!isNaN(parsed) && parsed > 0) {
-      maxPages = parsed;
+      maxPages = parsed
     }
   }
 
   scraperStore
     .startFetching(pageLink.value, maxPages)
-    .then(() => ElMessage.success("Fetching task started"))
-    .catch((err) =>
-      ElMessage.error(`Failed to start fetching: ${err.message}`),
-    );
-};
+    .then(() => ElMessage.success('Fetching task started'))
+    .catch((err) => ElMessage.error(`Failed to start fetching: ${err.message}`))
+}
 </script>
 
 <template>

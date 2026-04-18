@@ -14,7 +14,8 @@
     "build:sidecar": "cd sidecar && make build",
     "postinstall": "electron-builder install-app-deps",
     "start": "electron-vite preview",
-    "dev": "electron-vite dev"
+    "dev": "electron-vite dev",
+    "prepare": "husky"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^3.0.0",
@@ -34,6 +35,8 @@
     "@element-plus/icons-vue": "^2.3.2",
     "@rushstack/eslint-patch": "^1.6.0",
     "@types/node": "^20.10.4",
+    "@typescript-eslint/eslint-plugin": "^8.58.2",
+    "@typescript-eslint/parser": "^8.58.2",
     "@vitejs/plugin-vue": "^4.5.1",
     "@vue/eslint-config-prettier": "^8.0.0",
     "@vue/tsconfig": "^0.5.0",
@@ -43,16 +46,31 @@
     "electron-vite": "^2.0.0",
     "element-plus": "^2.4.4",
     "eslint": "^8.55.0",
+    "eslint-plugin-frontmatter": "^0.0.8",
+    "eslint-plugin-md": "^1.0.19",
+    "eslint-plugin-prettier-vue": "^5.0.0",
     "eslint-plugin-vue": "^9.19.2",
+    "husky": "^9.1.7",
     "less": "^4.2.0",
+    "lint-staged": "^16.4.0",
+    "markdown-eslint-parser": "^1.2.1",
     "pinia": "^2.1.7",
     "postcss": "^8.5.6",
-    "prettier": "^3.1.0",
+    "prettier": "^3.8.3",
     "tailwindcss": "3.4.17",
     "typescript": "^5.9.3",
     "vite": "^5.0.7",
     "vue": "^3.3.11",
     "vue-tsc": "^3.2.1"
   },
-  "packageManager": "pnpm@10.8.1+sha512.c50088ba998c67b8ca8c99df8a5e02fd2ae2e2b29aaf238feaa9e124248d3f48f9fb6db2424949ff901cffbb5e0f0cc1ad6aedb602cd29450751d11c35023677"
+  "packageManager": "pnpm@10.8.1+sha512.c50088ba998c67b8ca8c99df8a5e02fd2ae2e2b29aaf238feaa9e124248d3f48f9fb6db2424949ff901cffbb5e0f0cc1ad6aedb602cd29450751d11c35023677",
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,vue}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,css,less}": [
+      "prettier --write"
+    ]
+  }
 }

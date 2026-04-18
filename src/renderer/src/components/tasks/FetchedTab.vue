@@ -1,233 +1,211 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from "vue";
-import { Folder, Delete, Plus } from "@element-plus/icons-vue";
-import { ElMessage, ElMessageBox } from "element-plus";
-import { useFetchStore } from "../../stores/fetch";
-import { useDownloadStore } from "../../stores/download";
-import { useConfigStore } from "../../stores/config";
-import { storeToRefs } from "pinia";
+import { ref, computed, watch, onMounted } from 'vue'
+import { Folder, Delete, Plus } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { useFetchStore } from '../../stores/fetch'
+import { useDownloadStore } from '../../stores/download'
+import { useConfigStore } from '../../stores/config'
+import { storeToRefs } from 'pinia'
 
-const scraperStore = useFetchStore();
-const downloadStore = useDownloadStore();
-const configStore = useConfigStore();
-const { galleries } = storeToRefs(scraperStore);
+const scraperStore = useFetchStore()
+const downloadStore = useDownloadStore()
+const configStore = useConfigStore()
+const { galleries } = storeToRefs(scraperStore)
 
 interface DraftGallery {
-  id: string;
-  title: string;
-  link: string;
+  id: string
+  title: string
+  link: string
 }
 
-const targetPath = ref("");
-const useZip = ref(true);
-const zipPass = ref("");
-const manualUrl = ref("");
+const targetPath = ref('')
+const useZip = ref(true)
+const zipPass = ref('')
+const manualUrl = ref('')
 
 // Pagination state
-const currentPage = ref(1);
-const pageSize = ref(20);
+const currentPage = ref(1)
+const pageSize = ref(20)
 
 // Filter state
-const searchQuery = ref("");
+const searchQuery = ref('')
 
 // Tab state for selecting all
-const selectedIds = ref<Set<string>>(new Set());
+const selectedIds = ref<Set<string>>(new Set())
 
-const isGallerySelected = (id: string) => selectedIds.value.has(id);
+const isGallerySelected = (id: string) => selectedIds.value.has(id)
 
 const toggleGallery = (id: string) => {
   if (selectedIds.value.has(id)) {
-    selectedIds.value.delete(id);
+    selectedIds.value.delete(id)
   } else {
-    selectedIds.value.add(id);
+    selectedIds.value.add(id)
   }
-};
+}
 
 const isAllSelected = computed(() => {
   return (
     filteredGalleries.value.length > 0 &&
-    filteredGalleries.value.every((g: DraftGallery) =>
-      selectedIds.value.has(g.id),
-    )
-  );
-});
+    filteredGalleries.value.every((g: DraftGallery) => selectedIds.value.has(g.id))
+  )
+})
 
 const isIndeterminate = computed(() => {
   const selectedInFiltered = filteredGalleries.value.filter((g: DraftGallery) =>
     selectedIds.value.has(g.id),
-  ).length;
-  return (
-    selectedInFiltered > 0 &&
-    selectedInFiltered < filteredGalleries.value.length
-  );
-});
+  ).length
+  return selectedInFiltered > 0 && selectedInFiltered < filteredGalleries.value.length
+})
 
 const toggleSelectAll = (val: boolean) => {
   if (val) {
-    filteredGalleries.value.forEach((g: DraftGallery) =>
-      selectedIds.value.add(g.id),
-    );
+    filteredGalleries.value.forEach((g: DraftGallery) => selectedIds.value.add(g.id))
   } else {
-    filteredGalleries.value.forEach((g: DraftGallery) =>
-      selectedIds.value.delete(g.id),
-    );
+    filteredGalleries.value.forEach((g: DraftGallery) => selectedIds.value.delete(g.id))
   }
-};
+}
 
 // Filter Computed
 const filteredGalleries = computed(() => {
-  const query = searchQuery.value.toLowerCase().trim();
-  if (!query) return galleries.value;
+  const query = searchQuery.value.toLowerCase().trim()
+  if (!query) return galleries.value
   return galleries.value.filter(
     (g: DraftGallery) =>
-      g.title.toLowerCase().includes(query) ||
-      g.link.toLowerCase().includes(query),
-  );
-});
+      g.title.toLowerCase().includes(query) || g.link.toLowerCase().includes(query),
+  )
+})
 
 // Pagination Computed
 const paginatedGalleries = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value;
-  const end = start + pageSize.value;
-  return filteredGalleries.value.slice(start, end);
-});
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return filteredGalleries.value.slice(start, end)
+})
 
 const isPageSelected = computed(() => {
-  if (paginatedGalleries.value.length === 0) return false;
-  return paginatedGalleries.value.every((g: DraftGallery) =>
-    selectedIds.value.has(g.id),
-  );
-});
+  if (paginatedGalleries.value.length === 0) return false
+  return paginatedGalleries.value.every((g: DraftGallery) => selectedIds.value.has(g.id))
+})
 
 const isPageIndeterminate = computed(() => {
   const pageSelectedCount = paginatedGalleries.value.filter((g: DraftGallery) =>
     selectedIds.value.has(g.id),
-  ).length;
-  return (
-    pageSelectedCount > 0 && pageSelectedCount < paginatedGalleries.value.length
-  );
-});
+  ).length
+  return pageSelectedCount > 0 && pageSelectedCount < paginatedGalleries.value.length
+})
 
 const toggleSelectPage = (val: boolean) => {
   if (val) {
-    paginatedGalleries.value.forEach((g: DraftGallery) =>
-      selectedIds.value.add(g.id),
-    );
+    paginatedGalleries.value.forEach((g: DraftGallery) => selectedIds.value.add(g.id))
   } else {
-    paginatedGalleries.value.forEach((g: DraftGallery) =>
-      selectedIds.value.delete(g.id),
-    );
+    paginatedGalleries.value.forEach((g: DraftGallery) => selectedIds.value.delete(g.id))
   }
-};
+}
 
 const handleAddManual = () => {
   try {
-    if (!manualUrl.value) return;
-    scraperStore.addGallery(manualUrl.value);
-    manualUrl.value = "";
-    ElMessage.success("Gallery added to draft");
+    if (!manualUrl.value) return
+    scraperStore.addGallery(manualUrl.value)
+    manualUrl.value = ''
+    ElMessage.success('Gallery added to draft')
   } catch (error: any) {
-    ElMessage.error(error.message);
+    ElMessage.error(error.message)
   }
-};
+}
 
 const handleBrowse = async () => {
   try {
-    const result = await window.api.selectDirectory();
+    const result = await window.api.selectDirectory()
     if (result) {
-      targetPath.value = result;
+      targetPath.value = result
     }
   } catch (error) {
-    ElMessage.error("Failed to select folder");
+    ElMessage.error('Failed to select folder')
   }
-};
+}
 
 const handlePlaceholder = (placeholder: string) => {
-  targetPath.value = (targetPath.value || "") + placeholder;
-};
+  targetPath.value = (targetPath.value || '') + placeholder
+}
 
 const handleAddSelectedToQueue = async () => {
   if (selectedIds.value.size === 0) {
-    ElMessage.warning("No galleries selected");
-    return;
+    ElMessage.warning('No galleries selected')
+    return
   }
 
-  const selectedGalleriesList = galleries.value.filter((g) =>
-    selectedIds.value.has(g.id),
-  );
+  const selectedGalleriesList = galleries.value.filter((g) => selectedIds.value.has(g.id))
 
   // Group into a single job or separate?
   // For Draft list, users might expect them to be added together.
-  const jobId = `draft-${Date.now()}`;
+  const jobId = `draft-${Date.now()}`
   downloadStore.addToQueue(
     jobId,
-    "Draft Selection",
+    'Draft Selection',
     selectedGalleriesList,
     useZip.value,
     zipPass.value,
-  );
+  )
 
   // Remove from drafts
   selectedGalleriesList.forEach((g) => {
-    scraperStore.removeGallery(g.id);
-  });
+    scraperStore.removeGallery(g.id)
+  })
 
-  selectedIds.value.clear();
-  ElMessage.success(
-    `Added ${selectedGalleriesList.length} galleries to download queue`,
-  );
-};
+  selectedIds.value.clear()
+  ElMessage.success(`Added ${selectedGalleriesList.length} galleries to download queue`)
+}
 
 const handleDeleteGallery = (id: string) => {
-  scraperStore.removeGallery(id);
-  selectedIds.value.delete(id);
+  scraperStore.removeGallery(id)
+  selectedIds.value.delete(id)
   // Adjust page if current page became empty
   if (paginatedGalleries.value.length === 0 && currentPage.value > 1) {
-    currentPage.value--;
+    currentPage.value--
   }
-};
+}
 
 const handleClearDrafts = async () => {
   try {
     await ElMessageBox.confirm(
-      "This will clear all items in the draft list. Continue?",
-      "Warning",
+      'This will clear all items in the draft list. Continue?',
+      'Warning',
       {
-        confirmButtonText: "Clear All",
-        cancelButtonText: "Cancel",
-        type: "warning",
+        confirmButtonText: 'Clear All',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
       },
-    );
-    scraperStore.clearGalleries();
-    selectedIds.value.clear();
-    currentPage.value = 1;
-    ElMessage.success("Draft list cleared");
+    )
+    scraperStore.clearGalleries()
+    selectedIds.value.clear()
+    currentPage.value = 1
+    ElMessage.success('Draft list cleared')
   } catch (error) {
     // User cancelled
   }
-};
+}
 
 // Update config when target path changes
-watch(targetPath, (val) => configStore.updateConfig({ download_path: val }));
+watch(targetPath, (val) => configStore.updateConfig({ download_path: val }))
 
 // Reset page when filter changes
 watch(searchQuery, () => {
-  currentPage.value = 1;
-});
+  currentPage.value = 1
+})
 
 // Initialize default download path
 onMounted(async () => {
-  if (!targetPath.value || targetPath.value.trim() === "") {
+  if (!targetPath.value || targetPath.value.trim() === '') {
     try {
-      const defaultPath = await window.api.getDownloadsPath();
+      const defaultPath = await window.api.getDownloadsPath()
       if (defaultPath) {
-        targetPath.value = defaultPath + "/{EN_TITLE}";
+        targetPath.value = defaultPath + '/{EN_TITLE}'
       }
     } catch (error) {
-      console.error("Failed to get default downloads path:", error);
+      console.error('Failed to get default downloads path:', error)
     }
   }
-});
+})
 </script>
 
 <template>
@@ -241,9 +219,7 @@ onMounted(async () => {
           placeholder="https://e-hentai.org/g/XXXXX/XXXXXX/"
           @keyup.enter="handleAddManual"
         />
-        <el-button type="primary" :icon="Plus" @click="handleAddManual"
-          >Add</el-button
-        >
+        <el-button type="primary" :icon="Plus" @click="handleAddManual">Add</el-button>
       </div>
     </div>
 
@@ -254,12 +230,10 @@ onMounted(async () => {
       </div>
 
       <!-- Filter Input or Action -->
-      <div
-        class="flex px-4 py-2 border-b border-eh-border/50 bg-eh-panel/5 gap-4"
-      >
+      <div class="flex px-4 py-2 border-b border-eh-border/50 bg-eh-panel/5 gap-4">
         <el-input
-          class="w-1/2"
           v-model="searchQuery"
+          class="w-1/2"
           placeholder="Filter by title or link..."
           size="small"
           clearable
@@ -267,21 +241,19 @@ onMounted(async () => {
 
         <div class="flex items-center gap-2">
           <el-checkbox
-            :model-value="isPageSelected"
+            :modelValue="isPageSelected"
             :indeterminate="isPageIndeterminate"
-            @change="toggleSelectPage"
             class="!mr-0"
+            @change="toggleSelectPage"
           />
-          <span class="text-[10px] uppercase font-bold text-eh-accent"
-            >Select Page</span
-          >
+          <span class="text-[10px] uppercase font-bold text-eh-accent">Select Page</span>
         </div>
         <div class="flex items-center gap-2">
           <el-checkbox
-            :model-value="isAllSelected"
+            :modelValue="isAllSelected"
             :indeterminate="isIndeterminate"
-            @change="toggleSelectAll"
             class="!mr-0"
+            @change="toggleSelectAll"
           />
           <span class="text-[10px] uppercase font-bold text-eh-accent"
             >Select Filtered</span
@@ -305,7 +277,7 @@ onMounted(async () => {
             "
           >
             <el-checkbox
-              :model-value="isGallerySelected(g.id)"
+              :modelValue="isGallerySelected(g.id)"
               @change="toggleGallery(g.id)"
             />
             <div class="flex-1 min-w-0">
@@ -344,8 +316,8 @@ onMounted(async () => {
         class="p-2 border-t border-eh-border flex justify-center bg-eh-panel/10"
       >
         <el-pagination
-          v-model:current-page="currentPage"
-          :page-size="pageSize"
+          v-model:currentPage="currentPage"
+          :pageSize="pageSize"
           layout="prev, pager, next"
           :total="filteredGalleries.length"
           small
@@ -366,19 +338,13 @@ onMounted(async () => {
             <el-button size="small" @click="handleBrowse">Browse</el-button>
           </div>
           <div class="flex gap-2 mt-1">
-            <el-button
-              size="small"
-              plain
-              @click="handlePlaceholder('{EN_TITLE}')"
+            <el-button size="small" plain @click="handlePlaceholder('{EN_TITLE}')"
               >{EN_TITLE}</el-button
             >
             <el-button size="small" plain @click="handlePlaceholder('{ID}')"
               >{ID}</el-button
             >
-            <el-button
-              size="small"
-              plain
-              @click="handlePlaceholder('{JP_TITLE}')"
+            <el-button size="small" plain @click="handlePlaceholder('{JP_TITLE}')"
               >{JP_TITLE}</el-button
             >
           </div>
@@ -386,9 +352,7 @@ onMounted(async () => {
 
         <div class="flex items-center gap-4 mt-2">
           <div class="flex items-center gap-2">
-            <span class="text-[10px] text-eh-muted font-bold uppercase"
-              >Archive</span
-            >
+            <span class="text-[10px] text-eh-muted font-bold uppercase">Archive</span>
             <el-switch
               v-model="useZip"
               size="small"
@@ -396,9 +360,7 @@ onMounted(async () => {
             />
           </div>
           <div v-if="useZip" class="flex items-center gap-2 flex-1">
-            <span class="text-[10px] text-eh-muted font-bold uppercase"
-              >password:</span
-            >
+            <span class="text-[10px] text-eh-muted font-bold uppercase">password:</span>
             <el-input
               v-model="zipPass"
               size="small"

@@ -1,0 +1,7 @@
+node_modules
+dist
+out
+*.min.js
+sidecar/sidecar
+sidecar/vendor
+pnpm-lock.yaml

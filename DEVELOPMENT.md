@@ -27,12 +27,14 @@ EhLink-Getter follows a **hybrid architecture** combining the strengths of Elect
 ### Installation
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/twkevinzhang/EhLink-Getter.git
    cd EhLink-Getter
    ```
 
 2. Install Node.js dependencies:
+
    ```bash
    pnpm install
    ```
@@ -56,13 +58,17 @@ pnpm run dev
 ## Building & Packaging
 
 ### 1. Build the Go Sidecar
+
 Ensure the sidecar binary is compiled for your target platform:
+
 ```bash
 pnpm run build:sidecar
 ```
 
 ### 2. Package the Electron Application
+
 Use electron-builder to create a distributable package:
+
 ```bash
 pnpm run build:win  # For Windows
 pnpm run build:mac  # For macOS

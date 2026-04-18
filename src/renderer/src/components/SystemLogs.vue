@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { useLogStore } from "../stores/logs";
+import { useLogStore } from '../stores/logs'
 
-const store = useLogStore();
+const store = useLogStore()
 </script>
 
 <template>

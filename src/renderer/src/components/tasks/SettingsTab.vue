@@ -1,96 +1,92 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue";
-import { useConfigStore } from "../../stores/config";
-import { ElMessage, ElMessageBox } from "element-plus";
-import { Position, SwitchButton } from "@element-plus/icons-vue";
+import { ref, onMounted, computed } from 'vue'
+import { useConfigStore } from '../../stores/config'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Position, SwitchButton } from '@element-plus/icons-vue'
 
-const configStore = useConfigStore();
+const configStore = useConfigStore()
 
 // Local refs for editing
-const metadataPath = ref("");
-const storageStrategy = ref<"logical" | "traditional">("logical");
-const proxyPool = ref("");
-const scanThreads = ref(3);
-const downloadThreads = ref(5);
-const cookies = ref("");
+const metadataPath = ref('')
+const storageStrategy = ref<'logical' | 'traditional'>('logical')
+const proxyPool = ref('')
+const scanThreads = ref(3)
+const downloadThreads = ref(5)
+const cookies = ref('')
 
 // Computed based directly on store for SSOT
 const parsedCookies = computed(() => {
   try {
-    return JSON.parse(configStore.config.cookies || "[]");
+    return JSON.parse(configStore.config.cookies || '[]')
   } catch (e) {
-    return [];
+    return []
   }
-});
+})
 
 const isLoggedIn = computed(() => {
-  return parsedCookies.value.some(
-    (c: any) => c.name === "ipb_member_id" && c.value,
-  );
-});
+  return parsedCookies.value.some((c: any) => c.name === 'ipb_member_id' && c.value)
+})
 
 const memberId = computed(() => {
-  const cookie = parsedCookies.value.find((c: any) => c.name === "ipb_member_id");
-  return cookie ? cookie.value : null;
-});
+  const cookie = parsedCookies.value.find((c: any) => c.name === 'ipb_member_id')
+  return cookie ? cookie.value : null
+})
 
 onMounted(() => {
   // Initialize from store
-  storageStrategy.value = configStore.config.storage_strategy;
-  proxyPool.value = configStore.config.proxies.join("\n");
-  scanThreads.value = configStore.config.scan_thread_cnt;
-  downloadThreads.value = configStore.config.download_thread_cnt;
-  cookies.value = configStore.config.cookies || "";
-});
+  storageStrategy.value = configStore.config.storage_strategy
+  proxyPool.value = configStore.config.proxies.join('\n')
+  scanThreads.value = configStore.config.scan_thread_cnt
+  downloadThreads.value = configStore.config.download_thread_cnt
+  cookies.value = configStore.config.cookies || ''
+})
 
 const handleSave = () => {
   const newConfig = {
     storage_strategy: storageStrategy.value,
     proxies: proxyPool.value
-      .split("\n")
+      .split('\n')
       .map((p) => p.trim())
       .filter((p) => p.length > 0),
     scan_thread_cnt: scanThreads.value,
     download_thread_cnt: downloadThreads.value,
     cookies: configStore.config.cookies, // Use store value
     download_path: configStore.config.download_path, // Keep existing
-  };
+  }
 
-  configStore.updateConfig(newConfig);
-  ElMessage.success("Settings saved and synced to backend");
-};
+  configStore.updateConfig(newConfig)
+  ElMessage.success('Settings saved and synced to backend')
+}
 
 const handleLogin = async () => {
   try {
-    const result = await window.api.loginEHentai();
+    const result = await window.api.loginEHentai()
     if (result.success && result.cookies) {
       // Sync immediately to store (and thus localStorage)
-      configStore.updateConfig({ ...configStore.config, cookies: result.cookies });
-      ElMessage.success(
-        "Successfully logged in and captured cookies. Settings synced.",
-      );
+      configStore.updateConfig({ ...configStore.config, cookies: result.cookies })
+      ElMessage.success('Successfully logged in and captured cookies. Settings synced.')
     } else if (result.error) {
-      ElMessage.warning(result.error);
+      ElMessage.warning(result.error)
     }
   } catch (error: any) {
-    ElMessage.error(`Login failed: ${error.message}`);
+    ElMessage.error(`Login failed: ${error.message}`)
   }
-};
+}
 
 const handleLogout = () => {
-  ElMessageBox.confirm("Are you sure you want to logout?", "Warning", {
-    confirmButtonText: "Logout",
-    cancelButtonText: "Cancel",
-    type: "warning",
+  ElMessageBox.confirm('Are you sure you want to logout?', 'Warning', {
+    confirmButtonText: 'Logout',
+    cancelButtonText: 'Cancel',
+    type: 'warning',
   })
     .then(() => {
-      cookies.value = "";
+      cookies.value = ''
       // Sync immediately to store (and thus localStorage)
-      configStore.updateConfig({ ...configStore.config, cookies: "" });
-      ElMessage.success("Logged out successfully");
+      configStore.updateConfig({ ...configStore.config, cookies: '' })
+      ElMessage.success('Logged out successfully')
     })
-    .catch(() => {});
-};
+    .catch(() => {})
+}
 </script>
 
 <template>
@@ -99,9 +95,7 @@ const handleLogout = () => {
       <div class="eh-header">Core Configuration</div>
       <div class="p-4 flex flex-col gap-3">
         <div class="flex items-center justify-between mt-2">
-          <label class="text-xs text-eh-muted font-bold uppercase"
-            >Cookies
-          </label>
+          <label class="text-xs text-eh-muted font-bold uppercase">Cookies </label>
           <el-button
             v-if="!isLoggedIn"
             type="primary"
@@ -112,13 +106,7 @@ const handleLogout = () => {
             <el-icon class="mr-1"><Position /></el-icon>
             Login to E-Hentai
           </el-button>
-          <el-button
-            v-else
-            type="danger"
-            link
-            size="small"
-            @click="handleLogout"
-          >
+          <el-button v-else type="danger" link size="small" @click="handleLogout">
             <el-icon class="mr-1"><SwitchButton /></el-icon>
             Logout
           </el-button>
@@ -129,18 +117,14 @@ const handleLogout = () => {
             class="mt-1 p-3 bg-eh-surface-hover border border-eh-border rounded flex items-center justify-between"
           >
             <div class="flex flex-col">
-              <span class="text-xs text-eh-muted uppercase font-bold"
-                >Status</span
-              >
+              <span class="text-xs text-eh-muted uppercase font-bold">Status</span>
               <span class="text-sm text-green-400 font-bold"
                 >Logged in as ID: {{ memberId }}</span
               >
             </div>
             <div class="flex items-center gap-2">
               <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-              <span class="text-[10px] text-eh-muted uppercase"
-                >Session Active</span
-              >
+              <span class="text-[10px] text-eh-muted uppercase">Session Active</span>
             </div>
           </div>
           <span class="text-[10px] text-eh-muted italic px-1 mt-1">
@@ -153,11 +137,14 @@ const handleLogout = () => {
           </span>
           <el-input
             class="border border-eh-border"
-            :model-value="configStore.config.cookies"
-            @update:model-value="(val) => configStore.updateConfig({ ...configStore.config, cookies: val })"
+            :modelValue="configStore.config.cookies"
             type="textarea"
             :rows="4"
             placeholder="For ExHentai access"
+            @update:modelValue="
+              (val: any) =>
+                configStore.updateConfig({ ...configStore.config, cookies: val })
+            "
           />
         </template>
       </div>
@@ -189,9 +176,7 @@ const handleLogout = () => {
         </div>
         <div class="flex gap-10">
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-eh-muted font-bold uppercase"
-              >Scan Threads:</label
-            >
+            <label class="text-xs text-eh-muted font-bold uppercase">Scan Threads:</label>
             <el-input-number v-model="scanThreads" :min="1" :max="10" />
           </div>
           <div class="flex flex-col gap-1">

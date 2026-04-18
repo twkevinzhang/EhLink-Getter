@@ -120,7 +120,6 @@ jobs:
             go build -o ../dist/sidecar/sidecar ./cmd/sidecar/main.go
           fi
 
-
       - name: Build App Assets
         run: |
           pnpm run typecheck && pnpm exec electron-vite build

@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { Search } from "@element-plus/icons-vue";
-import { useDownloadStore } from "../stores/download";
-import { useConfigStore } from "../stores/config";
-import { ElMessage } from "element-plus";
+import { ref } from 'vue'
+import { Search } from '@element-plus/icons-vue'
+import { useDownloadStore } from '../stores/download'
+import { useConfigStore } from '../stores/config'
+import { ElMessage } from 'element-plus'
 
-const downloadStore = useDownloadStore();
-const configStore = useConfigStore();
-const searchTag = ref("");
-const ratings = ref(0);
-const expunged = ref(false);
+const downloadStore = useDownloadStore()
+const configStore = useConfigStore()
+const searchTag = ref('')
+const ratings = ref(0)
+const expunged = ref(false)
 
 const handleSearch = async () => {
   try {
@@ -18,52 +18,52 @@ const handleSearch = async () => {
       keywords: searchTag.value,
       // Requesting all common fields from metadata.json
       fields: [
-        "title",
-        "link",
-        "rating",
-        "category",
-        "thumb",
-        "language",
-        "posted",
-        "uploader",
-        "gid",
-        "tags",
+        'title',
+        'link',
+        'rating',
+        'category',
+        'thumb',
+        'language',
+        'posted',
+        'uploader',
+        'gid',
+        'tags',
       ],
-    };
-    const response = await window.api.mapMetadata(payload);
+    }
+    const response = await window.api.mapMetadata(payload)
     if (response && response.results) {
-      downloadStore.libraryGalleries = response.results;
-      ElMessage.success(`Found ${response.results.length} galleries`);
+      downloadStore.libraryGalleries = response.results
+      ElMessage.success(`Found ${response.results.length} galleries`)
     } else if (response && response.error) {
-      ElMessage.error(`Search failed: ${response.error}`);
+      ElMessage.error(`Search failed: ${response.error}`)
     }
   } catch (error: any) {
-    ElMessage.error(`Search failed: ${error.message}`);
+    ElMessage.error(`Search failed: ${error.message}`)
   }
-};
+}
 
 const handleOpenLink = (link: string) => {
   if (window.api && window.api.openFolder) {
-    window.api.openFolder(link);
+    window.api.openFolder(link)
   }
-};
+}
 
 const getCategoryClass = (cat: string) => {
-  const c = (cat || "").toLowerCase();
-  if (c.includes("doujinshi")) return "bg-eh-cat-doujinshi";
-  if (c.includes("manga")) return "bg-eh-cat-manga";
-  if (c.includes("artist")) return "bg-eh-cat-artistcg";
-  if (c.includes("game")) return "bg-eh-cat-gamecg";
-  if (c.includes("non-h")) return "bg-eh-cat-non-h";
-  if (c.includes("cosplay")) return "bg-eh-cat-cosplay";
-  return "bg-gray-500";
-};
+  const c = (cat || '').toLowerCase()
+  if (c.includes('doujinshi')) return 'bg-eh-cat-doujinshi'
+  if (c.includes('manga')) return 'bg-eh-cat-manga'
+  if (c.includes('artist')) return 'bg-eh-cat-artistcg'
+  if (c.includes('game')) return 'bg-eh-cat-gamecg'
+  if (c.includes('non-h')) return 'bg-eh-cat-non-h'
+  if (c.includes('cosplay')) return 'bg-eh-cat-cosplay'
+  return 'bg-gray-500'
+}
 
 const formatPosted = (ts: any) => {
-  if (!ts) return "Unknown date";
-  if (typeof ts === "number") return new Date(ts * 1000).toLocaleString();
-  return ts;
-};
+  if (!ts) return 'Unknown date'
+  if (typeof ts === 'number') return new Date(ts * 1000).toLocaleString()
+  return ts
+}
 </script>
 
 <template>
@@ -104,14 +104,8 @@ const formatPosted = (ts: any) => {
           <div
             class="w-[120px] aspect-[2/3] bg-eh-panel border-r border-eh-border flex items-center justify-center text-eh-muted shrink-0 overflow-hidden"
           >
-            <img
-              v-if="g.thumb"
-              :src="g.thumb"
-              class="w-full h-full object-cover"
-            />
-            <span v-else class="text-[10px] text-center px-1"
-              >[ No Thumb ]</span
-            >
+            <img v-if="g.thumb" :src="g.thumb" class="w-full h-full object-cover" />
+            <span v-else class="text-[10px] text-center px-1">[ No Thumb ]</span>
           </div>
 
           <!-- Metadata Section -->
@@ -121,11 +115,8 @@ const formatPosted = (ts: any) => {
                 class="font-bold text-eh-text hover:underline text-sm leading-tight line-clamp-2"
                 >{{ g.title }}</span
               >
-              <div
-                class="cat-badge shrink-0"
-                :class="getCategoryClass(g.category)"
-              >
-                {{ g.category || "Unknown" }}
+              <div class="cat-badge shrink-0" :class="getCategoryClass(g.category)">
+                {{ g.category || 'Unknown' }}
               </div>
             </div>
 
@@ -143,9 +134,7 @@ const formatPosted = (ts: any) => {
               >
                 {{ tag }}
               </span>
-              <span
-                v-if="(g.tags || []).length > 5"
-                class="text-[10px] text-eh-muted"
+              <span v-if="(g.tags || []).length > 5" class="text-[10px] text-eh-muted"
                 >...</span
               >
             </div>
@@ -154,11 +143,7 @@ const formatPosted = (ts: any) => {
               class="flex items-center justify-between text-[11px] text-eh-muted mt-auto"
             >
               <div class="flex items-center gap-2">
-                <el-rate
-                  :model-value="Number(g.rating) || 0"
-                  disabled
-                  size="small"
-                />
+                <el-rate :modelValue="Number(g.rating) || 0" disabled size="small" />
                 <span>{{ g.rating }}</span>
               </div>
               <div class="flex items-center gap-3">
@@ -172,10 +157,7 @@ const formatPosted = (ts: any) => {
           v-if="downloadStore.libraryGalleries.length === 0"
           class="text-center py-20 text-eh-muted"
         >
-          <p>
-            No galleries found. Ensure "Metadata DB Path" is correct in
-            Settings.
-          </p>
+          <p>No galleries found. Ensure "Metadata DB Path" is correct in Settings.</p>
         </div>
       </div>
     </div>
@@ -184,7 +166,7 @@ const formatPosted = (ts: any) => {
       <el-pagination
         layout="prev, pager, next"
         :total="downloadStore.libraryGalleries.length"
-        :page-size="100"
+        :pageSize="100"
       />
     </div>
   </div>

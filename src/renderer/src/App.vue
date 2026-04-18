@@ -1,33 +1,31 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { useLogStore } from "./stores/logs";
-import { useConfigStore } from "./stores/config";
-import { useDownloadStore } from "./stores/download";
-import TaskManager from "./views/TaskManager.vue";
-import Library from "./views/Library.vue";
-import SystemLogs from "./components/SystemLogs.vue";
-import { Monitor, Search, DataLine } from "@element-plus/icons-vue";
+import { ref, onMounted } from 'vue'
+import { useLogStore } from './stores/logs'
+import { useConfigStore } from './stores/config'
+import { useDownloadStore } from './stores/download'
+import TaskManager from './views/TaskManager.vue'
+import Library from './views/Library.vue'
+import SystemLogs from './components/SystemLogs.vue'
+import { Monitor, Search, DataLine } from '@element-plus/icons-vue'
 
-const logStore = useLogStore();
-const configStore = useConfigStore();
-const downloadStore = useDownloadStore();
-const activeTab = ref("task-manager");
+const logStore = useLogStore()
+const configStore = useConfigStore()
+const downloadStore = useDownloadStore()
+const activeTab = ref('task-manager')
 
 onMounted(() => {
   // Listen to sidecar events
   window.api.onLog((log: any) => {
-    logStore.addLog(log);
-  });
+    logStore.addLog(log)
+  })
   window.api.onProgress((progress: any) => {
-    downloadStore.updateDownloadProgress(progress);
-  });
-});
+    downloadStore.updateDownloadProgress(progress)
+  })
+})
 </script>
 
 <template>
-  <div
-    class="h-screen w-screen flex flex-col bg-eh-bg text-eh-muted overflow-hidden p-2"
-  >
+  <div class="h-screen w-screen flex flex-col bg-eh-bg text-eh-muted overflow-hidden p-2">
     <!-- Main Decorative Border Container -->
     <div
       class="flex-1 flex border border-eh-border rounded-sm overflow-hidden bg-eh-bg shadow-[0_0_10px_rgba(0,0,0,0.1)]"
@@ -42,9 +40,7 @@ onMounted(() => {
           <div
             class="p-4 border-b border-eh-border bg-eh-panel flex flex-col items-center gap-1"
           >
-            <div
-              class="text-[10px] uppercase tracking-widest text-eh-text font-bold"
-            >
+            <div class="text-[10px] uppercase tracking-widest text-eh-text font-bold">
               E-Hentai
             </div>
             <div
@@ -55,7 +51,7 @@ onMounted(() => {
           </div>
 
           <el-menu
-            :default-active="activeTab"
+            :defaultActive="activeTab"
             class="!bg-transparent !border-r-0 flex-1 pt-4"
             @select="(key: string) => (activeTab = key)"
           >
@@ -74,20 +70,17 @@ onMounted(() => {
           </el-menu>
 
           <div class="p-4 border-t border-eh-border bg-eh-panel">
-            <div
-              class="flex items-center gap-2 text-[0.7rem] text-eh-text font-bold"
-            >
+            <div class="flex items-center gap-2 text-[0.7rem] text-eh-text font-bold">
               <div
                 class="w-1.5 h-1.5 rounded-full"
                 :class="{
                   'bg-green-500 animate-pulse shadow-[0_0_5px_#22c55e]':
                     configStore.sidecarOnline,
-                  'bg-red-500 shadow-[0_0_5px_#ef4444]':
-                    !configStore.sidecarOnline,
+                  'bg-red-500 shadow-[0_0_5px_#ef4444]': !configStore.sidecarOnline,
                 }"
               ></div>
               <span>
-                SIDECAR: {{ configStore.sidecarOnline ? "ONLINE" : "OFFLINE" }}
+                SIDECAR: {{ configStore.sidecarOnline ? 'ONLINE' : 'OFFLINE' }}
               </span>
             </div>
           </div>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { useDownloadStore } from "../../stores/download";
-import { storeToRefs } from "pinia";
-import { ElMessage } from "element-plus";
+import { useDownloadStore } from '../../stores/download'
+import { storeToRefs } from 'pinia'
+import { ElMessage } from 'element-plus'
 import {
   Folder,
   Files,
@@ -13,47 +13,45 @@ import {
   ArrowDown,
   Close,
   Remove,
-} from "@element-plus/icons-vue";
+} from '@element-plus/icons-vue'
 
-const downloadStore = useDownloadStore();
-const { downloadingJobs } = storeToRefs(downloadStore);
+const downloadStore = useDownloadStore()
+const { downloadingJobs } = storeToRefs(downloadStore)
 
 const handlePauseAll = () => {
-  downloadingJobs.value.forEach((job) => downloadStore.pauseJob(job.id));
-  ElMessage.info("All downloads paused");
-};
+  downloadingJobs.value.forEach((job) => downloadStore.pauseJob(job.id))
+  ElMessage.info('All downloads paused')
+}
 
 const handleStartAll = () => {
-  downloadStore.startAllJobs();
-  ElMessage.success("Started all pending/paused downloads");
-};
+  downloadStore.startAllJobs()
+  ElMessage.success('Started all pending/paused downloads')
+}
 
 const handleClear = () => {
-  downloadingJobs.value = downloadingJobs.value.filter(
-    (j) => j.mode !== "completed",
-  );
-  ElMessage.success("Cleared completed jobs");
-};
+  downloadingJobs.value = downloadingJobs.value.filter((j) => j.mode !== 'completed')
+  ElMessage.success('Cleared completed jobs')
+}
 
 const toggleJob = (job: any) => {
-  job.isExpanded = !job.isExpanded;
-};
+  job.isExpanded = !job.isExpanded
+}
 
 const handlePauseJob = (jobId: string) => {
-  downloadStore.pauseJob(jobId);
-};
+  downloadStore.pauseJob(jobId)
+}
 
 const handleResumeJob = (jobId: string) => {
-  downloadStore.startJob(jobId);
-};
+  downloadStore.startJob(jobId)
+}
 
 const handleRestartJob = (jobId: string) => {
-  downloadStore.restartJob(jobId);
-};
+  downloadStore.restartJob(jobId)
+}
 
 const handleTerminateJob = (jobId: string) => {
-  downloadStore.stopJob(jobId);
-};
+  downloadStore.stopJob(jobId)
+}
 </script>
 
 <template>
@@ -65,15 +63,11 @@ const handleTerminateJob = (jobId: string) => {
           <el-button size="small" type="primary" @click="handleStartAll"
             >Start All</el-button
           >
-          <el-button size="small" plain @click="handlePauseAll"
-            >Pause All</el-button
-          >
+          <el-button size="small" plain @click="handlePauseAll">Pause All</el-button>
         </div>
       </div>
 
-      <div
-        class="flex-1 overflow-y-auto p-4 flex flex-col gap-4 bg-eh-panel/30"
-      >
+      <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-4 bg-eh-panel/30">
         <div
           v-for="job in downloadingJobs"
           :key="job.id"
@@ -96,8 +90,7 @@ const handleTerminateJob = (jobId: string) => {
                   <div
                     class="text-[10px] px-2 py-0.5 rounded border font-bold uppercase"
                     :class="{
-                      'text-green-500 border-green-500':
-                        job.mode === 'completed',
+                      'text-green-500 border-green-500': job.mode === 'completed',
                       'text-red-500 border-red-500': job.mode === 'error',
                       'text-eh-accent border-eh-accent': job.mode === 'running',
                       'text-gray-400 border-gray-400':
@@ -108,11 +101,9 @@ const handleTerminateJob = (jobId: string) => {
                   </div>
                   <div class="w-32 flex flex-col items-end gap-1">
                     <el-progress
-                      :percentage="
-                        job.isArchiving ? job.archiveProgress : job.progress
-                      "
+                      :percentage="job.isArchiving ? job.archiveProgress : job.progress"
                       :stroke-width="8"
-                      :show-text="false"
+                      :showText="false"
                       :status="job.isArchiving ? 'warning' : ''"
                     />
                     <span
@@ -221,11 +212,7 @@ const handleTerminateJob = (jobId: string) => {
                 >
                   <td class="p-2 text-center">
                     <el-icon
-                      :class="
-                        gal.isArchive
-                          ? 'text-eh-cat-fictional'
-                          : 'text-eh-accent'
-                      "
+                      :class="gal.isArchive ? 'text-eh-cat-fictional' : 'text-eh-accent'"
                     >
                       <component :is="gal.isArchive ? Files : Folder" />
                     </el-icon>
@@ -243,16 +230,14 @@ const handleTerminateJob = (jobId: string) => {
                   <td class="p-2 text-center">{{ gal.imageCount }}</td>
                   <td class="p-2">
                     <div class="flex flex-col gap-1">
-                      <div
-                        class="flex justify-between items-center text-[10px]"
-                      >
+                      <div class="flex justify-between items-center text-[10px]">
                         <span>{{ gal.status }}</span>
                         <span>{{ gal.progress }}%</span>
                       </div>
                       <el-progress
                         :percentage="gal.progress"
                         :stroke-width="4"
-                        :show-text="false"
+                        :showText="false"
                         :status="
                           gal.mode === 'error'
                             ? 'exception'

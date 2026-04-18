@@ -165,20 +165,17 @@ pnpm exec electron-builder --win --publish never     # Windows
 1. Add handler in `src/main/index.ts`:
 
    ```typescript
-   ipcMain.handle("your-channel", async (_, payload) => {
+   ipcMain.handle('your-channel', async (_, payload) => {
      // Implementation
-     return result;
-   });
+     return result
+   })
    ```
 
 2. Add type in `src/preload/index.d.ts` (if exists, currently types are in `env.d.ts`)
 
 3. Call from renderer:
    ```typescript
-   const result = await window.electron.ipcRenderer.invoke(
-     "your-channel",
-     payload,
-   );
+   const result = await window.electron.ipcRenderer.invoke('your-channel', payload)
    ```
 
 ### Modifying Scraper Logic

@@ -1,20 +1,17 @@
 module.exports = {
-  content: [
-    "./index.html",
-    "./src/**/*.{vue,js,ts,jsx,tsx}",
-  ],
+  content: ['./index.html', './src/**/*.{vue,js,ts,jsx,tsx}'],
   theme: {
     extend: {
       colors: {
-        'eh-bg': '#f2efdf',       // Earthy tan main background
-        'eh-sidebar': '#e3e0d1',   // Slightly darker tan for sidebar/panels
-        'eh-text': '#5c0d11',      // Classic reddish-brown for titles and links
-        'eh-muted': '#444444',     // Muted gray for normal text
-        'eh-panel': '#edeae0',     // Lighter tan for card/container backgrounds
-        'eh-border': '#5c0d11',    // Iconic deep red border
-        'eh-accent': '#f11d1d',    // Category-specific or highlight red
-        'primary': '#5c0d11',      // Primary actions use the red
-        
+        'eh-bg': '#f2efdf', // Earthy tan main background
+        'eh-sidebar': '#e3e0d1', // Slightly darker tan for sidebar/panels
+        'eh-text': '#5c0d11', // Classic reddish-brown for titles and links
+        'eh-muted': '#444444', // Muted gray for normal text
+        'eh-panel': '#edeae0', // Lighter tan for card/container backgrounds
+        'eh-border': '#5c0d11', // Iconic deep red border
+        'eh-accent': '#f11d1d', // Category-specific or highlight red
+        primary: '#5c0d11', // Primary actions use the red
+
         // EH Category Colors
         'eh-cat-doujinshi': '#ff5e47',
         'eh-cat-manga': '#fcb417',
