@@ -12,6 +12,7 @@ import archiver from 'archiver'
 import { registerFormat } from 'archiver'
 // @ts-ignore
 import zipEncryptable from 'archiver-zip-encryptable'
+import { File as MegaFile } from 'megajs'
 
 // Register the encryptable zip format
 registerFormat('zip-encryptable', zipEncryptable)
@@ -164,6 +165,56 @@ ipcMain.handle('select-save-path', async () => {
     return filePath
   }
   return null
+})
+
+ipcMain.handle('check-metadata-exists', async () => {
+  const metadataPath = join(app.getPath('userData'), 'metadata.json')
+  return fs.existsSync(metadataPath)
+})
+
+ipcMain.handle('download-metadata', async () => {
+  const url = 'https://mega.nz/folder/oh1U0SIA#WBUcf3PaOvrfIF238fnbTg'
+  const targetPath = join(app.getPath('userData'), 'metadata.json')
+
+  try {
+    const folder = MegaFile.fromURL(url)
+    await folder.loadAttributes()
+
+    // @ts-ignore
+    const file = folder.children.find((f: any) => f.name === 'gdata.json')
+
+    if (!file) {
+      throw new Error('File gdata.json not found in the MEGA folder')
+    }
+
+    return new Promise((resolve, reject) => {
+      const stream = file.download()
+      const writeStream = fs.createWriteStream(targetPath)
+
+      stream.on('progress', (info) => {
+        mainWindow?.webContents.send('download-progress', {
+          loaded: info.bytesLoaded,
+          total: info.bytesTotal,
+        })
+      })
+
+      stream.pipe(writeStream)
+
+      writeStream.on('finish', () => {
+        resolve({ success: true, path: targetPath })
+      })
+
+      writeStream.on('error', (err) => {
+        reject(err)
+      })
+
+      stream.on('error', (err) => {
+        reject(err)
+      })
+    })
+  } catch (error: any) {
+    return { success: false, error: error.message }
+  }
 })
 
 ipcMain.handle('map-metadata', async (_, payload: any) => {

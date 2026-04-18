@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Search } from '@element-plus/icons-vue'
+import { ref, onMounted } from 'vue'
+import { Search, Download } from '@element-plus/icons-vue'
 import { useDownloadStore } from '../stores/download'
 import { useConfigStore } from '../stores/config'
 import { ElMessage } from 'element-plus'
@@ -11,7 +11,58 @@ const searchTag = ref('')
 const ratings = ref(0)
 const expunged = ref(false)
 
+const isMetadataDownloaded = ref(false)
+const downloading = ref(false)
+const downloadProgress = ref(0)
+
+const checkMetadata = async () => {
+  const exists = await window.api.checkMetadataExists()
+  console.log('[Library] Metadata exists check:', exists)
+  isMetadataDownloaded.value = exists
+  if (exists) {
+    const userDataPath = await window.api.getUserDataPath()
+    const pathSeparator = window.electron.process.platform === 'win32' ? '\\' : '/'
+    configStore.updateConfig({ metadata_path: `${userDataPath}${pathSeparator}metadata.json` })
+  }
+}
+
+onMounted(() => {
+  checkMetadata()
+  window.api.onDownloadProgress((data) => {
+    downloading.value = true
+    if (data.total > 0) {
+      downloadProgress.value = Math.round((data.loaded / data.total) * 100)
+    }
+  })
+})
+
+const handleDownloadMetadata = async () => {
+  try {
+    downloading.value = true
+    downloadProgress.value = 0
+    const result = await window.api.downloadMetadata()
+    downloading.value = false
+
+    if (result.success) {
+      isMetadataDownloaded.value = true
+      const userDataPath = await window.api.getUserDataPath()
+      const pathSeparator = window.electron.process.platform === 'win32' ? '\\' : '/'
+      configStore.updateConfig({ metadata_path: `${userDataPath}${pathSeparator}metadata.json` })
+      ElMessage.success('Metadata downloaded successfully!')
+    } else {
+      ElMessage.error(`Download failed: ${result.error}`)
+    }
+  } catch (err: any) {
+    downloading.value = false
+    ElMessage.error(`Error: ${err.message}`)
+  }
+}
+
 const handleSearch = async () => {
+  if (!isMetadataDownloaded.value) {
+    ElMessage.warning('Please download metadata first')
+    return
+  }
   try {
     const payload = {
       metadata_path: configStore.config.metadata_path,
@@ -68,31 +119,70 @@ const formatPosted = (ts: any) => {
 
 <template>
   <div class="library-view h-full flex flex-col gap-6">
-    <el-card>
-      <template #header>
-        <div class="flex items-center gap-4">
-          <el-input
-            v-model="searchTag"
-            placeholder="language:chinese tag:color ..."
-            class="flex-1"
-            @keyup.enter="handleSearch"
-          >
-            <template #append>
-              <el-button :icon="Search" @click="handleSearch">Search</el-button>
-            </template>
-          </el-input>
+    <div class="download-section flex flex-col gap-2">
+      <el-button
+        type="primary"
+        :icon="Download"
+        :disabled="isMetadataDownloaded"
+        :loading="downloading"
+        size="large"
+        class="w-full"
+        @click="handleDownloadMetadata"
+      >
+        {{ isMetadataDownloaded ? 'Metadata Database Ready' : 'Download metadata.json' }}
+      </el-button>
+      <div v-if="downloading" class="mt-2">
+        <div class="flex justify-between text-xs mb-1 text-eh-muted">
+          <span>Downloading gdata.json from MEGA...</span>
+          <span>{{ downloadProgress }}%</span>
         </div>
-      </template>
-      <div class="flex items-center gap-6 text-sm text-eh-muted">
-        <el-checkbox v-model="expunged" label="Expunged" />
-        <div class="flex items-center gap-2">
-          <span>Rating > </span>
-          <el-rate v-model="ratings" />
-        </div>
+        <el-progress :percentage="downloadProgress" :show-text="false" :stroke-width="10" striped />
       </div>
-    </el-card>
+    </div>
 
-    <div class="gallery-grid flex-1 overflow-y-auto pr-2">
+    <div style="position: relative;">
+      <el-card :class="{ 'opacity-50 grayscale select-none': !isMetadataDownloaded }">
+        <template #header>
+          <div class="flex items-center gap-4">
+            <el-input
+              v-model="searchTag"
+              placeholder="language:chinese tag:color ..."
+              class="flex-1"
+              @keyup.enter="handleSearch"
+            >
+              <template #append>
+                <el-button :icon="Search" @click="handleSearch">Search</el-button>
+              </template>
+            </el-input>
+          </div>
+        </template>
+        <div class="flex items-center gap-6 text-sm text-eh-muted">
+          <el-checkbox v-model="expunged" label="Expunged" />
+          <div class="flex items-center gap-2">
+            <span>Rating > </span>
+            <el-rate v-model="ratings" />
+          </div>
+        </div>
+      </el-card>
+      <!-- Blocking Overlay using explicit styles -->
+      <div
+        v-if="!isMetadataDownloaded"
+        style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; cursor: not-allowed; background: rgba(0, 0, 0, 0.05); backdrop-filter: grayscale(1);"
+        @click.stop.prevent
+        @mousedown.stop.prevent
+        @mouseup.stop.prevent
+        @keydown.stop.prevent
+        @contextmenu.stop.prevent
+      ></div>
+    </div>
+
+    <div v-if="!isMetadataDownloaded" class="flex-1 flex flex-col items-center justify-center text-eh-muted bg-eh-panel rounded-lg border border-dashed border-eh-border">
+      <el-icon size="48" class="mb-4"><Download /></el-icon>
+      <p>Metadata Database is required for Library functionality.</p>
+      <p class="text-sm">Click the button above to download it (approx. 200MB).</p>
+    </div>
+
+    <div v-else class="gallery-grid flex-1 overflow-y-auto pr-2">
       <div class="flex flex-col gap-3">
         <div
           v-for="g in downloadStore.libraryGalleries"

@@ -40,6 +40,10 @@ const api = {
   onArchiveProgress: (callback: any) =>
     ipcRenderer.on('archive-progress', (_event, value) => callback(value)),
   loginEHentai: () => ipcRenderer.invoke('login-ehentai'),
+  downloadMetadata: () => ipcRenderer.invoke('download-metadata'),
+  checkMetadataExists: () => ipcRenderer.invoke('check-metadata-exists'),
+  onDownloadProgress: (callback: any) =>
+    ipcRenderer.on('download-progress', (_event, value) => callback(value)),
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

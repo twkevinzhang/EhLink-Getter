@@ -46,6 +46,9 @@ interface SidecarAPI {
   }) => Promise<{ success: boolean; error?: string; size?: number }>;
   onArchiveProgress: (callback: (data: any) => void) => void;
   loginEHentai: () => Promise<{ success: boolean; cookies?: string; error?: string }>;
+  downloadMetadata: () => Promise<{ success: boolean; path?: string; error?: string }>;
+  checkMetadataExists: () => Promise<boolean>;
+  onDownloadProgress: (callback: (data: { loaded: number; total: number }) => void) => void;
 }
 
 declare global {
