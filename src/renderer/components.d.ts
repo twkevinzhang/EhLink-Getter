@@ -15,6 +15,7 @@ declare module 'vue' {
     Button: typeof import('primevue/button')['default']
     Card: typeof import('primevue/card')['default']
     Checkbox: typeof import('primevue/checkbox')['default']
+    DownloadConfigPanel: typeof import('./src/components/shared/DownloadConfigPanel.vue')['default']
     DownloadingTab: typeof import('./src/components/tasks/DownloadingTab.vue')['default']
     FetchedTab: typeof import('./src/components/tasks/FetchedTab.vue')['default']
     FetchingTab: typeof import('./src/components/tasks/FetchingTab.vue')['default']

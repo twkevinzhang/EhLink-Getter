@@ -19,8 +19,8 @@ const toast = useToast()
 
 // Add Task Form
 const pageLink = ref('https://e-hentai.org/?f_cats=767')
-const fromPage = ref(1)
-const toPage = ref<string | number>(2)
+const fromPage = ref('1')
+const toPage = ref('2')
 const scheduleTime = ref<Date | null>(new Date())
 const useZip = ref(true)
 const zipPass = ref('')
@@ -46,7 +46,7 @@ const handleAddTask = () => {
 
   schedulerStore.addTask({
     link: pageLink.value,
-    fromPage: fromPage.value,
+    fromPage: parseInt(fromPage.value) || 1,
     toPage: toPage.value,
     scheduleTime: timeStr,
     templatePath: displayPath.value,
@@ -99,11 +99,11 @@ const handleTriggerNow = async (taskId: string) => {
     } else {
       throw new Error(result.error)
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     toast.add({
       severity: 'error',
       summary: 'Trigger Failed',
-      detail: err.message,
+      detail: err instanceof Error ? err.message : String(err),
       life: 5000,
     })
   }

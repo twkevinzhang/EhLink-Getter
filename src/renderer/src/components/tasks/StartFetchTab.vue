@@ -7,8 +7,8 @@ const scraperStore = useFetchStore()
 const toast = useToast()
 
 const pageLink = ref('https://e-hentai.org/?f_cats=767')
-const fromPage = ref(1)
-const toPage = ref<string | number>(2)
+const fromPage = ref('1')
+const toPage = ref('2')
 
 const handleStartFetch = () => {
   if (!pageLink.value) {

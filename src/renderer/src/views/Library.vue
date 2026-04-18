@@ -89,7 +89,7 @@ const getCategoryClass = (cat: string | undefined) => {
   return 'bg-gray-500'
 }
 
-const formatPosted = (ts: any) => {
+const formatPosted = (ts: string | number | undefined) => {
   if (!ts) return 'Unknown date'
   if (typeof ts === 'number') return new Date(ts * 1000).toLocaleString()
   return ts

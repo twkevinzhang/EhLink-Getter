@@ -14,7 +14,12 @@ const scanThreads = ref(3)
 const downloadThreads = ref(5)
 const localCookies = ref(configStore.config.cookies)
 
-const parsedCookies = computed(() => {
+interface EhCookie {
+  name: string
+  value: string
+}
+
+const parsedCookies = computed((): EhCookie[] => {
   try {
     return JSON.parse(configStore.config.cookies || '[]')
   } catch (e) {
@@ -23,11 +28,11 @@ const parsedCookies = computed(() => {
 })
 
 const isLoggedIn = computed(() => {
-  return parsedCookies.value.some((c: any) => c.name === 'ipb_member_id' && c.value)
+  return parsedCookies.value.some((c) => c.name === 'ipb_member_id' && c.value)
 })
 
 const memberId = computed(() => {
-  const cookie = parsedCookies.value.find((c: any) => c.name === 'ipb_member_id')
+  const cookie = parsedCookies.value.find((c) => c.name === 'ipb_member_id')
   return cookie ? cookie.value : null
 })
 
@@ -111,11 +116,11 @@ const handleLogin = async () => {
         life: 5000,
       })
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     toast.add({
       severity: 'error',
       summary: 'Login Failed',
-      detail: error.message,
+      detail: error instanceof Error ? error.message : String(error),
       life: 5000,
     })
   }

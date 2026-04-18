@@ -126,8 +126,13 @@ const handleAddManual = () => {
       detail: 'Gallery added to draft',
       life: 3000,
     })
-  } catch (error: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: error.message, life: 5000 })
+  } catch (error: unknown) {
+    toast.add({
+      severity: 'error',
+      summary: 'Error',
+      detail: error instanceof Error ? error.message : String(error),
+      life: 5000,
+    })
   }
 }
 
