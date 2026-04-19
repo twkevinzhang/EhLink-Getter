@@ -14,6 +14,30 @@ export interface DownloadGallery {
   image_links?: string[]
 }
 
+export interface JobState {
+  jobId: string
+  title: string
+  progress: number
+  status: string
+  mode: 'running' | 'paused' | 'error' | 'completed' | 'pending'
+  galleries: DownloadGallery[]
+  isExpanded?: boolean
+  isArchive?: boolean
+  password?: string
+}
+
+export interface AddToQueuePayload {
+  jobId: string
+  title: string
+  galleries: DownloadGallery[]
+  isArchive?: boolean
+  password?: string
+}
+
+export interface DownloadJobUpdatedEvent {
+  job: JobState
+}
+
 export interface LibraryGallery {
   gid?: string
   token?: string
@@ -164,18 +188,6 @@ export interface SelectSavePathResponse {
 }
 
 /** Download 模組 Response */
-export interface DownloadGalleryPayload {
-  gallery: DownloadGallery
-  isArchive: boolean
-  password: string
-}
-
-export interface DownloadGalleryResponse {
-  success: boolean
-  path?: string
-  error?: string
-}
-
 export interface GetDownloadsPathResponse {
   success: boolean
   path: string
@@ -185,13 +197,6 @@ export interface GetDownloadsPathResponse {
 export interface TriggerSchedulerResponse {
   success: boolean
   error?: string
-}
-
-/** onDownloadStatusUpdate 事件資料 */
-export interface DownloadStatusEvent {
-  url: string
-  progress?: number
-  status?: string
 }
 
 /** onArchiveProgress 事件資料（含 jobId 以便正確對應） */
@@ -242,9 +247,15 @@ export interface SidecarAPI {
 
   // download
   getDownloadsPath: () => Promise<GetDownloadsPathResponse>
+  getJobs: () => Promise<JobState[]>
+  addToQueue: (payload: AddToQueuePayload) => Promise<void>
+  startJob: (jobId: string) => Promise<void>
+  pauseJob: (jobId: string) => Promise<void>
+  stopJob: (jobId: string) => Promise<void>
+  restartJob: (jobId: string) => Promise<void>
+  clearFinishedJobs: () => Promise<void>
+  onDownloadJobUpdated: (callback: (event: DownloadJobUpdatedEvent) => void) => void
   onArchiveProgress: (callback: (data: ArchiveProgressEvent) => void) => void
-  downloadGallery: (payload: DownloadGalleryPayload) => Promise<DownloadGalleryResponse>
-  onDownloadStatusUpdate: (callback: (data: DownloadStatusEvent) => void) => void
 
   // electron-storage
   storeGet: <T = unknown>(key: string) => Promise<T>
