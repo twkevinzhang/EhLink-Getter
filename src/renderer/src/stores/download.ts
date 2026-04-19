@@ -5,10 +5,9 @@ import { parseTemplatePath } from '@shared/utilities'
 import { useElectronStorage } from '@renderer/composables/electron-storage'
 import { plainValue } from '@renderer/utilities'
 import type {
-  DownloadStatusEvent,
   ArchiveProgressEvent,
-  DownloadGalleryPayload,
   DownloadGallery,
+  DownloadJobUpdatedEvent,
 } from '@shared/types/api'
 import type { DraftGallery } from '@renderer/stores/fetch'
 
@@ -32,14 +31,15 @@ export const useDownloadStore = defineStore('download', () => {
   const downloadingJobs = useElectronStorage<DownloadJob[]>('download.jobs', [])
   const logStore = useLogStore()
 
-  const unsubscribeStatus = window.api.onDownloadStatusUpdate(
-    (data: DownloadStatusEvent) => {
-      for (const job of downloadingJobs.value) {
-        const gallery = job.galleries.find((g) => g.link === data.url)
-        if (gallery && gallery.mode === 'running') {
-          if (data.progress !== undefined) gallery.progress = data.progress
-          if (data.status) gallery.status = data.status
-          break
+  const unsubscribeStatus = window.api.onDownloadJobUpdated(
+    (data: DownloadJobUpdatedEvent) => {
+      const jobIndex = downloadingJobs.value.findIndex((j) => j.jobId === data.job.jobId)
+      if (jobIndex !== -1) {
+        downloadingJobs.value[jobIndex] = {
+          ...downloadingJobs.value[jobIndex],
+          progress: data.job.progress,
+          status: data.job.status,
+          mode: data.job.mode as DownloadJob['mode'],
         }
       }
     },
@@ -161,61 +161,18 @@ export const useDownloadStore = defineStore('download', () => {
   async function processDownload(job: DownloadJob) {
     if (job.mode === 'running') return
 
-    job.mode = 'running'
-    let completedCount = 0
-    const total = job.galleries.length
-
-    for (const gallery of job.galleries) {
-      if ((job.mode as string) === 'paused' || (job.mode as string) === 'error') break
-      if (gallery.mode === 'completed') {
-        completedCount++
-        continue
-      }
-
-      gallery.mode = 'running'
-      gallery.status = 'Downloading...'
-
-      try {
-        const payload: DownloadGalleryPayload = {
-          gallery,
-          isArchive: job.isArchive ?? false,
-          password: job.password ?? '',
-        }
-        const result = await window.api.downloadGallery(plainValue(payload))
-
-        if (result.success) {
-          gallery.mode = 'completed'
-          gallery.progress = 100
-          gallery.status = 'Completed'
-          completedCount++
-        } else {
-          gallery.mode = 'error'
-          gallery.status = result.error ?? 'Failed'
-          logStore.addLog({
-            level: 'error',
-            message: `Download Error [${gallery.title}]: ${result.error}`,
-          })
-        }
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err)
-        gallery.mode = 'error'
-        gallery.status = msg
-        logStore.addLog({
-          level: 'error',
-          message: `IPC Error [${gallery.title}]: ${msg}`,
-        })
-      }
-
-      job.progress = Math.round((completedCount / total) * 100)
-      job.status = `Progress: ${completedCount}/${total} galleries.`
-    }
-
-    if (completedCount === total) {
-      job.mode = 'completed'
-      job.status = job.isArchive ? 'Finished & Archived' : 'Finished'
-    } else if ((job.mode as string) !== 'paused' && (job.mode as string) !== 'error') {
+    try {
+      await window.api.startJob(job.jobId)
+      job.mode = 'running'
+      job.status = 'Processing...'
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
       job.mode = 'error'
-      job.status = `Error: ${completedCount}/${total} galleries completed`
+      job.status = msg
+      logStore.addLog({
+        level: 'error',
+        message: `IPC Error [${job.title}]: ${msg}`,
+      })
     }
   }
 

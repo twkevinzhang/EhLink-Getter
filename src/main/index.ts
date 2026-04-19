@@ -6,7 +6,7 @@ import { spawn, type ChildProcess } from 'child_process'
 import axios from 'axios'
 import { LibraryService } from '@main/services/library_service'
 import { SchedulerService } from '@main/services/scheduler_service'
-import { DownloadService } from '@main/services/download_service'
+import { JobManager } from '@main/services/job_manager'
 import Store from 'electron-store'
 // @ts-ignore
 import { registerFormat } from 'archiver'
@@ -21,8 +21,7 @@ import {
   type SearchLibraryResponse,
   type FetchPageResponse,
   type FetchedItem,
-  type DownloadGalleryPayload,
-  type DownloadGalleryResponse,
+  type AddToQueuePayload,
   type TriggerSchedulerResponse,
   type GetConfigResponse,
   type SaveConfigResponse,
@@ -47,7 +46,7 @@ const store = new Store<any>()
 
 let mainWindow: BrowserWindow
 let sidecarProcess: ChildProcess | null = null
-let downloadService: DownloadService
+let jobManager: JobManager
 
 const SIDECAR_PORT = 8000
 const SIDECAR_URL = `http://127.0.0.1:${SIDECAR_PORT}`
@@ -184,14 +183,14 @@ app.whenReady().then(() => {
   startSidecar()
   createWindow()
 
-  downloadService = new DownloadService(mainWindow)
-  const schedulerService = new SchedulerService(mainWindow, downloadService)
+  jobManager = new JobManager(mainWindow, store)
+  const schedulerService = new SchedulerService(mainWindow)
   schedulerService.start()
   // Store in global for IPC access
   ;(global as any).schedulerService = schedulerService
 
   // Sync config to sidecar once it's up
-  const unsubscribe = store.onDidChange(CONFIG_STORE_KEY, (newValue, oldValue) => {
+  store.onDidChange(CONFIG_STORE_KEY, (newValue, oldValue) => {
     console.log(`${CONFIG_STORE_KEY} changed:`, { oldValue, newValue })
     syncConfig(newValue, 5)
   })
@@ -591,18 +590,33 @@ ipcMain.handle('get-downloads-path', async (): Promise<GetDownloadsPathResponse>
   }
 })
 
-ipcMain.handle(
-  'download-gallery',
-  async (_, payload: DownloadGalleryPayload): Promise<DownloadGalleryResponse> => {
-    try {
-      const result = await downloadService.downloadGallery(payload)
-      return JSON.parse(JSON.stringify(result))
-    } catch (error: any) {
-      console.error('[IPC] download-gallery error:', error)
-      return { success: false, error: error.message }
-    }
-  },
-)
+ipcMain.handle('get-jobs', async () => {
+  return jobManager.getJobs()
+})
+
+ipcMain.handle('add-to-queue', async (_, payload: AddToQueuePayload) => {
+  jobManager.addJob(payload)
+})
+
+ipcMain.handle('start-job', async (_, jobId: string) => {
+  await jobManager.startJob(jobId)
+})
+
+ipcMain.handle('pause-job', async (_, jobId: string) => {
+  jobManager.pauseJob(jobId)
+})
+
+ipcMain.handle('stop-job', async (_, jobId: string) => {
+  jobManager.stopJob(jobId)
+})
+
+ipcMain.handle('restart-job', async (_, jobId: string) => {
+  jobManager.restartJob(jobId)
+})
+
+ipcMain.handle('clear-finished-jobs', async () => {
+  jobManager.clearFinishedJobs()
+})
 
 // --- Storage Module ---
 ipcMain.handle('electron-store-get', async <T = unknown>(_, key: string): Promise<T> => {

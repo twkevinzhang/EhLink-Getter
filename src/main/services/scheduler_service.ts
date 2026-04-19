@@ -1,7 +1,7 @@
 import { type BrowserWindow } from 'electron'
 import Store from 'electron-store'
 import axios from 'axios'
-import { type DownloadService } from './download_service'
+import { DownloadService } from './download_service'
 
 interface ScheduledTask {
   id: string
@@ -22,13 +22,12 @@ export class SchedulerService {
   private store: Store
   private timer: NodeJS.Timeout | null = null
   private mainWindow: BrowserWindow | null = null
-  private downloadService: DownloadService
+  private downloadService = new DownloadService()
   private SIDECAR_URL = 'http://127.0.0.1:8000'
 
-  constructor(mainWindow: BrowserWindow | null, downloadService: DownloadService) {
+  constructor(mainWindow: BrowserWindow | null) {
     this.store = new Store()
     this.mainWindow = mainWindow
-    this.downloadService = downloadService
   }
 
   start() {
@@ -118,6 +117,7 @@ export class SchedulerService {
       for (const item of allItems) {
         try {
           // Centralized path resolution and downloading
+          const controller = new AbortController()
           const result = await this.downloadService.downloadGallery({
             gallery: {
               ...item,
@@ -125,6 +125,12 @@ export class SchedulerService {
             },
             isArchive: task.isArchive,
             password: task.archivePassword,
+            signal: controller.signal,
+            onProgress: (data) => {
+              if (data.status) {
+                this.logToRenderer(`[Scheduler] ${data.status}`)
+              }
+            },
           })
 
           if (result.success) {

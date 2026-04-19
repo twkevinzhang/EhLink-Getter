@@ -6,10 +6,10 @@ import {
   type SearchLibraryPayload,
   type FetchedItem,
   type ArchiveProgressEvent,
-  type DownloadGalleryPayload,
-  type DownloadStatusEvent,
   type SidecarLogEvent,
   type FetchGalleryResponse,
+  type AddToQueuePayload,
+  type DownloadJobUpdatedEvent,
 } from '@shared/types/api'
 
 const api: SidecarAPI = {
@@ -49,15 +49,21 @@ const api: SidecarAPI = {
 
   // download module
   getDownloadsPath: () => ipcRenderer.invoke('get-downloads-path'),
+  getJobs: () => ipcRenderer.invoke('get-jobs'),
+  addToQueue: (payload: AddToQueuePayload) => ipcRenderer.invoke('add-to-queue', payload),
+  startJob: (jobId: string) => ipcRenderer.invoke('start-job', jobId),
+  pauseJob: (jobId: string) => ipcRenderer.invoke('pause-job', jobId),
+  stopJob: (jobId: string) => ipcRenderer.invoke('stop-job', jobId),
+  restartJob: (jobId: string) => ipcRenderer.invoke('restart-job', jobId),
+  clearFinishedJobs: () => ipcRenderer.invoke('clear-finished-jobs'),
+  onDownloadJobUpdated: (callback: (event: DownloadJobUpdatedEvent) => void) =>
+    ipcRenderer.on('download-job-updated', (_event, value) => callback(value)),
   onArchiveProgress: (callback: (data: ArchiveProgressEvent) => void) =>
     ipcRenderer.on('archive-progress', (_event, value) => callback(value)),
-  downloadGallery: (payload: DownloadGalleryPayload) =>
-    ipcRenderer.invoke('download-gallery', payload),
-  onDownloadStatusUpdate: (callback: (data: DownloadStatusEvent) => void) =>
-    ipcRenderer.on('download-status-update', (_event, value) => callback(value)),
 
   // electron-storage composable
-  storeGet: <T>(key: string) => ipcRenderer.invoke('electron-store-get', key),
+  storeGet: <T extends unknown = unknown>(key: string) =>
+    ipcRenderer.invoke('electron-store-get', key) as Promise<T>,
   storeSet: (key: string, val: unknown) =>
     ipcRenderer.invoke('electron-store-set', key, val),
 

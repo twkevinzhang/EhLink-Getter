@@ -1,4 +1,4 @@
-import { AppConfig } from './types/api'
+import type { AppConfig } from './types/api'
 
 export const DEFAULT_CONFIG: AppConfig = {
   cookies: '',
