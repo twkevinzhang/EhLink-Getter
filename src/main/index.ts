@@ -4,17 +4,40 @@ import * as fs from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { spawn, type ChildProcess } from 'child_process'
 import axios from 'axios'
-import { LibraryService } from './services/library_service'
-import { SchedulerService } from './services/scheduler_service'
-import { DownloadService } from './services/download_service'
+import { LibraryService } from '@main/services/library_service'
+import { SchedulerService } from '@main/services/scheduler_service'
+import { DownloadService } from '@main/services/download_service'
 import Store from 'electron-store'
 // @ts-ignore
 import { registerFormat } from 'archiver'
 // @ts-ignore
 import zipEncryptable from 'archiver-zip-encryptable'
 import { File as MegaFile } from 'megajs'
-import { downloadsPath, libraryPath } from './services/utilties'
-import { CONFIG_STORE_KEY } from '../shared/src/utilities'
+import { downloadsPath, libraryPath } from '@main/services/utilties'
+import { CONFIG_STORE_KEY } from '@shared/utilities'
+import {
+  AppConfig,
+  SearchLibraryPayload,
+  SearchLibraryResponse,
+  FetchPageResponse,
+  FetchedItem,
+  DownloadGalleryPayload,
+  DownloadGalleryResponse,
+  TriggerSchedulerResponse,
+  GetConfigResponse,
+  SaveConfigResponse,
+  CheckSidecarHealthResponse,
+  LoginEHentaiResponse,
+  SaveCSVResponse,
+  SaveJSONResponse,
+  ReadJSONResponse,
+  DownloadImageResponse,
+  DownloadLibraryResponse,
+  CheckLibraryExistsResponse,
+  SelectDirectoryResponse,
+  SelectSavePathResponse,
+  GetDownloadsPathResponse,
+} from '@shared/types/api'
 
 // Register the encryptable zip format
 registerFormat('zip-encryptable', zipEncryptable)
@@ -75,10 +98,6 @@ function startSidecar() {
         const json = JSON.parse(trimmedLine)
         if (json.type === 'log') {
           mainWindow?.webContents.send('python-log', json)
-        } else if (json.type === 'progress') {
-          mainWindow?.webContents.send('python-progress', json)
-        } else if (json.type === 'task_complete') {
-          mainWindow?.webContents.send('python-task-complete', json)
         }
       } catch (e) {
         // Not JSON, just regular log
@@ -210,27 +229,127 @@ app.on('before-quit', () => {
   }
 })
 
-// IPC Handlers
-ipcMain.handle('select-save-path', async () => {
-  const { canceled, filePath } = await require('electron').dialog.showSaveDialog(
-    mainWindow,
-    {
-      title: 'Select Output CSV Path',
-      defaultPath: 'gallery-links.csv',
-      filters: [{ name: 'CSV Files', extensions: ['csv'] }],
-    },
-  )
-  if (!canceled) {
-    return filePath
+// --- IPC Handlers ---
+
+// --- Config Module ---
+ipcMain.handle('get-config', async (): Promise<GetConfigResponse> => {
+  try {
+    const config = store.get(CONFIG_STORE_KEY) as AppConfig
+    return { success: true, config }
+  } catch (error: any) {
+    return { success: false, error: error.message }
   }
-  return null
 })
 
-ipcMain.handle('check-library-exists', async () => {
-  return fs.existsSync(libraryPath())
+ipcMain.handle(
+  'save-config',
+  async (_, config: AppConfig): Promise<SaveConfigResponse> => {
+    try {
+      store.set(CONFIG_STORE_KEY, config)
+      return { success: true }
+    } catch (error: any) {
+      return { success: false, error: error.message }
+    }
+  },
+)
+
+ipcMain.handle('check-sidecar-health', async (): Promise<CheckSidecarHealthResponse> => {
+  try {
+    const response = await axios.get(`${SIDECAR_URL}/health`, {
+      timeout: 2000,
+    })
+    return { success: response.data.status === 'ok' }
+  } catch (error) {
+    return { success: false }
+  }
 })
 
-ipcMain.handle('download-library', async () => {
+ipcMain.handle('login-ehentai', async (): Promise<LoginEHentaiResponse> => {
+  const authWindow = new BrowserWindow({
+    width: 800,
+    height: 600,
+    show: true,
+    autoHideMenuBar: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      partition: `temp_login_${Date.now()}`,
+    },
+  })
+
+  const loginUrl = 'https://forums.e-hentai.org/index.php?act=Login&CODE=00'
+  authWindow.loadURL(loginUrl)
+
+  return new Promise((resolve) => {
+    let completed = false
+    const checkCookies = async () => {
+      if (completed) return
+      const cookies = await authWindow.webContents.session.cookies.get({
+        domain: '.e-hentai.org',
+      })
+      const required = ['ipb_member_id', 'ipb_pass_hash']
+      const hasAll = required.every((name) => cookies.some((c) => c.name === name))
+
+      if (hasAll) {
+        completed = true
+        const cookieString = JSON.stringify(cookies)
+        authWindow.close()
+        resolve({ success: true, cookies: cookieString })
+      }
+    }
+
+    authWindow.webContents.on('did-finish-load', checkCookies)
+    authWindow.on('close', () => {
+      if (!completed) {
+        completed = true
+        resolve({ success: false, error: 'Window closed by user' })
+      }
+    })
+  })
+})
+
+// --- Library Module ---
+ipcMain.handle(
+  'search-library',
+  async (_, payload: SearchLibraryPayload): Promise<SearchLibraryResponse> => {
+    try {
+      const libPath = libraryPath()
+      const service = new LibraryService(libPath)
+      const rawResults = await service.findMultipleLinks(
+        payload.keywords.split(' '),
+        1000,
+        true,
+      )
+
+      const filteredResults = rawResults.map((item) => {
+        const itemFiltered: any = {}
+        for (const field of payload.fields) {
+          if (field === 'link') {
+            itemFiltered.link = `https://e-hentai.org/g/${item.gid}/${item.token}/`
+          } else if (item[field] !== undefined) {
+            itemFiltered[field] = item[field]
+          }
+        }
+        return itemFiltered
+      })
+
+      return { results: filteredResults }
+    } catch (error: any) {
+      return { results: [], error: error.message }
+    }
+  },
+)
+
+ipcMain.handle('check-library-exists', async (): Promise<CheckLibraryExistsResponse> => {
+  try {
+    const exists = fs.existsSync(libraryPath())
+    return { success: true, exists }
+  } catch (error: any) {
+    return { success: false, exists: false }
+  }
+})
+
+ipcMain.handle('download-library', async (): Promise<DownloadLibraryResponse> => {
   const url = 'https://mega.nz/folder/oh1U0SIA#WBUcf3PaOvrfIF238fnbTg'
   const targetPath = libraryPath()
 
@@ -275,171 +394,114 @@ ipcMain.handle('download-library', async () => {
   }
 })
 
-ipcMain.handle('search-library', async (_, payload: any) => {
-  try {
-    const libPath = libraryPath()
-    const service = new LibraryService(libPath)
-    const rawResults = await service.findMultipleLinks(payload.keywords, 1000, true)
-
-    const filteredResults = rawResults.map((item) => {
-      const itemFiltered: any = {}
-      for (const field of payload.fields) {
-        if (field === 'link') {
-          itemFiltered.link = `https://e-hentai.org/g/${item.gid}/${item.token}/`
-        } else if (item[field] !== undefined) {
-          itemFiltered[field] = item[field]
-        }
-      }
-      return itemFiltered
-    })
-
-    return { results: filteredResults }
-  } catch (error: any) {
-    return { success: false, error: error.message }
+ipcMain.handle('open-folder', async (_, folderPath: string): Promise<void> => {
+  if (folderPath) {
+    shell.openPath(folderPath)
+  } else {
+    shell.openPath(downloadsPath())
   }
 })
 
-ipcMain.handle('fetch-page', async (_, payload: { url: string; next?: string }) => {
-  try {
-    const response = await axios.get(`${SIDECAR_URL}/tasks/fetch`, {
-      params: { url: payload.url, next: payload.next },
-    })
-    return response.data
-  } catch (error: any) {
-    return { success: false, error: error.message }
-  }
-})
-
-ipcMain.handle('check-sidecar-health', async () => {
-  try {
-    const response = await axios.get(`${SIDECAR_URL}/health`, {
-      timeout: 2000,
-    })
-    return { success: response.data.status === 'ok' }
-  } catch (error) {
-    1
-    return { success: false }
-  }
-})
-
-ipcMain.handle('save-json', async (_, payload: { path: string; data: any }) => {
-  try {
-    const actualPath = payload.path
-    // Ensure directory exists
-    if (!fs.existsSync(join(dirname(actualPath)))) {
-      fs.mkdirSync(join(dirname(actualPath)), { recursive: true })
-    }
-
-    fs.writeFileSync(actualPath, JSON.stringify(payload.data, null, 2), 'utf8')
-    return { status: 'saved', path: actualPath }
-  } catch (error: any) {
-    return { success: false, error: error.message }
-  }
-})
-
-ipcMain.handle('read-json', async (_, payload: { path: string }) => {
-  try {
-    const actualPath = payload.path
-    if (!fs.existsSync(actualPath)) {
-      return { success: false, error: 'File not found', code: 'ENOENT' }
-    }
-    const content = fs.readFileSync(actualPath, 'utf8')
-    return { success: true, data: JSON.parse(content) }
-  } catch (error: any) {
-    return { success: false, error: error.message }
-  }
-})
-
-ipcMain.handle('save-csv', async (_, payload: { path: string; results: any[] }) => {
-  try {
-    const csvContent = [
-      '\ufeffTitle,Link', // Add UTF-8 BOM for Excel compatibility
-      ...payload.results.map((item) => {
-        // Escape double quotes and wrap in quotes
-        const escapedTitle = `"${(item.title || '').replace(/"/g, '""')}"`
-        const escapedLink = `"${(item.link || '').replace(/"/g, '""')}"`
-        return `${escapedTitle},${escapedLink}`
-      }),
-    ].join('\n')
-
-    // Replace {execute_started_at} if present (though frontend might have handled it)
-    let actualPath = payload.path
-    if (actualPath.includes('{execute_started_at}')) {
-      const now = new Date()
-      const timestamp =
-        now.getFullYear() +
-        String(now.getMonth() + 1).padStart(2, '0') +
-        String(now.getDate()).padStart(2, '0') +
-        '_' +
-        String(now.getHours()).padStart(2, '0') +
-        String(now.getMinutes()).padStart(2, '0') +
-        String(now.getSeconds()).padStart(2, '0')
-      actualPath = actualPath.replace('{execute_started_at}', timestamp)
-    }
-
-    // Ensure directory exists
-    if (!fs.existsSync(join(dirname(actualPath)))) {
-      fs.mkdirSync(join(dirname(actualPath)), { recursive: true })
-    }
-
-    fs.writeFileSync(actualPath, csvContent, 'utf8')
-    return { status: 'saved', path: actualPath }
-  } catch (error: any) {
-    return { success: false, error: error.message }
-  }
-})
-
-ipcMain.handle('login-ehentai', async () => {
-  const authWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
-    show: true,
-    autoHideMenuBar: true,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      partition: `temp_login_${Date.now()}`, // 使用隨機 partition 確保環境絕對乾淨
-    },
-  })
-
-  const loginUrl = 'https://forums.e-hentai.org/index.php?act=Login&CODE=00'
-  authWindow.loadURL(loginUrl)
-
-  return new Promise((resolve) => {
-    let completed = false
-    const checkCookies = async () => {
-      if (completed) return
-      const cookies = await authWindow.webContents.session.cookies.get({
-        domain: '.e-hentai.org',
+// --- Fetch Module ---
+ipcMain.handle(
+  'fetch-page',
+  async (_, payload: { url: string; next?: string }): Promise<FetchPageResponse> => {
+    try {
+      const response = await axios.get(`${SIDECAR_URL}/tasks/fetch`, {
+        params: { url: payload.url, next: payload.next },
       })
-      const required = ['ipb_member_id', 'ipb_pass_hash']
-      const hasAll = required.every((name) => cookies.some((c) => c.name === name))
-
-      if (hasAll) {
-        completed = true
-        const cookieString = JSON.stringify(cookies)
-        authWindow.close()
-        resolve({ success: true, cookies: cookieString })
-      }
+      return response.data
+    } catch (error: any) {
+      return { items: [], error: error.message }
     }
+  },
+)
 
-    authWindow.webContents.on('did-finish-load', checkCookies)
-    authWindow.on('close', () => {
-      if (!completed) {
-        completed = true
-        resolve({ success: false, error: 'Window closed by user' })
+ipcMain.handle(
+  'save-csv',
+  async (
+    _,
+    payload: { path: string; results: FetchedItem[] },
+  ): Promise<SaveCSVResponse> => {
+    try {
+      const csvContent = [
+        '\ufeffTitle,Link',
+        ...payload.results.map((item) => {
+          const escapedTitle = `"${(item.title || '').replace(/"/g, '""')}"`
+          const escapedLink = `"${(item.link || '').replace(/"/g, '""')}"`
+          return `${escapedTitle},${escapedLink}`
+        }),
+      ].join('\n')
+
+      let actualPath = payload.path
+      if (actualPath.includes('{execute_started_at}')) {
+        const now = new Date()
+        const timestamp =
+          now.getFullYear() +
+          String(now.getMonth() + 1).padStart(2, '0') +
+          String(now.getDate()).padStart(2, '0') +
+          '_' +
+          String(now.getHours()).padStart(2, '0') +
+          String(now.getMinutes()).padStart(2, '0') +
+          String(now.getSeconds()).padStart(2, '0')
+        actualPath = actualPath.replace('{execute_started_at}', timestamp)
       }
-    })
-  })
-})
+
+      if (!fs.existsSync(join(dirname(actualPath)))) {
+        fs.mkdirSync(join(dirname(actualPath)), { recursive: true })
+      }
+
+      fs.writeFileSync(actualPath, csvContent, 'utf8')
+      return { status: 'saved', path: actualPath }
+    } catch (error: any) {
+      return { status: 'error', path: '', error: error.message }
+    }
+  },
+)
+
+ipcMain.handle(
+  'save-json',
+  async (_, payload: { path: string; data: unknown }): Promise<SaveJSONResponse> => {
+    try {
+      const actualPath = payload.path
+      if (!fs.existsSync(join(dirname(actualPath)))) {
+        fs.mkdirSync(join(dirname(actualPath)), { recursive: true })
+      }
+
+      fs.writeFileSync(actualPath, JSON.stringify(payload.data, null, 2), 'utf8')
+      return { status: 'saved', path: actualPath }
+    } catch (error: any) {
+      return { status: 'error', path: '', error: error.message }
+    }
+  },
+)
+
+ipcMain.handle(
+  'read-json',
+  async (_, payload: { path: string }): Promise<ReadJSONResponse> => {
+    try {
+      const actualPath = payload.path
+      if (!fs.existsSync(actualPath)) {
+        return { success: false, error: 'File not found', code: 'ENOENT' }
+      }
+      const content = fs.readFileSync(actualPath, 'utf8')
+      return { success: true, data: JSON.parse(content) }
+    } catch (error: any) {
+      return { success: false, error: error.message }
+    }
+  },
+)
 
 ipcMain.handle(
   'download-image',
-  async (_, payload: { url: string; savePath: string }) => {
+  async (
+    _,
+    payload: { url: string; savePath: string },
+  ): Promise<DownloadImageResponse> => {
     try {
       const response = await axios.get(`${SIDECAR_URL}/image/fetch`, {
         params: { url: payload.url },
-        responseType: 'arraybuffer', // Important for binary data
+        responseType: 'arraybuffer',
       })
 
       const actualPath = payload.savePath
@@ -457,12 +519,56 @@ ipcMain.handle(
   },
 )
 
+ipcMain.handle('select-directory', async (): Promise<SelectDirectoryResponse> => {
+  try {
+    const { canceled, filePaths } = await require('electron').dialog.showOpenDialog(
+      mainWindow,
+      {
+        properties: ['openDirectory'],
+      },
+    )
+    if (!canceled) {
+      return { success: true, path: filePaths[0] }
+    }
+    return { success: true, path: null }
+  } catch (error: any) {
+    return { success: false, path: null }
+  }
+})
+
+ipcMain.handle('select-save-path', async (): Promise<SelectSavePathResponse> => {
+  try {
+    const { canceled, filePath } = await require('electron').dialog.showSaveDialog(
+      mainWindow,
+      {
+        title: 'Select Output CSV Path',
+        defaultPath: 'gallery-links.csv',
+        filters: [{ name: 'CSV Files', extensions: ['csv'] }],
+      },
+    )
+    if (!canceled) {
+      return { success: true, path: filePath }
+    }
+    return { success: true, path: null }
+  } catch (error: any) {
+    return { success: false, path: null }
+  }
+})
+
+// --- Download Module ---
+ipcMain.handle('get-downloads-path', async (): Promise<GetDownloadsPathResponse> => {
+  try {
+    return { success: true, path: downloadsPath() }
+  } catch (error: any) {
+    return { success: false, path: '' }
+  }
+})
+
 ipcMain.handle(
   'download-gallery',
-  async (_, payload: { gallery: any; isArchive?: boolean; password?: string }) => {
+  async (_, payload: DownloadGalleryPayload): Promise<DownloadGalleryResponse> => {
     try {
       const result = await downloadService.downloadGallery(payload)
-      // Final guard against any non-clonable data in the response
       return JSON.parse(JSON.stringify(result))
     } catch (error: any) {
       console.error('[IPC] download-gallery error:', error)
@@ -471,50 +577,30 @@ ipcMain.handle(
   },
 )
 
-ipcMain.handle('trigger-scheduler-task', async (_, taskId: string) => {
-  // @ts-ignore - We need access to the schedulerService instance
-  const schedulerService = (global as any).schedulerService
-  if (schedulerService) {
-    const tasks = (schedulerService.store.get('scheduler.tasks') as any[]) || []
-    const task = tasks.find((t) => (t.taskId || t.id) === taskId)
-    if (task) {
-      schedulerService.runTask(task)
-      return { success: true }
-    }
-    return { success: false, error: 'Task not found' }
-  }
-  return { success: false, error: 'Scheduler service not initialized' }
+// --- Storage Module ---
+ipcMain.handle('electron-store-get', async <T = unknown>(_, key: string): Promise<T> => {
+  return store.get(key) as T
 })
 
-ipcMain.handle('open-folder', async (_, folderPath: string) => {
-  if (folderPath) {
-    shell.openPath(folderPath)
-  } else {
-    shell.openPath(downloadsPath())
-  }
-})
-
-ipcMain.handle('get-downloads-path', async () => {
-  return downloadsPath()
-})
-
-ipcMain.handle('electron-store-get', async (_, key: string) => {
-  return store.get(key)
-})
-
-ipcMain.handle('electron-store-set', async (_, key: string, val: any) => {
+ipcMain.handle('electron-store-set', async (_, key: string, val: any): Promise<void> => {
   store.set(key, val)
 })
 
-ipcMain.handle('select-directory', async () => {
-  const { canceled, filePaths } = await require('electron').dialog.showOpenDialog(
-    mainWindow,
-    {
-      properties: ['openDirectory'],
-    },
-  )
-  if (!canceled) {
-    return filePaths[0]
-  }
-  return null
-})
+// --- Scheduler Module ---
+ipcMain.handle(
+  'trigger-scheduler-task',
+  async (_, taskId: string): Promise<TriggerSchedulerResponse> => {
+    // @ts-ignore
+    const schedulerService = (global as any).schedulerService
+    if (schedulerService) {
+      const tasks = (schedulerService.store.get('scheduler.tasks') as any[]) || []
+      const task = tasks.find((t) => (t.taskId || t.id) === taskId)
+      if (task) {
+        schedulerService.runTask(task)
+        return { success: true }
+      }
+      return { success: false, error: 'Task not found' }
+    }
+    return { success: false, error: 'Scheduler service not initialized' }
+  },
+)

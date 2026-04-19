@@ -1,21 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { SearchLibraryPayload } from '@renderer/types/api'
+import type { LibraryGallery, SearchLibraryPayload } from '@shared/types/api'
 import { plainValue } from '@renderer/utilities'
-
-export interface LibraryGallery {
-  gid?: string
-  token?: string
-  title: string
-  link: string
-  rating?: string | number
-  category?: string
-  thumb?: string
-  language?: string
-  posted?: string | number
-  uploader?: string
-  tags?: string[]
-}
 
 export const useLibraryStore = defineStore('library', () => {
   // 搜尋結果是暫時性資料，不持久化
@@ -29,7 +15,7 @@ export const useLibraryStore = defineStore('library', () => {
   async function checkLibraryExists() {
     try {
       const exists = await window.api.checkLibraryExists()
-      isLibraryDownloaded.value = exists
+      isLibraryDownloaded.value = exists.exists
       return exists
     } catch (err: unknown) {
       console.error('[LibraryStore] Failed to check library existence:', err)

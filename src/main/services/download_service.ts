@@ -7,10 +7,10 @@ import archiver from 'archiver'
 import { registerFormat } from 'archiver'
 // @ts-ignore
 import zipEncryptable from 'archiver-zip-encryptable'
-import { parseTemplatePath } from '../../shared/src/utilities'
+import { parseTemplatePath } from '@shared/utilities'
 
 export interface DownloadOptions {
-  gallery: any // DownloadGallery
+  gallery: any
   isArchive?: boolean
   password?: string
 }

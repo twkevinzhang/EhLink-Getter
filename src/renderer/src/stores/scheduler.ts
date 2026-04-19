@@ -1,21 +1,7 @@
 import { defineStore } from 'pinia'
 import { useElectronStorage } from '@renderer/composables/electron-storage'
 import { computed } from 'vue'
-
-export interface ScheduledTask {
-  taskId: string
-  link: string
-  fromPage: number
-  toPage: number | string
-  scheduleTime: string
-  templatePath?: string
-  isArchive?: boolean
-  archivePassword?: string
-  lastRun?: string
-  status: 'enabled' | 'disabled' | 'running'
-  executionCount: number
-  downloadedCount: number
-}
+import type { ScheduledTask } from '@shared/types/api'
 
 export const useSchedulerStore = defineStore('scheduler', () => {
   const tasks = useElectronStorage<ScheduledTask[]>('scheduler.tasks', [])

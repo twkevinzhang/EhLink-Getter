@@ -8,21 +8,9 @@ import type {
   DownloadStatusEvent,
   ArchiveProgressEvent,
   DownloadGalleryPayload,
-} from '@renderer/types/api'
+  DownloadGallery,
+} from '@shared/types/api'
 import type { DraftGallery } from '@renderer/stores/fetch'
-
-export interface DownloadGallery {
-  gid: string
-  title: string
-  link: string
-  targetPath: string
-  isArchive: boolean
-  imageCount: number
-  status: string
-  progress: number
-  mode: 'running' | 'paused' | 'error' | 'completed' | 'pending'
-  password?: string
-}
 
 export interface DownloadJob {
   jobId: string
@@ -72,8 +60,11 @@ export const useDownloadStore = defineStore('download', () => {
   }
 
   async function getDefaultDownloadsPath() {
-    const defaultPath = await window.api.getDownloadsPath()
-    return defaultPath + '/{EN_TITLE}'
+    const response = await window.api.getDownloadsPath()
+    if (response.success) {
+      return response.path + '/{EN_TITLE}'
+    }
+    return '/{EN_TITLE}'
   }
 
   function addToQueue(
@@ -90,7 +81,7 @@ export const useDownloadStore = defineStore('download', () => {
       link: g.link,
       targetPath: parseTemplatePath(targetTemplate, g),
       isArchive,
-      imageCount: 0,
+      imageCount: g.imageCount || 0,
       status: 'Pending...',
       progress: 0,
       mode: 'pending',

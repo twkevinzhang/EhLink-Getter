@@ -1,7 +1,7 @@
 // src/renderer/src/stores/logs.ts
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { LogLevel, LogEntry } from '@renderer/types/log'
+import type { LogLevel, LogEntry } from '@shared/types/log'
 
 export type { LogLevel, LogEntry }
 

@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useLogStore } from '@renderer/stores/logs'
 import { useElectronStorage } from '@renderer/composables/electron-storage'
 import { plainValue } from '@renderer/utilities'
-import type { FetchedItem } from '@renderer/types/api'
+import type { FetchedItem } from '@shared/types/api'
 
 export interface FetchJob {
   jobId: string
@@ -23,6 +23,7 @@ export interface DraftGallery {
   link: string
   token?: string
   sourceJob?: string
+  imageCount?: number
 }
 
 export const useFetchStore = defineStore('fetch', () => {
@@ -100,6 +101,7 @@ export const useFetchStore = defineStore('fetch', () => {
       const result = await window.api.fetchPage(
         plainValue({ url: job.link, next: nextToken }),
       )
+      console.log('result', JSON.stringify(result, null, 2))
 
       if (!result?.items) break
 
@@ -206,11 +208,13 @@ export const useFetchStore = defineStore('fetch', () => {
   }
 
   async function selectDirectory() {
-    return window.api.selectDirectory()
+    const response = await window.api.selectDirectory()
+    return response.path
   }
 
   async function selectSavePath() {
-    return window.api.selectSavePath()
+    const response = await window.api.selectSavePath()
+    return response.path
   }
 
   return {

@@ -2,7 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { useIntervalFn } from '@vueuse/core'
 import { useElectronStorage } from '@renderer/composables/electron-storage'
-import { CONFIG_STORE_KEY, DEFAULT_CONFIG, type AppConfig } from '@shared/utilities'
+import { CONFIG_STORE_KEY, DEFAULT_CONFIG } from '@shared/utilities'
+import type { AppConfig } from '@shared/types/api'
 
 export const useConfigStore = defineStore('config', () => {
   const config = useElectronStorage(CONFIG_STORE_KEY, DEFAULT_CONFIG)
@@ -10,8 +11,8 @@ export const useConfigStore = defineStore('config', () => {
 
   async function checkSidecarHealth() {
     if (window.api?.checkSidecarHealth) {
-      const result = await window.api.checkSidecarHealth()
-      sidecarOnline.value = result.success
+      const response = await window.api.checkSidecarHealth()
+      sidecarOnline.value = response.success
     } else {
       sidecarOnline.value = false
     }

@@ -1,27 +1,38 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { exposeElectronAPI } from '@electron-toolkit/preload'
+import {
+  SidecarAPI,
+  AppConfig,
+  SearchLibraryPayload,
+  FetchedItem,
+  ArchiveProgressEvent,
+  DownloadGalleryPayload,
+  DownloadStatusEvent,
+  SidecarLogEvent,
+} from '@shared/types/api'
 
-const api = {
+const api: SidecarAPI = {
   // config module
   getConfig: () => ipcRenderer.invoke('get-config'),
-  saveConfig: (config: any) => ipcRenderer.invoke('save-config', config),
+  saveConfig: (config: AppConfig) => ipcRenderer.invoke('save-config', config),
   checkSidecarHealth: () => ipcRenderer.invoke('check-sidecar-health'),
   loginEHentai: () => ipcRenderer.invoke('login-ehentai'),
 
   // library module
-  searchLibrary: (payload: any) => ipcRenderer.invoke('search-library', payload),
+  searchLibrary: (payload: SearchLibraryPayload) =>
+    ipcRenderer.invoke('search-library', payload),
   checkLibraryExists: () => ipcRenderer.invoke('check-library-exists'),
   downloadLibrary: () => ipcRenderer.invoke('download-library'),
-  onDownloadProgress: (callback: any) =>
+  onDownloadProgress: (callback: (data: { loaded: number; total: number }) => void) =>
     ipcRenderer.on('download-progress', (_event, value) => callback(value)),
   openFolder: (path?: string) => ipcRenderer.invoke('open-folder', path),
 
   // fetch module
   fetchPage: (payload: { url: string; next?: string }) =>
     ipcRenderer.invoke('fetch-page', payload),
-  saveCSV: (payload: { path: string; results: any[] }) =>
+  saveCSV: (payload: { path: string; results: FetchedItem[] }) =>
     ipcRenderer.invoke('save-csv', payload),
-  saveJSON: (payload: { path: string; data: any }) =>
+  saveJSON: (payload: { path: string; data: unknown }) =>
     ipcRenderer.invoke('save-json', payload),
   readJSON: (payload: { path: string }) => ipcRenderer.invoke('read-json', payload),
   downloadImage: (payload: { url: string; savePath: string }) =>
@@ -30,22 +41,22 @@ const api = {
   selectSavePath: () => ipcRenderer.invoke('select-save-path'),
 
   // app.vue
-  onLog: (callback: any) =>
+  onLog: (callback: (log: SidecarLogEvent) => void) =>
     ipcRenderer.on('python-log', (_event, value) => callback(value)),
-  onProgress: (callback: any) =>
-    ipcRenderer.on('python-progress', (_event, value) => callback(value)),
 
   // download module
   getDownloadsPath: () => ipcRenderer.invoke('get-downloads-path'),
-  onArchiveProgress: (callback: any) =>
+  onArchiveProgress: (callback: (data: ArchiveProgressEvent) => void) =>
     ipcRenderer.on('archive-progress', (_event, value) => callback(value)),
-  downloadGallery: (payload: any) => ipcRenderer.invoke('download-gallery', payload),
-  onDownloadStatusUpdate: (callback: any) =>
+  downloadGallery: (payload: DownloadGalleryPayload) =>
+    ipcRenderer.invoke('download-gallery', payload),
+  onDownloadStatusUpdate: (callback: (data: DownloadStatusEvent) => void) =>
     ipcRenderer.on('download-status-update', (_event, value) => callback(value)),
 
   // electron-storage composable
-  storeGet: (key: string) => ipcRenderer.invoke('electron-store-get', key),
-  storeSet: (key: string, val: any) => ipcRenderer.invoke('electron-store-set', key, val),
+  storeGet: <T>(key: string) => ipcRenderer.invoke('electron-store-get', key),
+  storeSet: (key: string, val: unknown) =>
+    ipcRenderer.invoke('electron-store-set', key, val),
 
   // scheduler module
   triggerSchedulerTask: (taskId: string) =>

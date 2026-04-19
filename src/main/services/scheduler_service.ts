@@ -1,7 +1,6 @@
 import { type BrowserWindow } from 'electron'
 import Store from 'electron-store'
 import axios from 'axios'
-import { SidecarConfigService } from './sidecar_config_service'
 import { type DownloadService } from './download_service'
 
 interface ScheduledTask {
