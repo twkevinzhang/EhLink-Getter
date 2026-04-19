@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { ref, onScopeDispose } from 'vue'
-import { useLogStore } from '@renderer/stores/logs'
 import { parseTemplatePath } from '@shared/utilities'
 import type {
   JobState,
@@ -13,11 +12,17 @@ export { type JobState }
 
 export const useDownloadStore = defineStore('download', () => {
   const jobs = ref<JobState[]>([])
-  const logStore = useLogStore()
 
   // 初始化同步
   window.api.getJobs().then((serverJobs) => {
-    jobs.value = serverJobs
+    for (const sJob of serverJobs) {
+      const idx = jobs.value.findIndex((j) => j.jobId === sJob.jobId)
+      if (idx >= 0) {
+        jobs.value[idx] = sJob
+      } else {
+        jobs.value.push(sJob)
+      }
+    }
   })
 
   // 監聽 push event
