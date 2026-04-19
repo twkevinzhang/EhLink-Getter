@@ -173,8 +173,8 @@ export class JobManager {
       this.pushUpdate(job)
     }
 
-    this.controllers.delete(job.jobId)
     this.runningCount--
+    this.controllers.delete(job.jobId)
 
     if (job.mode === 'running') {
       if (completedCount === total) {
