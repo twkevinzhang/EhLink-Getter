@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useDownloadStore } from '@renderer/stores/download'
-import type { DownloadJob } from '@renderer/stores/download'
+import type { JobState } from '@renderer/stores/download'
 import { storeToRefs } from 'pinia'
 import { useToast } from 'primevue/usetoast'
 
@@ -19,7 +19,11 @@ const handlePauseAll = () => {
 }
 
 const handleStartAll = () => {
-  downloadStore.startAllJobs()
+  downloadingJobs.value.forEach((job) => {
+    if (job.mode === 'pending' || job.mode === 'paused') {
+      downloadStore.startJob(job.jobId)
+    }
+  })
   toast.add({
     severity: 'success',
     summary: 'Started',
@@ -38,7 +42,7 @@ const handleClear = () => {
   })
 }
 
-const toggleJob = (job: DownloadJob) => {
+const toggleJob = (job: JobState) => {
   job.isExpanded = !job.isExpanded
 }
 
@@ -119,18 +123,9 @@ const handleTerminateJob = (jobId: string) => {
                     {{ job.mode }}
                   </div>
                   <div class="w-32 flex flex-col items-end gap-1">
-                    <ProgressBar
-                      :value="job.isArchiving ? job.archiveProgress : job.progress"
-                      class="!h-2 w-full"
-                    >
+                    <ProgressBar :value="job.progress" class="!h-2 w-full">
                       <template #default><span></span></template>
                     </ProgressBar>
-                    <span
-                      v-if="job.isArchiving"
-                      class="text-[9px] text-eh-accent font-bold"
-                    >
-                      ARCHIVING {{ job.archiveProgress }}%
-                    </span>
                   </div>
                 </div>
               </div>

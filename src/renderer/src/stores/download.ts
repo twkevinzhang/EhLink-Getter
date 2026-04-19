@@ -1,62 +1,37 @@
 import { defineStore } from 'pinia'
-import { onScopeDispose } from 'vue'
+import { ref, onScopeDispose } from 'vue'
 import { useLogStore } from '@renderer/stores/logs'
 import { parseTemplatePath } from '@shared/utilities'
-import { useElectronStorage } from '@renderer/composables/electron-storage'
-import { plainValue } from '@renderer/utilities'
 import type {
-  ArchiveProgressEvent,
-  DownloadGallery,
+  JobState,
+  AddToQueuePayload,
   DownloadJobUpdatedEvent,
 } from '@shared/types/api'
 import type { DraftGallery } from '@renderer/stores/fetch'
 
-export interface DownloadJob {
-  jobId: string
-  title: string
-  progress: number
-  status: string
-  mode: 'running' | 'paused' | 'error' | 'completed' | 'pending'
-  galleries: DownloadGallery[]
-  isExpanded?: boolean
-  isArchive?: boolean
-  password?: string
-  archiveProgress?: number
-  isArchiving?: boolean
-}
-
-const MAX_CONCURRENT_JOBS = 3
+export { type JobState }
 
 export const useDownloadStore = defineStore('download', () => {
-  const downloadingJobs = useElectronStorage<DownloadJob[]>('download.jobs', [])
+  const jobs = ref<JobState[]>([])
   const logStore = useLogStore()
 
-  const unsubscribeStatus = window.api.onDownloadJobUpdated(
-    (data: DownloadJobUpdatedEvent) => {
-      const jobIndex = downloadingJobs.value.findIndex((j) => j.jobId === data.job.jobId)
-      if (jobIndex !== -1) {
-        downloadingJobs.value[jobIndex] = {
-          ...downloadingJobs.value[jobIndex],
-          progress: data.job.progress,
-          status: data.job.status,
-          mode: data.job.mode as DownloadJob['mode'],
-        }
-      }
-    },
-  )
+  // 初始化同步
+  window.api.getJobs().then((serverJobs) => {
+    jobs.value = serverJobs
+  })
 
-  const unsubscribeArchive = window.api.onArchiveProgress(
-    (data: ArchiveProgressEvent) => {
-      const job = downloadingJobs.value.find((j) => j.jobId === data.jobId)
-      if (job) job.archiveProgress = data.progress
-    },
-  )
+  // 監聽 push event
+  const unsubscribe = window.api.onDownloadJobUpdated((data: DownloadJobUpdatedEvent) => {
+    const idx = jobs.value.findIndex((j) => j.jobId === data.job.jobId)
+    if (idx >= 0) {
+      jobs.value[idx] = data.job
+    } else {
+      jobs.value.unshift(data.job)
+    }
+  })
 
-  if (typeof unsubscribeStatus === 'function') {
-    onScopeDispose(unsubscribeStatus)
-  }
-  if (typeof unsubscribeArchive === 'function') {
-    onScopeDispose(unsubscribeArchive)
+  if (typeof unsubscribe === 'function') {
+    onScopeDispose(unsubscribe)
   }
 
   async function getDefaultDownloadsPath() {
@@ -75,119 +50,53 @@ export const useDownloadStore = defineStore('download', () => {
     isArchive = false,
     password = '',
   ) {
-    const mappedGalleries: DownloadGallery[] = galleries.map((g) => ({
+    const mappedGalleries = galleries.map((g) => ({
       ...g,
       targetPath: parseTemplatePath(targetTemplate, g),
       isArchive,
       imagecount: g.imagecount || 0,
       status: 'Pending...',
       progress: 0,
-      mode: 'pending',
+      mode: 'pending' as const,
       password,
     }))
 
-    const existingJob = downloadingJobs.value.find((j) => j.jobId === jobId)
-    if (existingJob) {
-      existingJob.galleries = [...existingJob.galleries, ...mappedGalleries]
-      existingJob.status = `Added ${galleries.length} more galleries.`
-      return
-    }
-
-    downloadingJobs.value.unshift({
+    const payload: AddToQueuePayload = {
       jobId,
       title,
-      progress: 0,
-      status: 'Waiting in queue...',
-      mode: 'pending',
       galleries: mappedGalleries,
-      isExpanded: true,
       isArchive,
       password,
-    })
+    }
+    window.api.addToQueue(payload)
   }
 
-  async function startJob(jobId: string) {
-    const job = downloadingJobs.value.find((j) => j.jobId === jobId)
-    if (job && (job.mode === 'pending' || job.mode === 'paused')) {
-      await processDownload(job)
-    }
+  function startJob(jobId: string) {
+    window.api.startJob(jobId)
   }
 
   function pauseJob(jobId: string) {
-    const job = downloadingJobs.value.find((j) => j.jobId === jobId)
-    if (job) {
-      job.mode = 'paused'
-      job.status = 'Paused'
-      job.galleries.forEach((g) => {
-        if (g.mode === 'running' || g.mode === 'pending') g.mode = 'paused'
-      })
-    }
+    window.api.pauseJob(jobId)
   }
 
   function stopJob(jobId: string) {
-    const job = downloadingJobs.value.find((j) => j.jobId === jobId)
-    if (job) {
-      job.mode = 'error'
-      job.status = 'Terminated by user'
-      job.galleries.forEach((g) => {
-        if (g.mode !== 'completed') g.mode = 'error'
-      })
-    }
+    window.api.stopJob(jobId)
   }
 
   function restartJob(jobId: string) {
-    const job = downloadingJobs.value.find((j) => j.jobId === jobId)
-    if (job) {
-      job.progress = 0
-      job.mode = 'pending'
-      job.status = 'Restarting...'
-      job.galleries.forEach((g) => {
-        g.progress = 0
-        g.mode = 'pending'
-        g.status = 'Pending...'
-      })
-      startJob(jobId)
-    }
-  }
-
-  async function startAllJobs() {
-    const pendingJobs = downloadingJobs.value.filter(
-      (j) => j.mode === 'pending' || j.mode === 'paused',
-    )
-    const batch = pendingJobs.slice(0, MAX_CONCURRENT_JOBS)
-    await Promise.all(batch.map((job) => processDownload(job)))
-  }
-
-  async function processDownload(job: DownloadJob) {
-    if (job.mode === 'running') return
-
-    try {
-      await window.api.startJob(job.jobId)
-      job.mode = 'running'
-      job.status = 'Processing...'
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      job.mode = 'error'
-      job.status = msg
-      logStore.addLog({
-        level: 'error',
-        message: `IPC Error [${job.title}]: ${msg}`,
-      })
-    }
+    window.api.restartJob(jobId)
   }
 
   function clearFinishedJobs() {
-    downloadingJobs.value = downloadingJobs.value.filter(
-      (j) => j.mode !== 'completed' && j.mode !== 'error',
-    )
+    window.api.clearFinishedJobs()
+    jobs.value = jobs.value.filter((j) => j.mode !== 'completed' && j.mode !== 'error')
   }
 
   return {
-    downloadingJobs,
+    downloadingJobs: jobs,
     getDefaultDownloadsPath,
     addToQueue,
     startJob,
-    startAllJobs,
     pauseJob,
     stopJob,
     restartJob,
