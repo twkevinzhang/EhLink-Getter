@@ -9,6 +9,10 @@ export function libraryPath() {
   return join(app.getPath('userData'), 'library.json')
 }
 
+export function libraryDbPath() {
+  return join(app.getPath('userData'), 'library.db')
+}
+
 export function downloadsPath() {
   return join(app.getPath('userData'), 'downloads')
 }

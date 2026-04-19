@@ -103,20 +103,37 @@ const formatPosted = (ts: string | number | undefined) => {
       <Button
         type="button"
         icon="pi pi-download"
-        :disabled="libraryStore.isLibraryDownloaded"
+        :disabled="libraryStore.isLibraryDownloaded || libraryStore.downloading"
         :loading="libraryStore.downloading"
         class="w-full !h-12 !font-bold"
         :label="
           libraryStore.isLibraryDownloaded
             ? 'Library Database Ready'
-            : 'Download library.json'
+            : libraryStore.downloading
+              ? libraryStore.libraryPhase === 'import'
+                ? 'Importing...'
+                : libraryStore.libraryPhase === 'index'
+                  ? 'Indexing...'
+                  : 'Downloading library.json...'
+              : 'Download library.json'
         "
         @click="handleDownloadMetadata"
       />
 
       <div v-if="libraryStore.downloading" class="mt-2">
         <div class="flex justify-between text-xs mb-1 text-eh-muted">
-          <span>Downloading library.json from MEGA...</span>
+          <span>
+            <template v-if="libraryStore.libraryPhase === 'download'">
+              Downloading library.json from MEGA...
+            </template>
+            <template v-else-if="libraryStore.libraryPhase === 'import'">
+              Importing metadata to SQLite database...
+            </template>
+            <template v-else-if="libraryStore.libraryPhase === 'index'">
+              Building search index (FTS5)...
+            </template>
+            <template v-else> Preparing... </template>
+          </span>
           <span>{{ libraryStore.downloadProgress }}%</span>
         </div>
         <ProgressBar :value="libraryStore.downloadProgress" class="!h-2">

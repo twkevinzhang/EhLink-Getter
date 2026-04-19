@@ -10,6 +10,7 @@ import {
   type FetchGalleryResponse,
   type AddToQueuePayload,
   type DownloadJobUpdatedEvent,
+  type LibraryProgressEvent,
 } from '@shared/types/api'
 
 const api: SidecarAPI = {
@@ -24,8 +25,8 @@ const api: SidecarAPI = {
     ipcRenderer.invoke('search-library', payload),
   checkLibraryExists: () => ipcRenderer.invoke('check-library-exists'),
   downloadLibrary: () => ipcRenderer.invoke('download-library'),
-  onDownloadProgress: (callback: (data: { loaded: number; total: number }) => void) =>
-    ipcRenderer.on('download-progress', (_event, value) => callback(value)),
+  onLibraryProgress: (callback: (data: LibraryProgressEvent) => void) =>
+    ipcRenderer.on('library-progress', (_event, value) => callback(value)),
   openFolder: (path?: string) => ipcRenderer.invoke('open-folder', path),
 
   // fetch module

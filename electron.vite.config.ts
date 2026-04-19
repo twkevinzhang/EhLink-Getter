@@ -14,6 +14,14 @@ export default defineConfig({
       },
     },
     plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve('src/main/index.ts'),
+          library_import_worker: resolve('src/main/workers/library_import_worker.ts'),
+        },
+      },
+    },
   },
   preload: {
     resolve: {

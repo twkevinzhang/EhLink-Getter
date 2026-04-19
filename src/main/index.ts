@@ -4,16 +4,18 @@ import * as fs from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { spawn, type ChildProcess } from 'child_process'
 import axios from 'axios'
-import { LibraryService } from '@main/services/library_service'
-import { SchedulerService } from '@main/services/scheduler_service'
-import { JobManager } from '@main/services/job_manager'
-import Store from 'electron-store'
+import { Worker } from 'worker_threads'
+import path from 'path'
 // @ts-ignore
 import { registerFormat } from 'archiver'
 // @ts-ignore
 import zipEncryptable from 'archiver-zip-encryptable'
 import { File as MegaFile } from 'megajs'
-import { downloadsPath, libraryPath } from '@main/services/utilties'
+import { SchedulerService } from '@main/services/scheduler_service'
+import { JobManager } from '@main/services/job_manager'
+import Store from 'electron-store'
+import { LibrarySqliteService } from '@main/services/library_sqlite_service'
+import { downloadsPath, libraryPath, libraryDbPath } from '@main/services/utilties'
 import { CONFIG_STORE_KEY } from '@shared/utilities'
 import {
   type AppConfig,
@@ -37,6 +39,7 @@ import {
   type SelectSavePathResponse,
   type GetDownloadsPathResponse,
   type FetchGalleryResponse,
+  type LibraryProgressEvent,
 } from '@shared/types/api'
 
 // Register the encryptable zip format
@@ -62,8 +65,8 @@ function startSidecar() {
     if (process.platform !== 'win32' && fs.existsSync(sidecarExecutable)) {
       try {
         fs.chmodSync(sidecarExecutable, 0o755)
-      } catch (e) {
-        console.error('Failed to set executable bit on sidecar:', e)
+      } catch {
+        console.error('Failed to set executable bit on sidecar')
       }
     }
   } else {
@@ -99,7 +102,7 @@ function startSidecar() {
         if (json.type === 'log') {
           mainWindow?.webContents.send('python-log', json)
         }
-      } catch (e) {
+      } catch {
         // Not JSON, just regular log
         mainWindow?.webContents.send('python-log', {
           level: 'info',
@@ -198,7 +201,7 @@ app.whenReady().then(() => {
     try {
       await axios.post(`${SIDECAR_URL}/config`, newConfig)
       console.log('Config synced to sidecar')
-    } catch (e) {
+    } catch {
       if (retries > 0) {
         setTimeout(() => syncConfig(newConfig, retries - 1), 2000)
       } else {
@@ -259,7 +262,7 @@ ipcMain.handle('check-sidecar-health', async (): Promise<CheckSidecarHealthRespo
       timeout: 2000,
     })
     return { success: response.data.status === 'ok' }
-  } catch (error) {
+  } catch {
     return { success: false }
   }
 })
@@ -313,38 +316,27 @@ ipcMain.handle(
   'search-library',
   async (_, payload: SearchLibraryPayload): Promise<SearchLibraryResponse> => {
     try {
-      const libPath = libraryPath()
-      const service = new LibraryService(libPath)
-      const rawResults = await service.findMultipleLinks(
-        payload.keywords.split(' '),
-        1000,
-        true,
-        {
+      const dbPath = libraryDbPath()
+      const service = new LibrarySqliteService(dbPath)
+
+      try {
+        const keywords = payload.keywords
+          .split(' ')
+          .map((q) => q.trim().toLowerCase())
+          .filter((q) => q.length > 0)
+
+        const titleTokens = keywords.filter((q) => !q.includes(':'))
+        const tagQueries = keywords.filter((q) => q.includes(':'))
+
+        const results = service.search(titleTokens, tagQueries, {
           minRating: payload.minRating,
           includeExpunged: payload.includeExpunged,
-        },
-      )
+        })
 
-      const filteredResults = rawResults.map((item) => {
-        const itemFiltered: any = {}
-        for (const field of payload.fields) {
-          if (field === 'link') {
-            itemFiltered.link = `https://e-hentai.org/g/${item.gid}/${item.token}/`
-          } else if (field === 'language') {
-            const langTag = (item.tags || []).find((t: string) =>
-              t.startsWith('language:'),
-            )
-            if (langTag) itemFiltered.language = langTag.replace('language:', '')
-          } else if (field === 'gid') {
-            itemFiltered.gid = String(item.gid)
-          } else if (item[field] !== undefined) {
-            itemFiltered[field] = item[field]
-          }
-        }
-        return itemFiltered
-      })
-
-      return { results: filteredResults }
+        return { results }
+      } finally {
+        service.close()
+      }
     } catch (error: any) {
       return { results: [], error: error.message }
     }
@@ -353,53 +345,80 @@ ipcMain.handle(
 
 ipcMain.handle('check-library-exists', async (): Promise<CheckLibraryExistsResponse> => {
   try {
-    const exists = fs.existsSync(libraryPath())
-    return { success: true, exists }
-  } catch (error: any) {
-    return { success: false, exists: false }
+    const dbPath = libraryDbPath()
+    if (!fs.existsSync(dbPath)) return { exists: false }
+
+    // ⚠️ 只有 _meta.status = 'ready' 才算真正完成（排除 import 中途失敗的殘留）
+    const db = new (require('better-sqlite3'))(dbPath, { readonly: true })
+    try {
+      const row = db.prepare(`SELECT value FROM _meta WHERE key = 'status'`).get() as
+        | { value: string }
+        | undefined
+      return { exists: row?.value === 'ready' }
+    } finally {
+      db.close()
+    }
+  } catch {
+    return { exists: false }
   }
 })
 
 ipcMain.handle('download-library', async (): Promise<DownloadLibraryResponse> => {
   const url = 'https://mega.nz/folder/oh1U0SIA#WBUcf3PaOvrfIF238fnbTg'
-  const targetPath = libraryPath()
+  const jsonPath = libraryPath()
+  const dbPath = libraryDbPath()
+
+  const sendProgress = (event: LibraryProgressEvent) => {
+    mainWindow?.webContents.send('library-progress', event)
+  }
 
   try {
+    // ── Phase 1：下載 library.json ────────────────────────────
     const folder = MegaFile.fromURL(url)
     await folder.loadAttributes()
 
     // @ts-ignore
     const file = folder.children.find((f: any) => f.name === 'gdata.json')
+    if (!file) throw new Error('File gdata.json not found in the MEGA folder')
 
-    if (!file) {
-      throw new Error('File gdata.json not found in the MEGA folder')
-    }
-
-    return new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       const stream = file.download({})
-      const writeStream = fs.createWriteStream(targetPath)
+      const writeStream = fs.createWriteStream(jsonPath)
 
-      stream.on('progress', (info) => {
-        mainWindow?.webContents.send('download-progress', {
-          loaded: info.bytesLoaded,
-          total: info.bytesTotal,
-        })
+      stream.on('progress', (info: { bytesLoaded: number; bytesTotal: number }) => {
+        const progress =
+          info.bytesTotal > 0 ? Math.round((info.bytesLoaded / info.bytesTotal) * 100) : 0
+        sendProgress({ phase: 'download', progress })
       })
 
       stream.pipe(writeStream)
+      writeStream.on('finish', resolve)
+      writeStream.on('error', reject)
+      stream.on('error', reject)
+    })
 
-      writeStream.on('finish', () => {
-        resolve({ success: true, path: targetPath })
+    // ── Phase 2 & 3：Worker Thread 執行 SQLite 匯入與建索引 ───
+    // ⚠️ Worker 路徑：electron-vite build 後 worker 與 index.js 同目錄（out/main/）
+    const workerPath = path.join(__dirname, 'library_import_worker.js')
+
+    await new Promise<void>((resolve, reject) => {
+      const worker = new Worker(workerPath, {
+        workerData: { jsonPath, dbPath },
       })
 
-      writeStream.on('error', (err) => {
-        reject(err)
+      worker.on('message', (msg: LibraryProgressEvent) => {
+        sendProgress(msg)
       })
 
-      stream.on('error', (err) => {
-        reject(err)
+      worker.on('error', reject)
+
+      worker.on('exit', (code) => {
+        if (code === 0) resolve()
+        else reject(new Error(`Library import worker exited with code ${code}`))
       })
     })
+
+    return { success: true, path: dbPath }
   } catch (error: any) {
     return { success: false, error: error.message }
   }
@@ -568,7 +587,7 @@ ipcMain.handle('select-directory', async (): Promise<SelectDirectoryResponse> =>
       return { success: true, path: filePaths[0] }
     }
     return { success: true, path: null }
-  } catch (error: any) {
+  } catch {
     return { success: false, path: null }
   }
 })
@@ -587,7 +606,7 @@ ipcMain.handle('select-save-path', async (): Promise<SelectSavePathResponse> => 
       return { success: true, path: filePath }
     }
     return { success: true, path: null }
-  } catch (error: any) {
+  } catch {
     return { success: false, path: null }
   }
 })
@@ -596,7 +615,7 @@ ipcMain.handle('select-save-path', async (): Promise<SelectSavePathResponse> => 
 ipcMain.handle('get-downloads-path', async (): Promise<GetDownloadsPathResponse> => {
   try {
     return { success: true, path: downloadsPath() }
-  } catch (error: any) {
+  } catch {
     return { success: false, path: '' }
   }
 })

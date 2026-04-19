@@ -124,6 +124,13 @@ export interface LoginEHentaiResponse {
   error?: string
 }
 
+/** library-progress IPC push event */
+export interface LibraryProgressEvent {
+  phase: 'download' | 'import' | 'index'
+  /** 0-100。index 階段：開始為 0，完成為 100 */
+  progress: number
+}
+
 /** Library 模組 Response */
 export interface SearchLibraryResponse {
   results: LibraryGallery[]
@@ -131,7 +138,6 @@ export interface SearchLibraryResponse {
 }
 
 export interface CheckLibraryExistsResponse {
-  success: boolean
   exists: boolean
 }
 
@@ -141,13 +147,13 @@ export interface DownloadLibraryResponse {
   error?: string
 }
 
-/** Fetch 模組 Response */
-export interface FetchPageResponse {
-  items: FetchedItem[]
-  next?: string
-  error?: string
+/** onLibraryProgress IPC-event payload */
+export interface LibraryProgressPayload {
+  phase: 'download' | 'import' | 'index'
+  progress: number
 }
 
+/** Fetch 模組 Response */
 export interface FetchGalleryResponse {
   item?: FetchedItem
   error?: string
@@ -224,9 +230,7 @@ export interface SidecarAPI {
   searchLibrary: (payload: SearchLibraryPayload) => Promise<SearchLibraryResponse>
   checkLibraryExists: () => Promise<CheckLibraryExistsResponse>
   downloadLibrary: () => Promise<DownloadLibraryResponse>
-  onDownloadProgress: (
-    callback: (data: { loaded: number; total: number }) => void,
-  ) => void
+  onLibraryProgress: (callback: (data: LibraryProgressEvent) => void) => void
   openFolder: (path?: string) => Promise<void>
 
   // fetch

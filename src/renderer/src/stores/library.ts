@@ -10,6 +10,7 @@ export const useLibraryStore = defineStore('library', () => {
   const downloading = ref(false)
   const searching = ref(false)
   const downloadProgress = ref(0)
+  const libraryPhase = ref<'download' | 'import' | 'index' | null>(null)
   const error = ref<string | null>(null)
   let progressListenerInitialized = false
 
@@ -90,11 +91,10 @@ export const useLibraryStore = defineStore('library', () => {
   function initProgressEventListener() {
     if (progressListenerInitialized) return
     progressListenerInitialized = true
-    window.api.onDownloadProgress((data: { loaded: number; total: number }) => {
+    window.api.onLibraryProgress((data) => {
       downloading.value = true
-      if (data.total > 0) {
-        downloadProgress.value = Math.round((data.loaded / data.total) * 100)
-      }
+      libraryPhase.value = data.phase
+      downloadProgress.value = data.progress
     })
   }
 
@@ -104,6 +104,7 @@ export const useLibraryStore = defineStore('library', () => {
     downloading,
     searching,
     downloadProgress,
+    libraryPhase,
     error,
     checkLibraryExists,
     downloadLibrary,

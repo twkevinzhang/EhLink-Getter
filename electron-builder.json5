@@ -14,7 +14,10 @@
     },
   ],
   asar: true,
-  asarUnpack: ['resources/sidecar/**'],
+  asarUnpack: [
+    'resources/sidecar/**',
+    'out/main/library_import_worker.js',
+  ],
   extraResources: [
     {
       from: 'dist/sidecar',
