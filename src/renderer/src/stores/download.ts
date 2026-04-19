@@ -92,9 +92,16 @@ export const useDownloadStore = defineStore('download', () => {
     window.api.restartJob(jobId)
   }
 
+  function removeJob(jobId: string) {
+    window.api.removeJob(jobId)
+    jobs.value = jobs.value.filter((j) => j.jobId !== jobId)
+  }
+
   function clearFinishedJobs() {
     window.api.clearFinishedJobs()
-    jobs.value = jobs.value.filter((j) => j.mode !== 'completed' && j.mode !== 'error')
+    jobs.value = jobs.value.filter(
+      (j) => j.mode !== 'completed' && j.mode !== 'error' && j.mode !== 'stopped',
+    )
   }
 
   return {
@@ -105,6 +112,7 @@ export const useDownloadStore = defineStore('download', () => {
     pauseJob,
     stopJob,
     restartJob,
+    removeJob,
     clearFinishedJobs,
   }
 })

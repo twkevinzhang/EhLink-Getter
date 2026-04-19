@@ -91,10 +91,10 @@ export class JobManager {
     if (!job) return
     this.controllers.get(jobId)?.abort()
     this.controllers.delete(jobId)
-    job.mode = 'error'
-    job.status = 'Terminated by user'
+    job.mode = 'stopped'
+    job.status = 'Stopped by user'
     job.galleries.forEach((g) => {
-      if (g.mode !== 'completed') g.mode = 'error'
+      if (g.mode !== 'completed') g.mode = 'stopped'
     })
     this.pushUpdate(job)
   }
@@ -115,9 +115,16 @@ export class JobManager {
     this.startJob(jobId)
   }
 
+  removeJob(jobId: string) {
+    const job = this.jobs.get(jobId)
+    if (!job || job.mode === 'running') return
+    this.jobs.delete(jobId)
+    this.persist()
+  }
+
   clearFinishedJobs() {
     for (const [jobId, job] of this.jobs.entries()) {
-      if (job.mode === 'completed' || job.mode === 'error') {
+      if (job.mode === 'completed' || job.mode === 'error' || job.mode === 'stopped') {
         this.jobs.delete(jobId)
       }
     }

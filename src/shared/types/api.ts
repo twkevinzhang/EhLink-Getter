@@ -9,7 +9,7 @@ export interface DownloadGallery {
   imagecount: number
   status: string
   progress: number
-  mode: 'running' | 'paused' | 'error' | 'completed' | 'pending'
+  mode: 'running' | 'paused' | 'error' | 'completed' | 'pending' | 'stopped'
   password?: string
   image_links?: string[]
 }
@@ -19,7 +19,7 @@ export interface JobState {
   title: string
   progress: number
   status: string
-  mode: 'running' | 'paused' | 'error' | 'completed' | 'pending'
+  mode: 'running' | 'paused' | 'error' | 'completed' | 'pending' | 'stopped'
   galleries: DownloadGallery[]
   isExpanded?: boolean
   isArchive?: boolean
@@ -253,6 +253,7 @@ export interface SidecarAPI {
   pauseJob: (jobId: string) => Promise<void>
   stopJob: (jobId: string) => Promise<void>
   restartJob: (jobId: string) => Promise<void>
+  removeJob: (jobId: string) => Promise<void>
   clearFinishedJobs: () => Promise<void>
   onDownloadJobUpdated: (callback: (event: DownloadJobUpdatedEvent) => void) => void
   onArchiveProgress: (callback: (data: ArchiveProgressEvent) => void) => void

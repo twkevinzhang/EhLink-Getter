@@ -61,6 +61,10 @@ const handleRestartJob = (jobId: string) => {
 const handleTerminateJob = (jobId: string) => {
   downloadStore.stopJob(jobId)
 }
+
+const handleRemoveJob = (jobId: string) => {
+  downloadStore.removeJob(jobId)
+}
 </script>
 
 <template>
@@ -118,6 +122,7 @@ const handleTerminateJob = (jobId: string) => {
                       'text-eh-accent border-eh-accent': job.mode === 'running',
                       'text-gray-400 border-gray-400':
                         job.mode === 'paused' || job.mode === 'pending',
+                      'text-orange-500 border-orange-500': job.mode === 'stopped',
                     }"
                   >
                     {{ job.mode }}
@@ -131,77 +136,64 @@ const handleTerminateJob = (jobId: string) => {
               </div>
             </div>
 
-            <!-- Job Actions -->
+            <!-- Job Actions: 暫停/恢復 | 停止/重試 | 移除 -->
             <div class="flex gap-1">
-              <template v-if="job.mode === 'pending'">
-                <Button
-                  v-tooltip="'Start'"
-                  icon="pi pi-play"
-                  rounded
-                  text
-                  size="small"
-                  @click.stop="handleResumeJob(job.jobId)"
-                />
-              </template>
-              <template v-if="job.mode === 'running'">
-                <Button
-                  v-tooltip="'Pause'"
-                  icon="pi pi-pause"
-                  severity="warn"
-                  rounded
-                  text
-                  size="small"
-                  @click.stop="handlePauseJob(job.jobId)"
-                />
-                <Button
-                  v-tooltip="'Terminate'"
-                  icon="pi pi-times"
-                  severity="danger"
-                  rounded
-                  text
-                  size="small"
-                  disabled
-                  @click.stop="handleTerminateJob(job.jobId)"
-                />
-              </template>
-              <template v-if="job.mode === 'paused'">
-                <Button
-                  v-tooltip="'Play'"
-                  icon="pi pi-play"
-                  rounded
-                  text
-                  size="small"
-                  @click.stop="handleResumeJob(job.jobId)"
-                />
-                <Button
-                  v-tooltip="'Terminate'"
-                  icon="pi pi-times"
-                  severity="danger"
-                  rounded
-                  text
-                  size="small"
-                  @click.stop="handleTerminateJob(job.jobId)"
-                />
-              </template>
-              <template v-if="job.mode === 'error'">
-                <Button
-                  v-tooltip="'Restart'"
-                  icon="pi pi-refresh"
-                  rounded
-                  text
-                  size="small"
-                  @click.stop="handleRestartJob(job.jobId)"
-                />
-                <Button
-                  v-tooltip="'Terminate'"
-                  icon="pi pi-times"
-                  severity="danger"
-                  rounded
-                  text
-                  size="small"
-                  @click.stop="handleTerminateJob(job.jobId)"
-                />
-              </template>
+              <!-- 暫停/恢復 -->
+              <Button
+                v-tooltip="job.mode === 'running' ? '暫停' : '恢復'"
+                :icon="job.mode === 'running' ? 'pi pi-pause' : 'pi pi-play'"
+                :disabled="
+                  job.mode === 'error' ||
+                  job.mode === 'completed' ||
+                  job.mode === 'stopped'
+                "
+                rounded
+                text
+                size="small"
+                @click.stop="
+                  job.mode === 'running'
+                    ? handlePauseJob(job.jobId)
+                    : handleResumeJob(job.jobId)
+                "
+              />
+              <!-- 停止/重試 -->
+              <Button
+                v-tooltip="
+                  job.mode === 'error' ||
+                  job.mode === 'completed' ||
+                  job.mode === 'stopped'
+                    ? '重試'
+                    : '停止'
+                "
+                :icon="
+                  job.mode === 'error' ||
+                  job.mode === 'completed' ||
+                  job.mode === 'stopped'
+                    ? 'pi pi-refresh'
+                    : 'pi pi-stop'
+                "
+                :disabled="job.mode === 'pending'"
+                rounded
+                text
+                size="small"
+                @click.stop="
+                  job.mode === 'error' ||
+                  job.mode === 'completed' ||
+                  job.mode === 'stopped'
+                    ? handleRestartJob(job.jobId)
+                    : handleTerminateJob(job.jobId)
+                "
+              />
+              <!-- 移除 -->
+              <Button
+                v-tooltip="'移除'"
+                icon="pi pi-trash"
+                :disabled="job.mode === 'running' || job.mode === 'paused'"
+                rounded
+                text
+                size="small"
+                @click.stop="handleRemoveJob(job.jobId)"
+              />
             </div>
           </div>
 
@@ -294,5 +286,11 @@ const handleTerminateJob = (jobId: string) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+:deep(.p-button-text:disabled),
+:deep(.p-button-text.p-disabled) {
+  color: #d1d5db !important;
+  opacity: 1 !important;
 }
 </style>

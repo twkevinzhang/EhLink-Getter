@@ -614,6 +614,10 @@ ipcMain.handle('restart-job', async (_, jobId: string) => {
   jobManager.restartJob(jobId)
 })
 
+ipcMain.handle('remove-job', async (_, jobId: string) => {
+  jobManager.removeJob(jobId)
+})
+
 ipcMain.handle('clear-finished-jobs', async () => {
   jobManager.clearFinishedJobs()
 })
