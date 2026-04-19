@@ -1,5 +1,11 @@
 import * as fs from 'fs'
-import * as readline from 'readline'
+import { type Duplex } from 'stream'
+import { parser } from 'stream-json'
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { streamObject } = require('stream-json/streamers/StreamObject') as {
+  streamObject: () => Duplex
+}
 
 export class LibraryService {
   private libraryPath: string
@@ -12,50 +18,64 @@ export class LibraryService {
     return this.findMultipleLinks([titleQuery], limit, false)
   }
 
-  async findMultipleLinks(queries: string[], limit = 1000, raw = false): Promise<any[]> {
+  async findMultipleLinks(
+    queries: string[],
+    limit = 1000,
+    raw = false,
+    filters?: { minRating?: number; includeExpunged?: boolean },
+  ): Promise<any[]> {
     if (!fs.existsSync(this.libraryPath)) {
       throw new Error(`Library file not found: ${this.libraryPath}`)
     }
 
     const results: any[] = []
+
     const normalizedQueries = queries
       .map((q) => q.trim().toLowerCase())
       .filter((q) => q.length > 0)
 
-    if (normalizedQueries.length === 0) return []
+    // namespace:value 格式 -> 搜尋 tags；純文字 -> 搜尋 title
+    const titleQueries = normalizedQueries.filter((q) => !q.includes(':'))
+    const tagQueries = normalizedQueries.filter((q) => q.includes(':'))
 
-    const fileStream = fs.createReadStream(this.libraryPath)
-    const rl = readline.createInterface({
-      input: fileStream,
-      crlfDelay: Infinity,
-    })
+    const objStream = streamObject()
 
-    for await (const line of rl) {
-      try {
-        const meta = JSON.parse(line)
-        const titleLower = (meta.title || '').toLowerCase()
+    await new Promise<void>((resolve, reject) => {
+      objStream.on('data', ({ value: meta }: { value: any }) => {
+        if (results.length >= limit) return
 
-        const isMatch = normalizedQueries.some((q) => titleLower.includes(q))
+        if (!filters?.includeExpunged && meta.expunged) return
 
-        if (isMatch) {
-          if (raw) {
-            results.push(meta)
-          } else {
-            results.push({
-              title: meta.title,
-              link: `https://e-hentai.org/g/${meta.gid}/${meta.token}/`,
-            })
-          }
-
-          if (results.length >= limit) {
-            rl.close()
-            break
-          }
+        if (filters?.minRating !== undefined && filters.minRating > 0) {
+          if (parseFloat(meta.rating || '0') < filters.minRating) return
         }
-      } catch (e) {
-        // Skip malformed lines
-      }
-    }
+
+        const titleLower = (meta.title || '').toLowerCase()
+        const tags: string[] = (meta.tags || []).map((t: string) => t.toLowerCase())
+
+        const titleMatch =
+          titleQueries.length === 0 || titleQueries.every((q) => titleLower.includes(q))
+
+        const tagMatch =
+          tagQueries.length === 0 || tagQueries.every((q) => tags.includes(q))
+
+        if (!titleMatch || !tagMatch) return
+
+        results.push(
+          raw
+            ? meta
+            : {
+                title: meta.title,
+                link: `https://e-hentai.org/g/${meta.gid}/${meta.token}/`,
+              },
+        )
+      })
+
+      objStream.on('end', resolve)
+      objStream.on('error', reject)
+
+      fs.createReadStream(this.libraryPath).pipe(parser()).pipe(objStream)
+    })
 
     return results
   }

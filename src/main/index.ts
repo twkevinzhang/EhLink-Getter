@@ -319,6 +319,10 @@ ipcMain.handle(
         payload.keywords.split(' '),
         1000,
         true,
+        {
+          minRating: payload.minRating,
+          includeExpunged: payload.includeExpunged,
+        },
       )
 
       const filteredResults = rawResults.map((item) => {
@@ -326,6 +330,13 @@ ipcMain.handle(
         for (const field of payload.fields) {
           if (field === 'link') {
             itemFiltered.link = `https://e-hentai.org/g/${item.gid}/${item.token}/`
+          } else if (field === 'language') {
+            const langTag = (item.tags || []).find((t: string) =>
+              t.startsWith('language:'),
+            )
+            if (langTag) itemFiltered.language = langTag.replace('language:', '')
+          } else if (field === 'gid') {
+            itemFiltered.gid = String(item.gid)
           } else if (item[field] !== undefined) {
             itemFiltered[field] = item[field]
           }

@@ -8,6 +8,7 @@ export const useLibraryStore = defineStore('library', () => {
   const galleries = ref<LibraryGallery[]>([])
   const isLibraryDownloaded = ref(false)
   const downloading = ref(false)
+  const searching = ref(false)
   const downloadProgress = ref(0)
   const error = ref<string | null>(null)
   let progressListenerInitialized = false
@@ -52,6 +53,7 @@ export const useLibraryStore = defineStore('library', () => {
       return { success: false, error: 'Library not downloaded' }
     }
     try {
+      searching.value = true
       const payload: SearchLibraryPayload = {
         keywords,
         fields: [
@@ -72,14 +74,16 @@ export const useLibraryStore = defineStore('library', () => {
         }),
       }
       const response = await window.api.searchLibrary(plainValue(payload))
-      if (response?.results) {
-        galleries.value = response.results
-        return { success: true, count: response.results.length }
+      if (response?.error) {
+        return { success: false, error: response.error }
       }
-      return { success: false, error: response?.error ?? 'Unknown response' }
+      galleries.value = response?.results ?? []
+      return { success: true, count: galleries.value.length }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       return { success: false, error: message }
+    } finally {
+      searching.value = false
     }
   }
 
@@ -98,6 +102,7 @@ export const useLibraryStore = defineStore('library', () => {
     galleries,
     isLibraryDownloaded,
     downloading,
+    searching,
     downloadProgress,
     error,
     checkLibraryExists,

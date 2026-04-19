@@ -42,6 +42,7 @@ const handleDownloadMetadata = async () => {
 }
 
 const handleSearch = async () => {
+  if (libraryStore.searching) return
   if (!libraryStore.isLibraryDownloaded) {
     toast.add({
       severity: 'warn',
@@ -138,7 +139,12 @@ const formatPosted = (ts: string | number | undefined) => {
                 class="flex-1 !p-2"
                 @keyup.enter="handleSearch"
               />
-              <Button icon="pi pi-search" label="Search" @click="handleSearch" />
+              <Button
+                icon="pi pi-search"
+                label="Search"
+                :loading="libraryStore.searching"
+                @click="handleSearch"
+              />
             </div>
             <div class="flex items-center gap-6 text-sm text-eh-muted">
               <div class="flex items-center gap-2">
@@ -172,6 +178,14 @@ const formatPosted = (ts: string | number | undefined) => {
       <i class="pi pi-database text-4xl mb-4 text-eh-border/50"></i>
       <p class="font-bold">Library Database is required.</p>
       <p class="text-sm italic">Click the button above to download it (approx. 200MB).</p>
+    </div>
+
+    <div
+      v-else-if="libraryStore.searching"
+      class="flex-1 flex flex-col items-center justify-center text-eh-muted gap-3"
+    >
+      <i class="pi pi-spin pi-spinner text-3xl text-eh-accent"></i>
+      <p class="text-sm">Searching library...</p>
     </div>
 
     <div v-else class="gallery-grid flex-1 overflow-y-auto pr-2">
@@ -250,7 +264,11 @@ const formatPosted = (ts: string | number | undefined) => {
     </div>
 
     <div
-      v-if="libraryStore.isLibraryDownloaded && libraryStore.galleries.length > 0"
+      v-if="
+        libraryStore.isLibraryDownloaded &&
+        !libraryStore.searching &&
+        libraryStore.galleries.length > 0
+      "
       class="flex justify-center pt-2"
     >
       <Paginator
