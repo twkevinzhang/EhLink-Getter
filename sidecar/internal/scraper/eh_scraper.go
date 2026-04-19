@@ -48,38 +48,49 @@ func (s *EhScraperService) buildHeaders() map[string]string {
 func (s *EhScraperService) ParseList(doc *goquery.Document) []models.LinkInfo {
 	var results []models.LinkInfo
 
-	// 1. Standard (Minimal+, Compact, Extended) - Usually has div.glink
-	doc.Find("div.glink").Each(func(i int, sel *goquery.Selection) {
-		aTag := sel.ParentFiltered("a")
+	// Regex to match "123 pages"
+	rePages := regexp.MustCompile(`(\d+)\s+pages`)
+
+	// 1. Standard (Minimal+, Compact, Extended, Minimal) - Usually in a table row
+	// Find all table rows in the list
+	doc.Find("table.itg tr").Each(func(i int, tr *goquery.Selection) {
+		// Skip header rows (they don't have glink)
+		glink := tr.Find("div.glink")
+		if glink.Length() == 0 {
+			return
+		}
+
+		aTag := glink.ParentFiltered("a")
 		if aTag.Length() == 0 {
-			aTag = sel.Closest("a")
+			aTag = glink.Closest("a")
 		}
 		
 		href, exists := aTag.Attr("href")
-		if exists {
-			results = append(results, models.LinkInfo{
-				Title: strings.TrimSpace(sel.Text()),
-				Link:  href,
-			})
+		if !exists {
+			return
 		}
-	})
 
-	// 2. Minimal view (table rows)
-	if len(results) == 0 {
-		doc.Find("td.gl3c.glname").Each(func(i int, sel *goquery.Selection) {
-			aTag := sel.Find("a")
-			divGlink := sel.Find("div.glink")
-			href, exists := aTag.Attr("href")
-			if exists && divGlink.Length() > 0 {
-				results = append(results, models.LinkInfo{
-					Title: strings.TrimSpace(divGlink.Text()),
-					Link:  href,
-				})
+		// Extract page count
+		// It's usually in a div that contains "pages" text within the same row
+		imgCount := 0
+		tr.Find("div, td").Each(func(j int, s *goquery.Selection) {
+			if imgCount > 0 {
+				return
+			}
+			text := strings.TrimSpace(s.Text())
+			if matches := rePages.FindStringSubmatch(text); len(matches) > 1 {
+				imgCount, _ = strconv.Atoi(matches[1])
 			}
 		})
-	}
 
-	// 3. Thumbnail view
+		results = append(results, models.LinkInfo{
+			Title:      strings.TrimSpace(glink.Text()),
+			Link:       href,
+			Imagecount: imgCount,
+		})
+	})
+
+	// 2. Thumbnail view (div based)
 	if len(results) == 0 {
 		doc.Find("div.gl1t").Each(func(i int, sel *goquery.Selection) {
 			aTag := sel.Find("div.gl2t a")
@@ -88,16 +99,32 @@ func (s *EhScraperService) ParseList(doc *goquery.Document) []models.LinkInfo {
 			}
 			
 			href, exists := aTag.Attr("href")
-			if exists {
-				title, _ := aTag.Attr("title")
-				if title == "" {
-					title = strings.TrimSpace(aTag.Text())
-				}
-				results = append(results, models.LinkInfo{
-					Title: title,
-					Link:  href,
-				})
+			if !exists {
+				return
 			}
+
+			title, _ := aTag.Attr("title")
+			if title == "" {
+				title = strings.TrimSpace(aTag.Text())
+			}
+
+			// Extract page count (usually in gl3t or a nearby div)
+			imgCount := 0
+			sel.Find("div").Each(func(j int, s *goquery.Selection) {
+				if imgCount > 0 {
+					return
+				}
+				text := strings.TrimSpace(s.Text())
+				if matches := rePages.FindStringSubmatch(text); len(matches) > 1 {
+					imgCount, _ = strconv.Atoi(matches[1])
+				}
+			})
+
+			results = append(results, models.LinkInfo{
+				Title:      title,
+				Link:       href,
+				Imagecount: imgCount,
+			})
 		})
 	}
 

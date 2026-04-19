@@ -6,8 +6,9 @@ type Config struct {
 }
 
 type LinkInfo struct {
-	Title string `json:"title"`
-	Link  string `json:"link"`
+	Title      string `json:"title"`
+	Link       string `json:"link"`
+	Imagecount int    `json:"imagecount"`
 }
 
 type LibraryGallery struct {
