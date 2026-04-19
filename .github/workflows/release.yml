@@ -101,7 +101,10 @@ jobs:
           echo "node-linker=hoisted" > .npmrc
 
       - name: Install Node Dependencies
-        run: pnpm install
+        run: pnpm install --ignore-scripts
+
+      - name: Rebuild native modules for Electron
+        run: pnpm exec electron-rebuild -f -w better-sqlite3
 
       - name: Setup Go
         uses: actions/setup-go@v5

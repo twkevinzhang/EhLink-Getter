@@ -38,6 +38,7 @@
     "@electron-toolkit/eslint-config-ts": "^2.0.0",
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/tsconfig": "^1.0.1",
+    "@electron/rebuild": "^3.6.0",
     "@rushstack/eslint-patch": "^1.6.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.10.4",
