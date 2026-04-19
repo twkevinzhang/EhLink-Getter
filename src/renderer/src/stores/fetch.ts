@@ -23,7 +23,7 @@ export interface DraftGallery {
   link: string
   token?: string
   sourceJob?: string
-  imageCount?: number
+  imagecount?: number
 }
 
 export const useFetchStore = defineStore('fetch', () => {
@@ -42,10 +42,8 @@ export const useFetchStore = defineStore('fetch', () => {
 
   function _appendGalleries(jobId: string, sourceLink: string, items: FetchedItem[]) {
     const newGalleries: DraftGallery[] = items.map((item, idx) => ({
+      ...item,
       gid: item.gid || `${jobId}-${idx}`,
-      title: item.title,
-      link: item.link,
-      token: item.token,
       sourceJob: sourceLink,
     }))
     fetchedGalleries.value = [...newGalleries, ...fetchedGalleries.value]
@@ -183,18 +181,25 @@ export const useFetchStore = defineStore('fetch', () => {
     }
   }
 
-  function addGallery(url: string, title?: string) {
+  async function addGallery(url: string) {
     const pattern = /^https:\/\/e-hentai\.org\/g\/\d+\/[a-z0-9]+\/?$/
     if (!pattern.test(url)) throw new Error('Invalid E-Hentai gallery URL format')
     if (fetchedGalleries.value.some((g) => g.link === url))
       throw new Error('Gallery already in draft list')
 
+    const result = await window.api.fetchGallery(url)
+    if (result.error || !result.item)
+      throw new Error(result.error || 'Failed to fetch gallery')
+
+    const item = result.item
     fetchedGalleries.value.unshift({
-      gid: `manual-${generateJobId()}`,
-      title:
-        title || `Manual Entry: ${url.split('/').filter(Boolean).slice(-2).join('/')}`,
-      link: url,
+      gid: item.gid || `manual-${generateJobId()}`,
+      title: item.title,
+      link: item.link || url,
+      token: item.token,
+      imagecount: item.imagecount,
     })
+    logStore.addLog({ level: 'info', message: `Added gallery: ${item.title}` })
   }
 
   function removeGallery(gid: string) {

@@ -76,12 +76,10 @@ export const useDownloadStore = defineStore('download', () => {
     password = '',
   ) {
     const mappedGalleries: DownloadGallery[] = galleries.map((g) => ({
-      gid: g.gid || 'unknown',
-      title: g.title,
-      link: g.link,
+      ...g,
       targetPath: parseTemplatePath(targetTemplate, g),
       isArchive,
-      imageCount: g.imageCount || 0,
+      imagecount: g.imagecount || 0,
       status: 'Pending...',
       progress: 0,
       mode: 'pending',

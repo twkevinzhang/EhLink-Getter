@@ -251,7 +251,7 @@ const handleTerminateJob = (jobId: string) => {
                       {{ gal.targetPath }}
                     </div>
                   </td>
-                  <td class="p-2 text-center">{{ gal.imageCount }}</td>
+                  <td class="p-2 text-center">{{ gal.imagecount }}</td>
                   <td class="p-2">
                     <div class="flex flex-col gap-1">
                       <div

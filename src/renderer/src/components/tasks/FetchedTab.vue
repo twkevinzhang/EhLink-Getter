@@ -2,7 +2,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
-import { useFetchStore } from '@renderer/stores/fetch'
+import { useFetchStore, type DraftGallery } from '@renderer/stores/fetch'
 import DownloadConfigPanel from '@renderer/components/shared/DownloadConfigPanel.vue'
 import { useDownloadStore } from '@renderer/stores/download'
 import { storeToRefs } from 'pinia'
@@ -12,12 +12,6 @@ const downloadStore = useDownloadStore()
 const { galleries } = storeToRefs(scraperStore)
 const toast = useToast()
 const confirm = useConfirm()
-
-interface DraftGallery {
-  gid: string
-  title: string
-  link: string
-}
 
 const targetPath = ref('')
 const useZip = ref(true)
@@ -297,12 +291,18 @@ onMounted(async () => {
             />
             <div class="flex-1 min-w-0">
               <div
-                class="text-[12px] font-bold truncate transition-colors"
+                class="text-[12px] font-bold truncate transition-colors flex items-center gap-2"
                 :class="
                   isGallerySelected(g.gid) ? 'text-eh-text' : 'text-eh-muted opacity-60'
                 "
               >
-                {{ g.title }}
+                <span class="truncate">{{ g.title }}</span>
+                <span
+                  v-if="g.imagecount"
+                  class="text-[10px] bg-eh-accent/10 text-eh-accent px-1.5 py-0.5 rounded-sm whitespace-nowrap"
+                >
+                  {{ g.imagecount }}P
+                </span>
               </div>
               <div class="text-[10px] text-eh-muted truncate opacity-70">
                 {{ g.link }}
