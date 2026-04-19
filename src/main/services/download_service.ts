@@ -1,4 +1,3 @@
-import { type BrowserWindow, app } from 'electron'
 import axios from 'axios'
 import * as fs from 'fs'
 import { join, dirname } from 'path'
@@ -13,113 +12,96 @@ export interface DownloadOptions {
   gallery: any
   isArchive?: boolean
   password?: string
+  signal: AbortSignal
+  onProgress: (data: {
+    status?: string
+    progress?: number
+    level?: 'info' | 'warn' | 'error'
+  }) => void
 }
 
 export class DownloadService {
   private SIDECAR_URL = 'http://127.0.0.1:8000'
-  private mainWindow: BrowserWindow | null
 
-  constructor(mainWindow: BrowserWindow | null) {
-    this.mainWindow = mainWindow
-  }
-
-  /**
-   * Main entry point for downloading a single gallery.
-   * Handles path resolution, metadata fetching, image downloading, and archiving.
-   */
   async downloadGallery(
     options: DownloadOptions,
   ): Promise<{ success: boolean; path?: string; error?: string }> {
-    try {
-      const { gallery: meta, isArchive, password } = options
-      const url = meta.link
+    const { gallery: meta, isArchive, password, signal, onProgress } = options
+    const url = meta.link
 
-      // 2. Resolve Path
+    try {
       const targetPath =
         meta.targetPath || parseTemplatePath(meta.targetTemplate || '', meta)
       if (!fs.existsSync(targetPath)) {
         fs.mkdirSync(targetPath, { recursive: true })
       }
 
-      // 3. Fetch image links from sidecar if not already present
       if (!meta.image_links || meta.image_links.length === 0) {
-        this.sendProgress(url, { status: 'Fetching image list...' })
+        onProgress({ status: 'Fetching image list...' })
         const linksResp = await axios.get(`${this.SIDECAR_URL}/gallery/image-links`, {
           params: { url },
           timeout: 5 * 60 * 1000,
+          signal,
         })
         meta.image_links = linksResp.data?.image_links ?? []
       }
 
-      // 4. Save library.json
       fs.writeFileSync(join(targetPath, 'library.json'), JSON.stringify(meta, null, 2))
 
-      // 5. Download Images
-      const imageLinks = meta.image_links || []
+      const imageLinks: string[] = meta.image_links || []
       const totalImages = imageLinks.length
       let downloadedCount = 0
 
       for (let i = 0; i < imageLinks.length; i++) {
+        if (signal.aborted) break
         const imgUrl = imageLinks[i]
         try {
           const response = await axios.get(`${this.SIDECAR_URL}/image/fetch`, {
             params: { url: imgUrl },
             responseType: 'arraybuffer',
+            signal,
           })
-
-          // Use the ID part of the URL as filename to avoid duplicates
           const fileName = `${imgUrl.split('/').pop()}.jpg`
           fs.writeFileSync(join(targetPath, fileName), Buffer.from(response.data))
           downloadedCount++
-
-          // Send progress to renderer
-          this.sendProgress(url, {
+          onProgress({
             status: `Downloading (${downloadedCount}/${totalImages})`,
             progress: Math.round((downloadedCount / totalImages) * 100),
           })
         } catch (e: any) {
-          this.sendProgress(url, {
-            status: `Image skipped: ${e.message}`,
-            level: 'warn',
-          })
+          if (axios.isCancel(e)) throw e
+          onProgress({ status: `Image skipped: ${e.message}`, level: 'warn' })
         }
+      }
+
+      if (signal.aborted) {
+        return { success: false, error: 'aborted' }
       }
 
       if (downloadedCount === 0 && totalImages > 0) {
         throw new Error('All image downloads failed')
       }
 
-      // 5. Archive if requested
       let finalPath = targetPath
       if (isArchive) {
-        this.sendProgress(url, { status: 'Archiving...', progress: 100 })
+        onProgress({ status: 'Archiving...', progress: 100 })
         const archivePath = `${targetPath}.zip`
         await this.archiveFolder(targetPath, archivePath, password)
         finalPath = archivePath
-        // Optionally delete the original folder after archiving?
-        // For now keep it to be safe, or follow Task Manager behavior.
       }
 
-      this.sendProgress(url, { status: 'Completed', progress: 100, completed: true })
+      onProgress({ status: 'Completed', progress: 100 })
       return { success: true, path: finalPath }
     } catch (error: any) {
+      if (axios.isCancel(error)) {
+        return { success: false, error: 'aborted' }
+      }
       console.error('[DownloadService] Error:', error)
-      const url = options.gallery?.link || 'unknown'
-      this.sendProgress(url, {
-        status: `Error: ${error.message}`,
-        level: 'error',
-      })
+      onProgress({ status: `Error: ${error.message}`, level: 'error' })
       return { success: false, error: String(error.message || error) }
     }
   }
 
-  /**
-   * Resolves the download path based on placeholders.
-   */
-
-  /**
-   * Helper to ZIP a folder with optional password.
-   */
   private async archiveFolder(
     folderPath: string,
     outputPath: string,
@@ -130,14 +112,12 @@ export class DownloadService {
         if (!fs.existsSync(dirname(outputPath))) {
           fs.mkdirSync(dirname(outputPath), { recursive: true })
         }
-
         const output = fs.createWriteStream(outputPath)
         const archive = archiver(password ? ('zip-encryptable' as any) : 'zip', {
           zlib: { level: 9 },
           forceLocalTime: true,
           ...(password ? { password } : {}),
         })
-
         output.on('close', () => resolve())
         archive.on('error', (err) => reject(err))
         archive.pipe(output)
@@ -147,20 +127,5 @@ export class DownloadService {
         reject(error)
       }
     })
-  }
-
-  private sendProgress(url: string, data: any) {
-    try {
-      // Defensively ensure data is a plain serializable object to avoid "An object could not be cloned" errors
-      const payload = JSON.parse(
-        JSON.stringify({
-          url,
-          ...data,
-        }),
-      )
-      this.mainWindow?.webContents.send('download-status-update', payload)
-    } catch (e) {
-      console.error('Failed to send progress via IPC:', e)
-    }
   }
 }
