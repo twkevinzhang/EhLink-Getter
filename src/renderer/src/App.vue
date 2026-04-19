@@ -8,7 +8,7 @@ import { useSchedulerStore } from './stores/scheduler'
 import TaskManager from './views/TaskManager.vue'
 import Library from './views/Library.vue'
 import Scheduler from './views/Scheduler.vue'
-import SystemLogs from './components/SystemLogs.vue'
+import SystemLogs from './views/SystemLogs.vue'
 import type { ScheduledTask, SidecarLogEvent } from '@shared/types/api'
 
 const logStore = useLogStore()
