@@ -46,15 +46,39 @@ export class DownloadService {
         meta.image_links = linksResp.data?.image_links ?? []
       }
 
-      fs.writeFileSync(join(targetPath, 'library.json'), JSON.stringify(meta, null, 2))
+      const libraryPath = join(targetPath, 'library.json')
+
+      // 讀取已有的 library.json 中的下載記錄（斷點續傳）
+      let existingLibrary: any = {}
+      if (fs.existsSync(libraryPath)) {
+        try {
+          existingLibrary = JSON.parse(fs.readFileSync(libraryPath, 'utf-8'))
+        } catch {
+          existingLibrary = {}
+        }
+      }
+      const downloadedSet = new Set<string>(existingLibrary.downloaded_urls ?? [])
+
+      // 寫入最新 meta（保留 downloaded_urls）
+      fs.writeFileSync(
+        libraryPath,
+        JSON.stringify({ ...meta, downloaded_urls: Array.from(downloadedSet) }, null, 2),
+      )
 
       const imageLinks: string[] = meta.image_links || []
       const totalImages = imageLinks.length
-      let downloadedCount = 0
+      let downloadedCount = downloadedSet.size
 
       for (let i = 0; i < imageLinks.length; i++) {
         if (signal.aborted) break
         const imgUrl = imageLinks[i]
+        if (downloadedSet.has(imgUrl)) {
+          onProgress({
+            status: `Downloading (${downloadedCount}/${totalImages})`,
+            progress: Math.round((downloadedCount / totalImages) * 100),
+          })
+          continue
+        }
         try {
           const response = await axios.get(`${this.SIDECAR_URL}/image/fetch`, {
             params: { url: imgUrl },
@@ -63,7 +87,17 @@ export class DownloadService {
           })
           const fileName = `${imgUrl.split('/').pop()}.jpg`
           fs.writeFileSync(join(targetPath, fileName), Buffer.from(response.data))
+          downloadedSet.add(imgUrl)
           downloadedCount++
+          // 每張成功後寫回 downloaded_urls
+          fs.writeFileSync(
+            libraryPath,
+            JSON.stringify(
+              { ...meta, downloaded_urls: Array.from(downloadedSet) },
+              null,
+              2,
+            ),
+          )
           onProgress({
             status: `Downloading (${downloadedCount}/${totalImages})`,
             progress: Math.round((downloadedCount / totalImages) * 100),
