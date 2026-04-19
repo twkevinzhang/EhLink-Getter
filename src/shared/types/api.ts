@@ -11,6 +11,7 @@ export interface DownloadGallery {
   progress: number
   mode: 'running' | 'paused' | 'error' | 'completed' | 'pending'
   password?: string
+  image_links?: string[]
 }
 
 export interface LibraryGallery {

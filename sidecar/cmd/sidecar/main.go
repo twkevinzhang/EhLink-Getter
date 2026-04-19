@@ -39,6 +39,7 @@ func main() {
 	r.POST("/config", handler.UpdateConfig)
 	r.GET("/image/fetch", handler.FetchImage)
 	r.GET("/gallery/metadata", handler.GetGalleryMetadata)
+	r.GET("/gallery/image-links", handler.GetGalleryImageLinks)
 	r.GET("/tasks/fetch", handler.FetchTasks)
 
 	port := os.Getenv("SIDECAR_PORT")

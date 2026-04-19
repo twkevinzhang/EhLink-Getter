@@ -41,10 +41,20 @@ export class DownloadService {
         fs.mkdirSync(targetPath, { recursive: true })
       }
 
-      // 3. Save library.json
+      // 3. Fetch image links from sidecar if not already present
+      if (!meta.image_links || meta.image_links.length === 0) {
+        this.sendProgress(url, { status: 'Fetching image list...' })
+        const linksResp = await axios.get(`${this.SIDECAR_URL}/gallery/image-links`, {
+          params: { url },
+          timeout: 5 * 60 * 1000,
+        })
+        meta.image_links = linksResp.data?.image_links ?? []
+      }
+
+      // 4. Save library.json
       fs.writeFileSync(join(targetPath, 'library.json'), JSON.stringify(meta, null, 2))
 
-      // 4. Download Images
+      // 5. Download Images
       const imageLinks = meta.image_links || []
       const totalImages = imageLinks.length
       let downloadedCount = 0

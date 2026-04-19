@@ -266,6 +266,14 @@ func (s *EhScraperService) ExtractGidToken(targetURL string) (int, string, error
 	return gid, token, nil
 }
 
+func (s *EhScraperService) FetchImageLinks(ctx context.Context, targetURL string) ([]string, error) {
+	metadata, err := s.fetchMetadataViaScraping(ctx, targetURL)
+	if err != nil {
+		return nil, err
+	}
+	return metadata.ImageLinks, nil
+}
+
 func (s *EhScraperService) FetchLibraryGallery(ctx context.Context, targetURL string) (*models.LibraryGallery, error) {
 	gid, token, err := s.ExtractGidToken(targetURL)
 	if err == nil {

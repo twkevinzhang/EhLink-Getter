@@ -92,6 +92,26 @@ func (h *APIHandler) GetGalleryMetadata(c *gin.Context) {
 	c.JSON(http.StatusOK, metadata)
 }
 
+func (h *APIHandler) GetGalleryImageLinks(c *gin.Context) {
+	targetURL := c.Query("url")
+	if targetURL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "url parameter is required"})
+		return
+	}
+
+	scraperService := h.getScraper()
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Minute)
+	defer cancel()
+
+	links, err := scraperService.FetchImageLinks(ctx, targetURL)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"image_links": links, "count": len(links)})
+}
+
 func (h *APIHandler) FetchTasks(c *gin.Context) {
 	targetURL := c.Query("url")
 	next := c.Query("next")
