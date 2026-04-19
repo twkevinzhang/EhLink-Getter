@@ -50,6 +50,7 @@ export interface LibraryGallery {
   posted?: string | number
   uploader?: string
   tags?: string[]
+  expunged?: boolean
 }
 
 export interface AppConfig {
