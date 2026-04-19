@@ -7,16 +7,27 @@ import { PrimeVueResolver } from 'unplugin-vue-components/resolvers'
 
 export default defineConfig({
   main: {
+    resolve: {
+      alias: {
+        '@shared': resolve('src/shared'),
+        '@main': resolve('src/main'),
+      },
+    },
     plugins: [externalizeDepsPlugin()],
   },
   preload: {
+    resolve: {
+      alias: {
+        '@shared': resolve('src/shared'),
+      },
+    },
     plugins: [externalizeDepsPlugin()],
   },
   renderer: {
     resolve: {
       alias: {
         '@renderer': resolve('src/renderer/src'),
-        '@shared': resolve('src/shared/src'),
+        '@shared': resolve('src/shared'),
       },
     },
     plugins: [
