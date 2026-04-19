@@ -1,14 +1,15 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { exposeElectronAPI } from '@electron-toolkit/preload'
 import {
-  SidecarAPI,
-  AppConfig,
-  SearchLibraryPayload,
-  FetchedItem,
-  ArchiveProgressEvent,
-  DownloadGalleryPayload,
-  DownloadStatusEvent,
-  SidecarLogEvent,
+  type SidecarAPI,
+  type AppConfig,
+  type SearchLibraryPayload,
+  type FetchedItem,
+  type ArchiveProgressEvent,
+  type DownloadGalleryPayload,
+  type DownloadStatusEvent,
+  type SidecarLogEvent,
+  type FetchGalleryResponse,
 } from '@shared/types/api'
 
 const api: SidecarAPI = {
@@ -30,6 +31,8 @@ const api: SidecarAPI = {
   // fetch module
   fetchPage: (payload: { url: string; next?: string }) =>
     ipcRenderer.invoke('fetch-page', payload),
+  fetchGallery: (url: string): Promise<FetchGalleryResponse> =>
+    ipcRenderer.invoke('fetch-gallery', url),
   saveCSV: (payload: { path: string; results: FetchedItem[] }) =>
     ipcRenderer.invoke('save-csv', payload),
   saveJSON: (payload: { path: string; data: unknown }) =>

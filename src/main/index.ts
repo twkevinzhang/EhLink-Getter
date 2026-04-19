@@ -16,27 +16,28 @@ import { File as MegaFile } from 'megajs'
 import { downloadsPath, libraryPath } from '@main/services/utilties'
 import { CONFIG_STORE_KEY } from '@shared/utilities'
 import {
-  AppConfig,
-  SearchLibraryPayload,
-  SearchLibraryResponse,
-  FetchPageResponse,
-  FetchedItem,
-  DownloadGalleryPayload,
-  DownloadGalleryResponse,
-  TriggerSchedulerResponse,
-  GetConfigResponse,
-  SaveConfigResponse,
-  CheckSidecarHealthResponse,
-  LoginEHentaiResponse,
-  SaveCSVResponse,
-  SaveJSONResponse,
-  ReadJSONResponse,
-  DownloadImageResponse,
-  DownloadLibraryResponse,
-  CheckLibraryExistsResponse,
-  SelectDirectoryResponse,
-  SelectSavePathResponse,
-  GetDownloadsPathResponse,
+  type AppConfig,
+  type SearchLibraryPayload,
+  type SearchLibraryResponse,
+  type FetchPageResponse,
+  type FetchedItem,
+  type DownloadGalleryPayload,
+  type DownloadGalleryResponse,
+  type TriggerSchedulerResponse,
+  type GetConfigResponse,
+  type SaveConfigResponse,
+  type CheckSidecarHealthResponse,
+  type LoginEHentaiResponse,
+  type SaveCSVResponse,
+  type SaveJSONResponse,
+  type ReadJSONResponse,
+  type DownloadImageResponse,
+  type DownloadLibraryResponse,
+  type CheckLibraryExistsResponse,
+  type SelectDirectoryResponse,
+  type SelectSavePathResponse,
+  type GetDownloadsPathResponse,
+  type FetchGalleryResponse,
 } from '@shared/types/api'
 
 // Register the encryptable zip format
@@ -416,6 +417,32 @@ ipcMain.handle(
     }
   },
 )
+
+ipcMain.handle('fetch-gallery', async (_, url: string): Promise<FetchGalleryResponse> => {
+  try {
+    const response = await axios.get(`${SIDECAR_URL}/gallery/metadata`, {
+      params: { url },
+    })
+    const g = response.data
+    const gidStr = String(g.gid)
+    const link = `https://e-hentai.org/g/${gidStr}/${g.token}/`
+    return {
+      item: {
+        gid: gidStr,
+        token: g.token,
+        title: g.title || g.title_jpn || link,
+        link,
+        imagecount: parseInt(g.filecount, 10) || undefined,
+        thumb: g.thumb,
+        category: g.category,
+        rating: g.rating,
+        posted: g.posted,
+      },
+    }
+  } catch (error: any) {
+    return { error: error.message }
+  }
+})
 
 ipcMain.handle(
   'save-csv',

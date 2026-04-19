@@ -6,7 +6,7 @@ export interface DownloadGallery {
   link: string
   targetPath: string
   isArchive: boolean
-  imageCount: number
+  imagecount: number
   status: string
   progress: number
   mode: 'running' | 'paused' | 'error' | 'completed' | 'pending'
@@ -55,7 +55,7 @@ export interface FetchedItem {
   token: string
   title: string
   link: string
-  imageCount?: number
+  imagecount?: number
   thumb?: string
   category?: string
   rating?: string
@@ -120,6 +120,11 @@ export interface DownloadLibraryResponse {
 export interface FetchPageResponse {
   items: FetchedItem[]
   next?: string
+  error?: string
+}
+
+export interface FetchGalleryResponse {
+  item?: FetchedItem
   error?: string
 }
 
@@ -220,14 +225,9 @@ export interface SidecarAPI {
 
   // fetch
   fetchPage: (payload: { url: string; next?: string }) => Promise<FetchPageResponse>
-  saveCSV: (payload: {
-    path: string
-    results: FetchedItem[]
-  }) => Promise<SaveCSVResponse>
-  saveJSON: (payload: {
-    path: string
-    data: unknown
-  }) => Promise<SaveJSONResponse>
+  fetchGallery: (url: string) => Promise<FetchGalleryResponse>
+  saveCSV: (payload: { path: string; results: FetchedItem[] }) => Promise<SaveCSVResponse>
+  saveJSON: (payload: { path: string; data: unknown }) => Promise<SaveJSONResponse>
   readJSON: (payload: { path: string }) => Promise<ReadJSONResponse>
   downloadImage: (payload: {
     url: string
