@@ -1,7 +1,7 @@
 # 📜 EhLink-Getter
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.0.3-blue.svg)](https://github.com/twkevinzhang/EhLink-Getter)
+[![Version](https://img.shields.io/badge/version-0.0.6-blue.svg)](https://github.com/twkevinzhang/EhLink-Getter)
 
 **EhLink-Getter** 是一款專為 E-Hentai 愛好者打造的強大桌面工具。它結合了極致的效能、自動化的排程與現代化的設計，讓您能輕鬆管理、搜尋並自動獲取心儀的畫廊資訊。
 
@@ -15,7 +15,6 @@
 
 ![任務管理器介面](./docs/images/task-manager.png)
 
-- **全模式相容**：支援 Minimal, Compact, Extended, Thumbnail 等所有顯示模式。
 - **智慧解析**：自動提取 GID、Token、標題及畫廊連結，並標註頁數。
 - **即時回饋**：抓取過程即時顯示，支援隨時暫停、恢復或儲存結果。
 
@@ -27,7 +26,7 @@
 
 - **極速串流技術**：採用 Node.js 高效能串流處理，讀取數 GB 級別的 `library.json` 依然流暢不卡頓。
 - **GID 核心索引**：全新的資料格式，支援精確的 metadata 對照與映射。
-- **批量映射**：支援將標題清單自動對應為畫廊連結，大幅節省整理時間。
+- TODO: ~~批量映射：支援將標題清單自動對應為畫廊連結，大幅節省整理時間~~。
 
 ### 🕒 自動化抓取排程 (Scheduler)
 
@@ -51,8 +50,6 @@
 ## 🎨 卓越的設計與體驗
 
 - 💎 **精緻介面**：基於 **Vue 3** 與 **PrimeVue v4** 打造，擁有豐富的轉場動畫與優化的佈局設計。
-- 🌓 **深暗模式**：完美支援深色模式，保護您的視力。
-- 📊 **Excel 完美導出**：CSV 導出支援 UTF-8 BOM，在 Excel 中開啟不亂碼。
 - ⚙️ **整合監控**：內建 Sidecar 日誌查看器，讓抓取引擎的運作狀況一目了然。
 
 ![系統日誌](./docs/images/system-logs.png)
@@ -62,11 +59,8 @@
 ## 🚀 快速上手
 
 1.  **下載並安裝**：前往 [Releases](https://github.com/twkevinzhang/EhLink-Getter/releases) 下載適用於您系統的安裝包 (Windows 或 macOS)。
-2.  **基本配置**：啟動後進入 **Configuration** 分頁，填入您的 E-Hentai Cookies。
-3.  **開始任務**：在 **Task Console** 輸入網址，點擊「開始」即可見證抓取魔力。
-
-> [!TIP]
-> 如果您是在地化數據的重度使用者，建議在 Configuration 中指定您的 `library.json` 路徑以啟用收藏庫功能。
+2.  **基本配置**：啟動後進入 **Task Console** 的 **Settings** 分頁，填入您的 E-Hentai Cookies，你也可以點擊右邊的「login」按鈕來從網頁登入。
+3.  **開始任務**：點擊「開始」即可見證抓取魔力。
 
 ---
 
