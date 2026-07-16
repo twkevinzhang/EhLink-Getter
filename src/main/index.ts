@@ -1,5 +1,5 @@
 import { app, shell, BrowserWindow, dialog, ipcMain } from 'electron'
-import { join, dirname } from 'path'
+import { join } from 'path'
 import * as fs from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { spawn, type ChildProcess } from 'child_process'
@@ -28,23 +28,15 @@ import {
   type AppConfig,
   type SearchLibraryPayload,
   type SearchLibraryResponse,
-  type FetchPageResponse,
-  type FetchedItem,
   type AddToQueuePayload,
+  type ManualDownloadPayload,
+  type ManualDownloadResult,
   type GetConfigResponse,
   type SaveConfigResponse,
   type CheckSidecarHealthResponse,
   type LoginEHentaiResponse,
-  type SaveCSVResponse,
-  type SaveJSONResponse,
-  type ReadJSONResponse,
-  type DownloadImageResponse,
   type DownloadLibraryResponse,
   type CheckLibraryExistsResponse,
-  type SelectDirectoryResponse,
-  type SelectSavePathResponse,
-  type GetDownloadsPathResponse,
-  type FetchGalleryResponse,
   type LibraryProgressEvent,
   type WorkspaceResponse,
   type WorkspaceSettings,
@@ -554,207 +546,123 @@ ipcMain.handle('open-folder', async (_, folderPath: string): Promise<void> => {
   }
 })
 
-// --- Fetch Module ---
-ipcMain.handle(
-  'fetch-page',
-  async (_, payload: { url: string; next?: string }): Promise<FetchPageResponse> => {
-    try {
-      const response = await axios.get(`${SIDECAR_URL}/tasks/fetch`, {
-        params: { url: payload.url, next: payload.next },
-      })
-      return response.data
-    } catch (error: any) {
-      return { items: [], error: error.message }
-    }
-  },
-)
-
-ipcMain.handle('fetch-gallery', async (_, url: string): Promise<FetchGalleryResponse> => {
-  try {
-    const response = await axios.get(`${SIDECAR_URL}/gallery/metadata`, {
-      params: { url },
-    })
-    const g = response.data
-    const gidStr = String(g.gid)
-    const link = `https://e-hentai.org/g/${gidStr}/${g.token}/`
-    return {
-      item: {
-        gid: gidStr,
-        token: g.token,
-        title: g.title || g.title_jpn || link,
-        link,
-        imagecount: parseInt(g.filecount, 10) || undefined,
-        thumb: g.thumb,
-        category: g.category,
-        rating: g.rating,
-        posted: g.posted,
-      },
-    }
-  } catch (error: any) {
-    return { error: error.message }
-  }
-})
-
-ipcMain.handle(
-  'save-csv',
-  async (
-    _,
-    payload: { path: string; results: FetchedItem[] },
-  ): Promise<SaveCSVResponse> => {
-    try {
-      const csvContent = [
-        '\ufeffTitle,Link',
-        ...payload.results.map((item) => {
-          const escapedTitle = `"${(item.title || '').replace(/"/g, '""')}"`
-          const escapedLink = `"${(item.link || '').replace(/"/g, '""')}"`
-          return `${escapedTitle},${escapedLink}`
-        }),
-      ].join('\n')
-
-      let actualPath = payload.path
-      if (actualPath.includes('{execute_started_at}')) {
-        const now = new Date()
-        const timestamp =
-          now.getFullYear() +
-          String(now.getMonth() + 1).padStart(2, '0') +
-          String(now.getDate()).padStart(2, '0') +
-          '_' +
-          String(now.getHours()).padStart(2, '0') +
-          String(now.getMinutes()).padStart(2, '0') +
-          String(now.getSeconds()).padStart(2, '0')
-        actualPath = actualPath.replace('{execute_started_at}', timestamp)
-      }
-
-      if (!fs.existsSync(join(dirname(actualPath)))) {
-        fs.mkdirSync(join(dirname(actualPath)), { recursive: true })
-      }
-
-      fs.writeFileSync(actualPath, csvContent, 'utf8')
-      return { status: 'saved', path: actualPath }
-    } catch (error: any) {
-      return { status: 'error', path: '', error: error.message }
-    }
-  },
-)
-
-ipcMain.handle(
-  'save-json',
-  async (_, payload: { path: string; data: unknown }): Promise<SaveJSONResponse> => {
-    try {
-      const actualPath = payload.path
-      if (!fs.existsSync(join(dirname(actualPath)))) {
-        fs.mkdirSync(join(dirname(actualPath)), { recursive: true })
-      }
-
-      fs.writeFileSync(actualPath, JSON.stringify(payload.data, null, 2), 'utf8')
-      return { status: 'saved', path: actualPath }
-    } catch (error: any) {
-      return { status: 'error', path: '', error: error.message }
-    }
-  },
-)
-
-ipcMain.handle(
-  'read-json',
-  async (_, payload: { path: string }): Promise<ReadJSONResponse> => {
-    try {
-      const actualPath = payload.path
-      if (!fs.existsSync(actualPath)) {
-        return { success: false, error: 'File not found', code: 'ENOENT' }
-      }
-      const content = fs.readFileSync(actualPath, 'utf8')
-      return { success: true, data: JSON.parse(content) }
-    } catch (error: any) {
-      return { success: false, error: error.message }
-    }
-  },
-)
-
-ipcMain.handle(
-  'download-image',
-  async (
-    _,
-    payload: { url: string; savePath: string },
-  ): Promise<DownloadImageResponse> => {
-    try {
-      const response = await axios.get(`${SIDECAR_URL}/image/fetch`, {
-        params: { url: payload.url },
-        responseType: 'arraybuffer',
-      })
-
-      const actualPath = payload.savePath
-      const targetDir = dirname(actualPath)
-
-      if (!fs.existsSync(targetDir)) {
-        fs.mkdirSync(targetDir, { recursive: true })
-      }
-
-      fs.writeFileSync(actualPath, Buffer.from(response.data))
-      return { success: true }
-    } catch (error: any) {
-      return { success: false, error: error.message }
-    }
-  },
-)
-
-ipcMain.handle('select-directory', async (): Promise<SelectDirectoryResponse> => {
-  try {
-    const { canceled, filePaths } = await require('electron').dialog.showOpenDialog(
-      mainWindow,
-      {
-        properties: ['openDirectory'],
-      },
-    )
-    if (!canceled) {
-      return { success: true, path: filePaths[0] }
-    }
-    return { success: true, path: null }
-  } catch {
-    return { success: false, path: null }
-  }
-})
-
-ipcMain.handle('select-save-path', async (): Promise<SelectSavePathResponse> => {
-  try {
-    const { canceled, filePath } = await require('electron').dialog.showSaveDialog(
-      mainWindow,
-      {
-        title: 'Select Output CSV Path',
-        defaultPath: 'gallery-links.csv',
-        filters: [{ name: 'CSV Files', extensions: ['csv'] }],
-      },
-    )
-    if (!canceled) {
-      return { success: true, path: filePath }
-    }
-    return { success: true, path: null }
-  } catch {
-    return { success: false, path: null }
-  }
-})
-
 // --- Download Module ---
-ipcMain.handle('get-downloads-path', async (): Promise<GetDownloadsPathResponse> => {
-  try {
-    return {
-      success: Boolean(workspaceRepository.root),
-      path: workspaceRepository.root ? join(workspaceRepository.root, 'galleries') : '',
-    }
-  } catch {
-    return { success: false, path: '' }
-  }
-})
-
 ipcMain.handle('get-jobs', async () => {
   return jobManager.getJobs()
 })
+
+ipcMain.handle(
+  'manual-download-batch',
+  async (_, payload: ManualDownloadPayload): Promise<ManualDownloadResult> => {
+    if (!workspaceRepository.root) throw new Error('開始下載前必須先設定工作資料夾')
+
+    const settings = workspaceRepository.getSettings()
+    const collectionIds = [...new Set(payload.collectionIds)]
+    const result: ManualDownloadResult = {
+      queued: 0,
+      merged: 0,
+      existing: 0,
+      invalid: [],
+    }
+
+    for (const [index, rawValue] of payload.urls.entries()) {
+      const rawUrl = rawValue.trim()
+      if (!rawUrl) continue
+
+      const match = rawUrl.match(
+        /^https:\/\/e-hentai\.org\/g\/([1-9]\d*)\/([a-zA-Z0-9]+)\/$/,
+      )
+      if (!match) {
+        result.invalid.push(rawUrl)
+        continue
+      }
+
+      const [, gid, token] = match
+      const active = jobManager
+        .getJobs()
+        .find(
+          (job) =>
+            ['pending', 'running', 'paused'].includes(job.mode) &&
+            job.galleries.some((gallery) => gallery.gid === gid),
+        )
+      if (active) {
+        const gallery = active.galleries.find((candidate) => candidate.gid === gid)!
+        const merged = jobManager.addJob({
+          jobId: active.jobId,
+          title: active.title,
+          galleries: [{ ...gallery, token, collectionIds }],
+          origin: 'manual',
+          targetCollectionIds: collectionIds,
+        })
+        if (merged?.mode === 'pending') void jobManager.startJob(merged.jobId)
+        result.merged++
+        continue
+      }
+
+      const managed = workspaceRepository.getGallery(gid)
+      if (managed) {
+        if (collectionIds.length) {
+          workspaceRepository.addBookToCollections(gid, collectionIds)
+        }
+        result.existing++
+        continue
+      }
+
+      try {
+        const response = await axios.get(`${SIDECAR_URL}/gallery/metadata`, {
+          params: { url: rawUrl },
+        })
+        const metadata = response.data
+        const metadataGid = String(metadata.gid)
+        const metadataToken = String(metadata.token ?? '')
+        if (metadataGid !== gid || !metadataToken)
+          throw new Error('Gallery metadata 不符')
+
+        const link = `https://e-hentai.org/g/${gid}/${metadataToken}/`
+        const title = metadata.title || metadata.title_jpn || link
+        const job = jobManager.addJob({
+          jobId: `manual-${gid}-${Date.now()}-${index}`,
+          title,
+          galleries: [
+            {
+              gid,
+              token: metadataToken,
+              title,
+              link,
+              targetPath: '',
+              isArchive: settings.isArchive,
+              imagecount: Number.parseInt(metadata.filecount, 10) || 0,
+              status: 'Waiting in queue...',
+              progress: 0,
+              mode: 'pending',
+              collectionIds,
+            },
+          ],
+          isArchive: settings.isArchive,
+          password: settings.archivePassword,
+          origin: 'manual',
+          targetCollectionIds: collectionIds,
+        })
+        if (!job) throw new Error('無法建立下載工作')
+        result.queued++
+        if (job.mode === 'pending') void jobManager.startJob(job.jobId)
+      } catch {
+        result.invalid.push(rawUrl)
+      }
+    }
+
+    return result
+  },
+)
 
 ipcMain.handle('add-to-queue', async (_, payload: AddToQueuePayload) => {
   jobManager.addJob(payload)
 })
 
 ipcMain.handle('start-job', async (_, jobId: string) => {
-  await jobManager.startJob(jobId)
+  void jobManager.startJob(jobId).catch((error) => {
+    console.error(`Failed to start download job ${jobId}:`, error)
+  })
 })
 
 ipcMain.handle('pause-job', async (_, jobId: string) => {
@@ -778,14 +686,6 @@ ipcMain.handle('clear-finished-jobs', async () => {
 })
 
 // --- Storage Module ---
-ipcMain.handle('electron-store-get', async <T = unknown>(_, key: string): Promise<T> => {
-  return store.get(key) as T
-})
-
-ipcMain.handle('electron-store-set', async (_, key: string, val: any): Promise<void> => {
-  store.set(key, val)
-})
-
 // --- Workspace Module ---
 ipcMain.handle(
   'get-workspace-state',

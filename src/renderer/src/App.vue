@@ -6,7 +6,7 @@ import { useLogStore } from './stores/logs'
 import { useConfigStore } from './stores/config'
 import { useWorkspaceStore } from './stores/workspace'
 import { useAutomationStore } from './stores/automation'
-import TaskManager from './views/TaskManager.vue'
+import AllDownloads from './views/AllDownloads.vue'
 import Library from './views/Library.vue'
 import Collections from './views/Collections.vue'
 import Scheduler from './views/Scheduler.vue'
@@ -16,7 +16,7 @@ import WorkspaceGate from './components/shared/WorkspaceGate.vue'
 import type { SidecarLogEvent } from '@shared/types/api'
 
 type ViewKey =
-  | 'task-manager'
+  | 'all-downloads'
   | 'library'
   | 'collections'
   | 'scheduler'
@@ -27,10 +27,10 @@ const logStore = useLogStore()
 const configStore = useConfigStore()
 const workspace = useWorkspaceStore()
 const automation = useAutomationStore()
-const activeTab = ref<ViewKey>('task-manager')
+const activeTab = ref<ViewKey>('all-downloads')
 
 const navItems = [
-  { key: 'task-manager' as const, icon: 'pi-desktop', label: '工作管理' },
+  { key: 'all-downloads' as const, icon: 'pi-download', label: '全部下載' },
   { key: 'library' as const, icon: 'pi-search', label: 'Library' },
   { key: 'collections' as const, icon: 'pi-folder', label: 'Collections' },
   { key: 'scheduler' as const, icon: 'pi-calendar-clock', label: '排程' },
@@ -70,13 +70,16 @@ watch(
       class="flex h-full min-h-0 overflow-hidden rounded-md border border-eh-border bg-eh-bg shadow-[0_12px_40px_rgba(49,14,16,0.12)]"
     >
       <aside
-        class="flex w-[210px] shrink-0 flex-col border-r border-eh-border bg-eh-sidebar"
+        class="flex w-[210px] shrink-0 flex-col border-r border-eh-border bg-eh-sidebar max-[760px]:w-[72px]"
       >
         <div
           class="flex h-[76px] items-center gap-3 border-b border-eh-border bg-eh-panel px-4"
         >
           <img src="./assets/app-logo.svg" alt="EhLink-Getter logo" class="h-11 w-11" />
-          <div class="flex flex-col leading-none text-eh-text" aria-label="EhLink Getter">
+          <div
+            class="flex flex-col leading-none text-eh-text max-[760px]:hidden"
+            aria-label="EhLink Getter"
+          >
             <span class="text-lg font-bold tracking-wide">EhLink</span>
             <span class="mt-1 font-serif text-sm italic tracking-wide">Getter</span>
           </div>
@@ -97,7 +100,7 @@ watch(
             @click="activeTab = item.key"
           >
             <i :class="`pi ${item.icon}`" class="w-4 text-center"></i>
-            <span class="flex-1">{{ item.label }}</span>
+            <span class="flex-1 max-[760px]:hidden">{{ item.label }}</span>
             <i
               v-if="workspaceViews.has(item.key) && !workspace.configured"
               class="pi pi-lock text-[10px] opacity-60"
@@ -121,7 +124,7 @@ watch(
                 :class="workspace.configured ? 'pi-folder' : 'pi-folder-open'"
               ></i>
             </span>
-            <span class="min-w-0 flex-1">
+            <span class="min-w-0 flex-1 max-[760px]:hidden">
               <span
                 class="block text-[10px] font-bold uppercase tracking-wider text-eh-muted"
               >
@@ -131,7 +134,7 @@ watch(
                 {{ workspace.configured ? workspace.folderName : '尚未設定' }}
               </span>
             </span>
-            <i class="pi pi-cog text-xs text-eh-text"></i>
+            <i class="pi pi-cog text-xs text-eh-text max-[760px]:hidden"></i>
           </button>
 
           <button
@@ -155,16 +158,18 @@ watch(
               "
               aria-hidden="true"
             ></span>
-            SIDECAR: {{ configStore.sidecarOnline ? 'ONLINE' : 'OFFLINE' }}
+            <span class="max-[760px]:hidden">
+              SIDECAR: {{ configStore.sidecarOnline ? 'ONLINE' : 'OFFLINE' }}
+            </span>
           </button>
         </div>
       </aside>
 
       <main
         class="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-eh-bg"
-        :class="edgeToEdge ? 'p-0' : 'p-6'"
+        :class="edgeToEdge ? 'p-0' : 'p-6 max-[760px]:p-3'"
       >
-        <TaskManager v-if="activeTab === 'task-manager'" />
+        <AllDownloads v-if="activeTab === 'all-downloads'" />
         <Library v-else-if="activeTab === 'library'" />
         <Collections v-else-if="activeTab === 'collections'" />
         <Scheduler v-else-if="activeTab === 'scheduler'" />

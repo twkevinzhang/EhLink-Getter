@@ -4,11 +4,11 @@ import {
   type SidecarAPI,
   type AppConfig,
   type SearchLibraryPayload,
-  type FetchedItem,
   type ArchiveProgressEvent,
   type SidecarLogEvent,
-  type FetchGalleryResponse,
   type AddToQueuePayload,
+  type ManualDownloadPayload,
+  type ManualDownloadResult,
   type DownloadJobUpdatedEvent,
   type LibraryProgressEvent,
   type WorkspaceResponse,
@@ -39,28 +39,14 @@ const api: SidecarAPI = {
     ipcRenderer.on('library-progress', (_event, value) => callback(value)),
   openFolder: (path?: string) => ipcRenderer.invoke('open-folder', path),
 
-  // fetch module
-  fetchPage: (payload: { url: string; next?: string }) =>
-    ipcRenderer.invoke('fetch-page', payload),
-  fetchGallery: (url: string): Promise<FetchGalleryResponse> =>
-    ipcRenderer.invoke('fetch-gallery', url),
-  saveCSV: (payload: { path: string; results: FetchedItem[] }) =>
-    ipcRenderer.invoke('save-csv', payload),
-  saveJSON: (payload: { path: string; data: unknown }) =>
-    ipcRenderer.invoke('save-json', payload),
-  readJSON: (payload: { path: string }) => ipcRenderer.invoke('read-json', payload),
-  downloadImage: (payload: { url: string; savePath: string }) =>
-    ipcRenderer.invoke('download-image', payload),
-  selectDirectory: () => ipcRenderer.invoke('select-directory'),
-  selectSavePath: () => ipcRenderer.invoke('select-save-path'),
-
   // app.vue
   onLog: (callback: (log: SidecarLogEvent) => void) =>
     ipcRenderer.on('python-log', (_event, value) => callback(value)),
 
   // download module
-  getDownloadsPath: () => ipcRenderer.invoke('get-downloads-path'),
   getJobs: () => ipcRenderer.invoke('get-jobs'),
+  manualDownloadBatch: (payload: ManualDownloadPayload): Promise<ManualDownloadResult> =>
+    ipcRenderer.invoke('manual-download-batch', payload),
   addToQueue: (payload: AddToQueuePayload) => ipcRenderer.invoke('add-to-queue', payload),
   startJob: (jobId: string) => ipcRenderer.invoke('start-job', jobId),
   pauseJob: (jobId: string) => ipcRenderer.invoke('pause-job', jobId),
@@ -126,12 +112,6 @@ const api: SidecarAPI = {
     ipcRenderer.invoke('add-books-to-collections', payload),
   removeBookFromCollection: (gid: string, collectionId: string) =>
     ipcRenderer.invoke('remove-book-from-collection', { gid, collectionId }),
-
-  // electron-storage composable
-  storeGet: <T extends unknown = unknown>(key: string) =>
-    ipcRenderer.invoke('electron-store-get', key) as Promise<T>,
-  storeSet: (key: string, val: unknown) =>
-    ipcRenderer.invoke('electron-store-set', key, val),
 
   // scheduler module
   listSchedules: () => ipcRenderer.invoke('list-schedules'),

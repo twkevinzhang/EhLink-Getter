@@ -1,296 +1,308 @@
 <script setup lang="ts">
-import { useDownloadStore } from '@renderer/stores/download'
-import type { JobState } from '@renderer/stores/download'
+import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
+import Button from 'primevue/button'
+import ProgressBar from 'primevue/progressbar'
+import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
+import { useDownloadStore, type JobState } from '@renderer/stores/download'
+
+const props = withDefaults(defineProps<{ disabled?: boolean }>(), { disabled: false })
 
 const downloadStore = useDownloadStore()
-const { downloadingJobs } = storeToRefs(downloadStore)
+const { downloadingJobs, activeJobs, finishedJobs, loading, error, pendingActions } =
+  storeToRefs(downloadStore)
 const toast = useToast()
 
-const handlePauseAll = () => {
-  downloadingJobs.value.forEach((job) => downloadStore.pauseJob(job.jobId))
-  toast.add({
-    severity: 'info',
-    summary: 'Paused',
-    detail: 'All downloads paused',
-    life: 3000,
-  })
+const globalProgress = computed(() => {
+  if (!downloadingJobs.value.length) return 0
+  return Math.round(
+    downloadingJobs.value.reduce((sum, job) => sum + job.progress, 0) /
+      downloadingJobs.value.length,
+  )
+})
+
+const canStartAll = computed(
+  () =>
+    !props.disabled &&
+    downloadingJobs.value.some((job) => ['pending', 'paused'].includes(job.mode)),
+)
+const canPauseAll = computed(
+  () => !props.disabled && downloadingJobs.value.some((job) => job.mode === 'running'),
+)
+
+function statusLabel(mode: JobState['mode']) {
+  return {
+    pending: '等待中',
+    running: '下載中',
+    paused: '已暫停',
+    completed: '已完成',
+    error: '錯誤',
+    stopped: '已停止',
+  }[mode]
 }
 
-const handleStartAll = () => {
-  downloadingJobs.value.forEach((job) => {
-    if (job.mode === 'pending' || job.mode === 'paused') {
-      downloadStore.startJob(job.jobId)
-    }
-  })
-  toast.add({
-    severity: 'success',
-    summary: 'Started',
-    detail: 'Started all pending/paused downloads',
-    life: 3000,
-  })
+function statusSeverity(mode: JobState['mode']) {
+  if (mode === 'completed') return 'success'
+  if (mode === 'error') return 'danger'
+  if (mode === 'running') return 'info'
+  if (mode === 'paused' || mode === 'pending') return 'warn'
+  return 'secondary'
 }
 
-const handleClear = () => {
-  downloadStore.clearFinishedJobs()
-  toast.add({
-    severity: 'success',
-    summary: 'Cleared',
-    detail: 'Cleared finished/error jobs',
-    life: 3000,
-  })
-}
-
-const toggleJob = (job: JobState) => {
+function toggleJob(job: JobState) {
   job.isExpanded = !job.isExpanded
 }
 
-const handlePauseJob = (jobId: string) => {
-  downloadStore.pauseJob(jobId)
-}
-
-const handleResumeJob = (jobId: string) => {
-  downloadStore.startJob(jobId)
-}
-
-const handleRestartJob = (jobId: string) => {
-  downloadStore.restartJob(jobId)
-}
-
-const handleTerminateJob = (jobId: string) => {
-  downloadStore.stopJob(jobId)
-}
-
-const handleRemoveJob = (jobId: string) => {
-  downloadStore.removeJob(jobId)
+async function perform(action: () => Promise<unknown>, success?: string) {
+  try {
+    await action()
+    if (success) {
+      toast.add({ severity: 'success', summary: '已更新', detail: success, life: 2600 })
+    }
+  } catch (reason) {
+    toast.add({
+      severity: 'error',
+      summary: '操作失敗',
+      detail: reason instanceof Error ? reason.message : String(reason),
+      life: 5000,
+    })
+  }
 }
 </script>
 
 <template>
-  <div class="p-4 flex flex-col gap-6 h-full overflow-hidden">
-    <div class="eh-panel-card flex-1 flex flex-col overflow-hidden">
-      <div class="eh-header flex justify-between items-center">
-        <span>Active Downloads</span>
-        <div class="flex gap-2">
-          <Button
-            label="Start All"
-            icon="pi pi-play"
-            size="small"
-            @click="handleStartAll"
-          />
-          <Button
-            label="Pause All"
-            icon="pi pi-pause"
-            severity="secondary"
-            size="small"
-            outlined
-            @click="handlePauseAll"
-          />
+  <section class="flex min-h-0 flex-1 flex-col gap-4" aria-label="全域下載進度">
+    <div
+      class="grid gap-3 rounded-md border border-eh-border/30 bg-eh-sidebar/70 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+    >
+      <div class="min-w-0">
+        <div class="mb-2 flex items-center justify-between gap-3 text-xs">
+          <span class="font-bold text-eh-text">全域進度</span>
+          <span class="tabular-nums text-eh-muted">{{ globalProgress }}%</span>
+        </div>
+        <ProgressBar :value="globalProgress" class="!h-2.5">
+          <template #default><span></span></template>
+        </ProgressBar>
+        <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-eh-muted">
+          <span>進行中 {{ activeJobs.length }}</span>
+          <span>已結束 {{ finishedJobs.length }}</span>
+          <span>總計 {{ downloadingJobs.length }}</span>
         </div>
       </div>
 
-      <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-4 bg-eh-panel/30">
-        <div
-          v-for="job in downloadingJobs"
-          :key="job.jobId"
-          class="eh-panel-card bg-white/50 border border-eh-border/30 rounded-lg overflow-hidden flex flex-col transition-all"
-        >
-          <!-- Job Header -->
-          <div
-            class="flex items-center gap-3 p-3 bg-eh-bg/40 cursor-pointer hover:bg-eh-bg/60 transition-colors"
+      <div class="flex flex-wrap gap-2 sm:justify-end">
+        <Button
+          label="全部開始"
+          icon="pi pi-play"
+          size="small"
+          :disabled="!canStartAll"
+          :loading="Boolean(pendingActions['global:start'])"
+          @click="perform(downloadStore.startAll, '已啟動可繼續的下載工作')"
+        />
+        <Button
+          label="全部暫停"
+          icon="pi pi-pause"
+          severity="secondary"
+          size="small"
+          outlined
+          :disabled="!canPauseAll"
+          @click="perform(downloadStore.pauseAll, '執行中的下載已暫停')"
+        />
+        <Button
+          label="清除已結束"
+          icon="pi pi-trash"
+          severity="danger"
+          size="small"
+          text
+          :disabled="disabled || !finishedJobs.length"
+          :loading="Boolean(pendingActions['global:clear'])"
+          @click="perform(downloadStore.clearFinishedJobs, '已清除完成、停止與錯誤工作')"
+        />
+      </div>
+    </div>
+
+    <div
+      v-if="error"
+      class="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700"
+      role="alert"
+    >
+      {{ error }}
+    </div>
+
+    <div class="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+      <div
+        v-if="loading"
+        class="grid min-h-40 place-items-center rounded-md border border-dashed border-eh-border/40 text-sm text-eh-muted"
+      >
+        <span><i class="pi pi-spin pi-spinner mr-2"></i>載入下載工作…</span>
+      </div>
+
+      <article
+        v-for="job in downloadingJobs"
+        v-else
+        :key="job.jobId"
+        class="overflow-hidden rounded-md border border-eh-border/30 bg-eh-panel shadow-sm"
+      >
+        <div class="flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            class="flex min-w-0 flex-1 items-start gap-3 text-left"
+            :aria-expanded="Boolean(job.isExpanded)"
             @click="toggleJob(job)"
           >
-            <i
-              :class="[
-                'pi',
-                job.isExpanded ? 'pi-chevron-down' : 'pi-chevron-right',
-                'text-eh-text text-[12px]',
-              ]"
-            ></i>
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center justify-between gap-4">
-                <span class="text-sm font-bold text-eh-text truncate">{{
+            <span
+              class="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded bg-eh-sidebar"
+            >
+              <i
+                class="pi text-[11px] text-eh-text"
+                :class="job.isExpanded ? 'pi-chevron-down' : 'pi-chevron-right'"
+              ></i>
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="flex flex-wrap items-center gap-2">
+                <strong class="min-w-0 truncate text-sm text-eh-text">{{
                   job.title
-                }}</span>
-                <div class="flex items-center gap-3">
-                  <div
-                    class="text-[10px] px-2 py-0.5 rounded border font-bold uppercase"
-                    :class="{
-                      'text-green-500 border-green-500': job.mode === 'completed',
-                      'text-red-500 border-red-500': job.mode === 'error',
-                      'text-eh-accent border-eh-accent': job.mode === 'running',
-                      'text-gray-400 border-gray-400':
-                        job.mode === 'paused' || job.mode === 'pending',
-                      'text-orange-500 border-orange-500': job.mode === 'stopped',
-                    }"
-                  >
-                    {{ job.mode }}
-                  </div>
-                  <div class="w-32 flex flex-col items-end gap-1">
-                    <ProgressBar :value="job.progress" class="!h-2 w-full">
-                      <template #default><span></span></template>
-                    </ProgressBar>
-                  </div>
-                </div>
-              </div>
-            </div>
+                }}</strong>
+                <Tag
+                  :value="statusLabel(job.mode)"
+                  :severity="statusSeverity(job.mode)"
+                />
+              </span>
+              <span class="mt-1 block text-[11px] text-eh-muted">
+                {{ job.galleries.length }} 本 Gallery · {{ job.status || '等待更新' }}
+              </span>
+            </span>
+          </button>
 
-            <!-- Job Actions: 暫停/恢復 | 停止/重試 | 移除 -->
-            <div class="flex gap-1">
-              <!-- 暫停/恢復 -->
+          <div class="flex min-w-0 items-center gap-3 sm:w-[20rem]">
+            <div class="min-w-24 flex-1">
+              <div class="mb-1 text-right text-[10px] tabular-nums text-eh-muted">
+                {{ job.progress }}%
+              </div>
+              <ProgressBar :value="job.progress" class="!h-1.5">
+                <template #default><span></span></template>
+              </ProgressBar>
+            </div>
+            <div class="flex shrink-0 gap-1">
               <Button
-                v-tooltip="job.mode === 'running' ? '暫停' : '恢復'"
+                v-tooltip="job.mode === 'running' ? '暫停' : '繼續'"
                 :icon="job.mode === 'running' ? 'pi pi-pause' : 'pi pi-play'"
-                :disabled="
-                  job.mode === 'error' ||
-                  job.mode === 'completed' ||
-                  job.mode === 'stopped'
-                "
                 rounded
                 text
                 size="small"
-                @click.stop="
-                  job.mode === 'running'
-                    ? handlePauseJob(job.jobId)
-                    : handleResumeJob(job.jobId)
+                :loading="
+                  downloadStore.isActionPending(
+                    job.jobId,
+                    job.mode === 'running' ? 'pause' : 'start',
+                  )
+                "
+                :disabled="
+                  disabled ||
+                  downloadStore.isActionPending(job.jobId) ||
+                  ['error', 'completed', 'stopped'].includes(job.mode)
+                "
+                @click="
+                  perform(() =>
+                    job.mode === 'running'
+                      ? downloadStore.pauseJob(job.jobId)
+                      : downloadStore.startJob(job.jobId),
+                  )
                 "
               />
-              <!-- 停止/重試 -->
               <Button
                 v-tooltip="
-                  job.mode === 'error' ||
-                  job.mode === 'completed' ||
-                  job.mode === 'stopped'
-                    ? '重試'
-                    : '停止'
+                  ['error', 'completed', 'stopped'].includes(job.mode) ? '重試' : '停止'
                 "
                 :icon="
-                  job.mode === 'error' ||
-                  job.mode === 'completed' ||
-                  job.mode === 'stopped'
+                  ['error', 'completed', 'stopped'].includes(job.mode)
                     ? 'pi pi-refresh'
                     : 'pi pi-stop'
                 "
-                :disabled="job.mode === 'pending'"
                 rounded
                 text
                 size="small"
-                @click.stop="
-                  job.mode === 'error' ||
-                  job.mode === 'completed' ||
-                  job.mode === 'stopped'
-                    ? handleRestartJob(job.jobId)
-                    : handleTerminateJob(job.jobId)
+                :loading="downloadStore.isActionPending(job.jobId)"
+                :disabled="
+                  disabled ||
+                  downloadStore.isActionPending(job.jobId) ||
+                  job.mode === 'pending'
+                "
+                @click="
+                  perform(() =>
+                    ['error', 'completed', 'stopped'].includes(job.mode)
+                      ? downloadStore.restartJob(job.jobId)
+                      : downloadStore.stopJob(job.jobId),
+                  )
                 "
               />
-              <!-- 移除 -->
               <Button
                 v-tooltip="'移除'"
                 icon="pi pi-trash"
-                :disabled="job.mode === 'running' || job.mode === 'paused'"
+                severity="danger"
                 rounded
                 text
                 size="small"
-                @click.stop="handleRemoveJob(job.jobId)"
+                :loading="downloadStore.isActionPending(job.jobId, 'remove')"
+                :disabled="
+                  disabled ||
+                  downloadStore.isActionPending(job.jobId) ||
+                  ['running', 'paused'].includes(job.mode)
+                "
+                @click="perform(() => downloadStore.removeJob(job.jobId))"
               />
             </div>
           </div>
-
-          <!-- Gallery List (Collapsible) -->
-          <div
-            v-show="job.isExpanded"
-            class="overflow-x-auto border-t border-eh-border/20"
-          >
-            <table class="w-full text-left border-collapse min-w-[800px]">
-              <thead class="bg-eh-bg/10 text-[11px] text-eh-muted uppercase">
-                <tr>
-                  <th class="p-2 w-10 text-center">Type</th>
-                  <th class="p-2 min-w-[200px]">Gallery Title</th>
-                  <th class="p-2">Path</th>
-                  <th class="p-2 w-20 text-center">Images</th>
-                  <th class="p-2 w-32">Status</th>
-                  <th class="p-2 w-20"></th>
-                </tr>
-              </thead>
-              <tbody class="text-xs">
-                <tr
-                  v-for="gal in job.galleries"
-                  :key="gal.gid"
-                  class="border-t border-eh-border/10 hover:bg-white/40 transition-colors group"
-                >
-                  <td class="p-2 text-center text-eh-text">
-                    <i
-                      :class="[
-                        'pi',
-                        gal.isArchive ? 'pi-file-pdf' : 'pi-folder',
-                        'text-[14px]',
-                      ]"
-                    ></i>
-                  </td>
-                  <td class="p-2">
-                    <div class="truncate max-w-[300px]" :title="gal.title">
-                      {{ gal.title }}
-                    </div>
-                  </td>
-                  <td class="p-2 font-mono text-[9px] text-eh-muted">
-                    <div class="truncate max-w-[250px]" :title="gal.targetPath">
-                      {{ gal.targetPath }}
-                    </div>
-                  </td>
-                  <td class="p-2 text-center">{{ gal.imagecount }}</td>
-                  <td class="p-2">
-                    <div class="flex flex-col gap-1">
-                      <div
-                        class="flex justify-between items-center text-[9px] whitespace-nowrap"
-                      >
-                        <span class="truncate pr-2">{{ gal.status }}</span>
-                        <span class="font-bold">{{ gal.progress }}%</span>
-                      </div>
-                      <ProgressBar :value="gal.progress" class="!h-1">
-                        <template #default><span></span></template>
-                      </ProgressBar>
-                    </div>
-                  </td>
-                  <td class="p-2"></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
         </div>
 
-        <div
-          v-if="downloadingJobs.length === 0"
-          class="text-center py-10 text-eh-muted text-xs italic"
-        >
-          No active downloads
+        <div v-show="job.isExpanded" class="border-t border-eh-border/20 bg-eh-bg/30">
+          <div
+            v-for="gallery in job.galleries"
+            :key="gallery.gid"
+            class="grid gap-2 border-b border-eh-border/10 p-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,18rem)] sm:items-center"
+          >
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <i :class="gallery.isArchive ? 'pi pi-file' : 'pi pi-folder'"></i>
+                <span
+                  class="truncate text-xs font-medium text-eh-text"
+                  :title="gallery.title"
+                >
+                  {{ gallery.title }}
+                </span>
+              </div>
+              <p
+                class="mt-1 truncate font-mono text-[9px] text-eh-muted"
+                :title="gallery.targetPath"
+              >
+                {{ gallery.targetPath || '尚未建立路徑' }}
+              </p>
+            </div>
+            <div>
+              <div class="mb-1 flex justify-between gap-2 text-[10px] text-eh-muted">
+                <span class="truncate">{{ gallery.status }}</span>
+                <span class="shrink-0 tabular-nums">
+                  {{ gallery.progress }}% · {{ gallery.imagecount }} 張
+                </span>
+              </div>
+              <ProgressBar :value="gallery.progress" class="!h-1">
+                <template #default><span></span></template>
+              </ProgressBar>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <div
+        v-if="!loading && !downloadingJobs.length"
+        class="grid min-h-52 place-items-center rounded-md border border-dashed border-eh-border/40 bg-eh-panel/40 px-6 text-center"
+      >
+        <div>
+          <i class="pi pi-download mb-3 text-3xl text-eh-border/60"></i>
+          <p class="font-medium text-eh-text">目前沒有下載工作</p>
+          <p class="mt-1 text-xs text-eh-muted">手動新增 Gallery，或等待排程建立工作。</p>
         </div>
       </div>
     </div>
-
-    <div class="flex gap-2">
-      <Button
-        label="Clear Finished"
-        icon="pi pi-trash"
-        severity="danger"
-        outlined
-        class="flex-1 !rounded-none !h-10 font-bold uppercase tracking-widest"
-        @click="handleClear"
-      />
-    </div>
-  </div>
+  </section>
 </template>
-
-<style scoped>
-.truncate {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-:deep(.p-button-text:disabled),
-:deep(.p-button-text.p-disabled) {
-  color: #d1d5db !important;
-  opacity: 1 !important;
-}
-</style>

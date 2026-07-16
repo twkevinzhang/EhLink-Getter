@@ -50,6 +50,18 @@ export interface AddToQueuePayload {
   targetCollectionIds?: string[]
 }
 
+export interface ManualDownloadPayload {
+  urls: string[]
+  collectionIds: string[]
+}
+
+export interface ManualDownloadResult {
+  queued: number
+  merged: number
+  existing: number
+  invalid: string[]
+}
+
 export interface DownloadJobUpdatedEvent {
   job: JobState
 }
@@ -388,52 +400,6 @@ export interface LibraryProgressPayload {
   progress: number
 }
 
-/** Fetch 模組 Response */
-export interface FetchGalleryResponse {
-  item?: FetchedItem
-  error?: string
-}
-
-export interface SaveCSVResponse {
-  status: 'saved' | 'error'
-  path: string
-  error?: string
-}
-
-export interface SaveJSONResponse {
-  status: 'saved' | 'error'
-  path: string
-  error?: string
-}
-
-export interface ReadJSONResponse {
-  success: boolean
-  data?: unknown
-  error?: string
-  code?: string
-}
-
-export interface DownloadImageResponse {
-  success: boolean
-  error?: string
-}
-
-export interface SelectDirectoryResponse {
-  success: boolean
-  path: string | null
-}
-
-export interface SelectSavePathResponse {
-  success: boolean
-  path: string | null
-}
-
-/** Download 模組 Response */
-export interface GetDownloadsPathResponse {
-  success: boolean
-  path: string
-}
-
 /** onArchiveProgress 事件資料（含 jobId 以便正確對應） */
 export interface ArchiveProgressEvent {
   jobId: string
@@ -457,25 +423,12 @@ export interface SidecarAPI {
   onLibraryProgress: (callback: (data: LibraryProgressEvent) => void) => void
   openFolder: (path?: string) => Promise<void>
 
-  // fetch
-  fetchPage: (payload: { url: string; next?: string }) => Promise<FetchPageResponse>
-  fetchGallery: (url: string) => Promise<FetchGalleryResponse>
-  saveCSV: (payload: { path: string; results: FetchedItem[] }) => Promise<SaveCSVResponse>
-  saveJSON: (payload: { path: string; data: unknown }) => Promise<SaveJSONResponse>
-  readJSON: (payload: { path: string }) => Promise<ReadJSONResponse>
-  downloadImage: (payload: {
-    url: string
-    savePath: string
-  }) => Promise<DownloadImageResponse>
-  selectDirectory: () => Promise<SelectDirectoryResponse>
-  selectSavePath: () => Promise<SelectSavePathResponse>
-
   // events
   onLog: (callback: (log: SidecarLogEvent) => void) => void
 
   // download
-  getDownloadsPath: () => Promise<GetDownloadsPathResponse>
   getJobs: () => Promise<JobState[]>
+  manualDownloadBatch: (payload: ManualDownloadPayload) => Promise<ManualDownloadResult>
   addToQueue: (payload: AddToQueuePayload) => Promise<void>
   startJob: (jobId: string) => Promise<void>
   pauseJob: (jobId: string) => Promise<void>
@@ -503,10 +456,6 @@ export interface SidecarAPI {
     payload: AddBooksToCollectionsPayload,
   ) => Promise<{ added: number; existing: number }>
   removeBookFromCollection: (gid: string, collectionId: string) => Promise<void>
-
-  // electron-storage
-  storeGet: <T = unknown>(key: string) => Promise<T>
-  storeSet: (key: string, val: unknown) => Promise<void>
 
   // scheduler
   listSchedules: () => Promise<Schedule[]>
