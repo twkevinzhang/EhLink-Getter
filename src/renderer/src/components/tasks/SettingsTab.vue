@@ -162,7 +162,7 @@ const handleLogout = () => {
 
 <template>
   <div class="p-4 flex flex-col gap-6 overflow-y-auto h-full">
-    <div class="eh-panel-card overflow-hidden">
+    <div class="eh-panel-card shrink-0 overflow-hidden">
       <div class="eh-header flex items-center justify-between">
         <span>工作資料夾</span>
         <span
@@ -209,7 +209,7 @@ const handleLogout = () => {
       </p>
     </div>
 
-    <div class="eh-panel-card overflow-hidden">
+    <div class="eh-panel-card shrink-0 overflow-hidden">
       <div class="eh-header">Core Configuration</div>
       <div class="p-4 flex flex-col gap-3">
         <div class="flex items-center justify-between mt-2">
@@ -267,7 +267,7 @@ const handleLogout = () => {
       </div>
     </div>
 
-    <div class="eh-panel-card overflow-hidden">
+    <div class="eh-panel-card shrink-0 overflow-hidden">
       <div class="eh-header">Request Management</div>
       <div class="p-4 flex flex-col gap-4">
         <div class="flex flex-col gap-1">
@@ -312,7 +312,7 @@ const handleLogout = () => {
       </div>
     </div>
 
-    <div class="mt-4 pt-4 border-t border-eh-border mb-4">
+    <div class="mt-4 mb-4 shrink-0 border-t border-eh-border pt-4">
       <Button
         :label="isModified ? 'Save Changes' : 'Up to date'"
         :disabled="!isModified"

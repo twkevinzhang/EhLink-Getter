@@ -34,7 +34,6 @@ const navItems = [
   { key: 'library' as const, icon: 'pi-search', label: 'Library' },
   { key: 'collections' as const, icon: 'pi-folder', label: 'Collections' },
   { key: 'scheduler' as const, icon: 'pi-calendar-clock', label: '排程' },
-  { key: 'system-logs' as const, icon: 'pi-database', label: 'System Logs' },
 ]
 
 const workspaceViews = new Set<ViewKey>(['collections', 'scheduler'])
@@ -135,7 +134,18 @@ watch(
             <i class="pi pi-cog text-xs text-eh-text"></i>
           </button>
 
-          <div class="flex items-center gap-2 text-[0.67rem] font-bold text-eh-text">
+          <button
+            type="button"
+            class="flex w-full items-center gap-2 rounded-md border px-2 py-1 text-left text-[0.67rem] font-bold text-eh-text transition-colors hover:bg-eh-sidebar active:bg-eh-border/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-eh-border"
+            :class="
+              activeTab === 'system-logs'
+                ? 'border-eh-border/30 bg-eh-sidebar'
+                : 'border-transparent'
+            "
+            :aria-current="activeTab === 'system-logs' ? 'page' : undefined"
+            :aria-label="`開啟 System Logs，Sidecar 目前${configStore.sidecarOnline ? '上線' : '離線'}`"
+            @click="activeTab = 'system-logs'"
+          >
             <span
               class="h-1.5 w-1.5 rounded-full"
               :class="
@@ -143,9 +153,10 @@ watch(
                   ? 'animate-pulse bg-green-500 shadow-[0_0_5px_#22c55e]'
                   : 'bg-red-500 shadow-[0_0_5px_#ef4444]'
               "
+              aria-hidden="true"
             ></span>
             SIDECAR: {{ configStore.sidecarOnline ? 'ONLINE' : 'OFFLINE' }}
-          </div>
+          </button>
         </div>
       </aside>
 
