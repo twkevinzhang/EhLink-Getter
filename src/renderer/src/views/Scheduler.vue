@@ -40,6 +40,7 @@ const editorVisible = ref(false)
 const editingId = ref<string>()
 const saving = ref(false)
 const editorError = ref('')
+const downloadPauseActionId = ref('')
 
 const form = reactive({
   name: '',
@@ -244,6 +245,38 @@ async function runSelected() {
   }
 }
 
+async function toggleSelectedDownloads() {
+  const schedule = selectedSchedule.value
+  if (!schedule || downloadPauseActionId.value) return
+
+  const wasPaused = schedule.downloadsPaused
+  downloadPauseActionId.value = schedule.scheduleId
+  try {
+    if (wasPaused) {
+      await automation.resumeScheduleDownloads(schedule.scheduleId)
+    } else {
+      await automation.pauseScheduleDownloads(schedule.scheduleId)
+    }
+    toast.add({
+      severity: wasPaused ? 'success' : 'warn',
+      summary: wasPaused ? '已恢復自動下載' : '已暫停自動下載',
+      detail: wasPaused
+        ? `${schedule.name} 的等待工作將繼續下載。`
+        : `${schedule.name} 仍會照常監看，新 Gallery 將停在等待佇列。`,
+      life: 3500,
+    })
+  } catch (reason) {
+    toast.add({
+      severity: 'error',
+      summary: wasPaused ? '無法恢復自動下載' : '無法暫停自動下載',
+      detail: reason instanceof Error ? reason.message : String(reason),
+      life: 5000,
+    })
+  } finally {
+    downloadPauseActionId.value = ''
+  }
+}
+
 function confirmDelete(schedule: Schedule) {
   confirm.require({
     header: '刪除排程？',
@@ -363,6 +396,12 @@ function formatDate(value?: string) {
             v-if="activeRuns[schedule.scheduleId]"
             class="pi pi-spin pi-spinner shrink-0 text-eh-accent"
           ></i>
+          <i
+            v-if="schedule.downloadsPaused"
+            class="pi pi-pause-circle shrink-0 text-amber-600"
+            aria-label="下載已暫停"
+            title="這個排程的下載已暫停"
+          ></i>
         </button>
 
         <div
@@ -406,6 +445,25 @@ function formatDate(value?: string) {
                 @click="runSelected"
               />
               <Button
+                :label="selectedSchedule.downloadsPaused ? '恢復下載' : '暫停下載'"
+                :icon="selectedSchedule.downloadsPaused ? 'pi pi-play' : 'pi pi-pause'"
+                severity="secondary"
+                outlined
+                :loading="downloadPauseActionId === selectedSchedule.scheduleId"
+                :disabled="Boolean(downloadPauseActionId)"
+                :aria-label="
+                  selectedSchedule.downloadsPaused
+                    ? `恢復 ${selectedSchedule.name} 的自動下載`
+                    : `暫停 ${selectedSchedule.name} 的自動下載`
+                "
+                :title="
+                  selectedSchedule.downloadsPaused
+                    ? '恢復這個排程的等待與自動下載工作'
+                    : '暫停這個排程的下載；定時監看仍會繼續'
+                "
+                @click="toggleSelectedDownloads"
+              />
+              <Button
                 label="編輯"
                 icon="pi pi-pencil"
                 outlined
@@ -425,26 +483,36 @@ function formatDate(value?: string) {
           <section class="grid min-w-0 gap-4 xl:grid-cols-3" aria-label="排程摘要">
             <article class="schedule-panel min-w-0">
               <h3>狀態</h3>
-              <div class="mt-4 flex flex-wrap items-center gap-3">
-                <Tag
-                  :value="
-                    selectedRun
-                      ? '執行中'
-                      : selectedSchedule.enabled
-                        ? '已啟用'
-                        : '已暫停'
-                  "
-                  :severity="
-                    selectedRun
-                      ? 'info'
-                      : selectedSchedule.enabled
-                        ? 'success'
-                        : 'secondary'
-                  "
-                />
-                <span class="text-sm text-eh-muted">{{
-                  formatScheduleFrequency(selectedSchedule.cronExpression)
-                }}</span>
+              <div class="mt-4 space-y-3">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="w-20 text-xs font-bold text-eh-muted">定時監看</span>
+                  <Tag
+                    :value="
+                      selectedRun
+                        ? '執行中'
+                        : selectedSchedule.enabled
+                          ? '已啟用'
+                          : '已停止'
+                    "
+                    :severity="
+                      selectedRun
+                        ? 'info'
+                        : selectedSchedule.enabled
+                          ? 'success'
+                          : 'secondary'
+                    "
+                  />
+                  <span class="text-sm text-eh-muted">{{
+                    formatScheduleFrequency(selectedSchedule.cronExpression)
+                  }}</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="w-20 text-xs font-bold text-eh-muted">自動下載</span>
+                  <Tag
+                    :value="selectedSchedule.downloadsPaused ? '已暫停' : '已啟用'"
+                    :severity="selectedSchedule.downloadsPaused ? 'warn' : 'success'"
+                  />
+                </div>
               </div>
             </article>
             <article class="schedule-panel min-w-0">
@@ -465,6 +533,21 @@ function formatDate(value?: string) {
               <small class="mt-1 block text-eh-muted">開始下載後自動加入</small>
             </article>
           </section>
+
+          <div
+            v-if="selectedSchedule.downloadsPaused"
+            class="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+            role="status"
+          >
+            <i class="pi pi-pause-circle mt-0.5" aria-hidden="true"></i>
+            <div>
+              <strong class="block">這個排程的下載已暫停</strong>
+              <span class="mt-0.5 block"
+                >定時監看與立即執行仍會照常掃描；新 Gallery
+                會停在等待佇列，直到恢復下載。</span
+              >
+            </div>
+          </div>
 
           <section class="schedule-panel">
             <h3>當前排程</h3>
@@ -568,7 +651,17 @@ function formatDate(value?: string) {
                     text
                     rounded
                     size="small"
-                    aria-label="開始"
+                    :disabled="selectedSchedule.downloadsPaused"
+                    :aria-label="
+                      selectedSchedule.downloadsPaused
+                        ? `無法開始 ${job.title}；請先恢復排程下載`
+                        : `開始下載 ${job.title}`
+                    "
+                    :title="
+                      selectedSchedule.downloadsPaused
+                        ? '請先恢復這個排程的自動下載'
+                        : '開始這個下載工作'
+                    "
                     @click="downloadStore.startJob(job.jobId)"
                   />
                 </div>

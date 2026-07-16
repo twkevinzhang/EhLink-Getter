@@ -108,7 +108,7 @@ test('collections are many-to-many and uncategorized remains a dynamic query', (
 })
 
 test('schedule CRUD persists nullable uncategorized targets and execution runs', () => {
-  const { repository } = createRepository()
+  const { repository, root } = createRepository()
   const collection = repository.createCollection('Scheduled')
   const created = repository.createSchedule({
     name: 'non-h',
@@ -118,6 +118,21 @@ test('schedule CRUD persists nullable uncategorized targets and execution runs',
 
   assert.equal(created.pageLimit, 3)
   assert.equal(created.targetCollectionId, null)
+  assert.equal(created.downloadsPaused, false)
+  const schedulesPath = path.join(root, '.ehlink-getter', 'schedules.json')
+  const legacySchedules = JSON.parse(fs.readFileSync(schedulesPath, 'utf8'))
+  delete legacySchedules[0].downloadsPaused
+  fs.writeFileSync(schedulesPath, JSON.stringify(legacySchedules))
+  assert.equal(repository.getSchedule(created.scheduleId)?.downloadsPaused, false)
+  assert.equal(
+    repository.setScheduleDownloadsPaused(created.scheduleId, true).downloadsPaused,
+    true,
+  )
+  assert.equal(repository.getSchedule(created.scheduleId)?.downloadsPaused, true)
+  assert.equal(
+    repository.setScheduleDownloadsPaused(created.scheduleId, false).downloadsPaused,
+    false,
+  )
   const updated = repository.updateSchedule(created.scheduleId, {
     pageLimit: 5,
     targetCollectionId: collection.collectionId,

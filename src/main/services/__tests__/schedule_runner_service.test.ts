@@ -20,6 +20,7 @@ const schedule: Schedule = {
   pageLimit: 3,
   targetCollectionId: 'collection-1',
   enabled: true,
+  downloadsPaused: false,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 }
@@ -37,6 +38,27 @@ function createWorkspace(overrides: Record<string, unknown> = {}) {
 }
 
 describe('ScheduleRunnerService', () => {
+  it('persists and applies schedule-level download pause and resume', () => {
+    const paused = { ...schedule, downloadsPaused: true }
+    const resumed = { ...schedule, downloadsPaused: false }
+    const workspace = createWorkspace({
+      setScheduleDownloadsPaused: vi
+        .fn()
+        .mockReturnValueOnce(paused)
+        .mockReturnValueOnce(resumed),
+    })
+    const jobManager = {
+      pauseScheduleDownloads: vi.fn(),
+      resumeScheduleDownloads: vi.fn(),
+    }
+    const runner = new ScheduleRunnerService(workspace as any, jobManager as any)
+
+    expect(runner.pauseDownloads(schedule.scheduleId)).toEqual(paused)
+    expect(jobManager.pauseScheduleDownloads).toHaveBeenCalledWith(schedule.scheduleId)
+    expect(runner.resumeDownloads(schedule.scheduleId)).toEqual(resumed)
+    expect(jobManager.resumeScheduleDownloads).toHaveBeenCalledWith(schedule.scheduleId)
+  })
+
   it('scans up to pageLimit, deduplicates real gids and queues unknown galleries', async () => {
     const workspace = createWorkspace()
     const jobs: any[] = []

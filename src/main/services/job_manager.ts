@@ -45,6 +45,8 @@ export class JobManager {
           ...gallery,
           mode: gallery.mode === 'running' ? 'paused' : gallery.mode,
         })),
+        sourceScheduleIds: unique([...(saved.sourceScheduleIds ?? []), saved.scheduleId]),
+        hasManualSource: saved.hasManualSource ?? saved.origin !== 'schedule',
       }
       this.jobs.set(job.jobId, job)
     }
@@ -86,10 +88,18 @@ export class JobManager {
       ])
       const active = this.findActiveGallery(gid)
       if (active) {
+        this.addSource(active.job, payload)
         active.gallery.collectionIds = unique([
           ...(active.gallery.collectionIds ?? []),
           ...collectionIds,
         ])
+        if (
+          active.job.pausedByScheduleId &&
+          !this.isBlockedBySchedulePauses(active.job)
+        ) {
+          this.releaseSchedulePause(active.job)
+          void this.startJob(active.job.jobId)
+        }
         const managed = this.workspace?.getGallery(gid)
         if (managed && collectionIds.length) {
           this.workspace?.addGalleryToCollections(gid, collectionIds)
@@ -97,19 +107,23 @@ export class JobManager {
         mergedJobs.add(active.job)
         continue
       }
+      const downloadsPaused = this.isPayloadSchedulePaused(payload)
       pending.push({
         ...incoming,
         gid,
         targetPath: '',
         collectionIds,
-        mode: 'pending',
+        mode: downloadsPaused ? 'paused' : 'pending',
         progress: incoming.progress ?? 0,
-        status: incoming.status || 'Waiting in queue...',
+        status: downloadsPaused
+          ? 'Paused by schedule'
+          : incoming.status || 'Waiting in queue...',
       })
     }
 
     let job = this.jobs.get(payload.jobId)
     if (job && ACTIVE_MODES.has(job.mode)) {
+      this.addSource(job, payload)
       job.galleries.push(...pending)
       job.targetCollectionIds = unique([
         ...(job.targetCollectionIds ?? []),
@@ -118,12 +132,13 @@ export class JobManager {
       if (pending.length) job.status = `Added ${pending.length} more galleries.`
       mergedJobs.add(job)
     } else if (pending.length) {
+      const downloadsPaused = this.isPayloadSchedulePaused(payload)
       job = {
         jobId: payload.jobId,
         title: payload.title,
         progress: 0,
-        status: 'Waiting in queue...',
-        mode: 'pending',
+        status: downloadsPaused ? 'Paused by schedule' : 'Waiting in queue...',
+        mode: downloadsPaused ? 'paused' : 'pending',
         galleries: pending,
         isExpanded: true,
         isArchive: payload.isArchive ?? false,
@@ -132,6 +147,9 @@ export class JobManager {
         scheduleId: payload.scheduleId,
         scheduleRunId: payload.scheduleRunId,
         targetCollectionIds: payloadCollections,
+        sourceScheduleIds: payload.scheduleId ? [payload.scheduleId] : [],
+        hasManualSource: payload.origin !== 'schedule',
+        pausedByScheduleId: downloadsPaused ? payload.scheduleId : undefined,
       }
       this.jobs.set(job.jobId, job)
     }
@@ -146,6 +164,7 @@ export class JobManager {
     const job = this.jobs.get(jobId)
     if (!job || job.mode === 'running') return
     if (!['pending', 'paused', 'stopped'].includes(job.mode)) return
+    if (this.isBlockedBySchedulePauses(job)) return
     if (this.runningCount >= MAX_CONCURRENT_JOBS) return
     await this.processJob(job)
   }
@@ -164,6 +183,29 @@ export class JobManager {
       this.updateManagedStatus(gallery.gid, 'paused', gallery.progress)
     }
     this.pushUpdate(job)
+  }
+
+  pauseScheduleDownloads(scheduleId: string): void {
+    for (const job of this.jobs.values()) {
+      if (!this.getSourceScheduleIds(job).includes(scheduleId)) continue
+      if (!this.isBlockedBySchedulePauses(job)) continue
+      if (!['pending', 'running'].includes(job.mode)) continue
+      job.pausedByScheduleId = scheduleId
+      this.pauseJob(job.jobId)
+    }
+  }
+
+  resumeScheduleDownloads(scheduleId: string): void {
+    const resumable: JobState[] = []
+    for (const job of this.jobs.values()) {
+      const belongsToSchedule = this.getSourceScheduleIds(job).includes(scheduleId)
+      if (!belongsToSchedule) continue
+      if (job.pausedByScheduleId && !this.isBlockedBySchedulePauses(job)) {
+        this.releaseSchedulePause(job)
+      }
+      if (job.mode === 'pending') resumable.push(job)
+    }
+    for (const job of resumable) void this.startJob(job.jobId)
   }
 
   stopJob(jobId: string): void {
@@ -221,6 +263,46 @@ export class JobManager {
       if (gallery) return { job, gallery }
     }
     return null
+  }
+
+  private getSourceScheduleIds(job: JobState): string[] {
+    return unique([...(job.sourceScheduleIds ?? []), job.scheduleId])
+  }
+
+  private addSource(job: JobState, payload: AddToQueuePayload): void {
+    job.sourceScheduleIds = unique([
+      ...this.getSourceScheduleIds(job),
+      payload.scheduleId,
+    ])
+    if (payload.origin !== 'schedule') job.hasManualSource = true
+  }
+
+  private isBlockedBySchedulePauses(job: JobState): boolean {
+    if (job.hasManualSource) return false
+    const scheduleIds = this.getSourceScheduleIds(job)
+    return (
+      scheduleIds.length > 0 &&
+      scheduleIds.every(
+        (scheduleId) => this.workspace?.getSchedule(scheduleId)?.downloadsPaused ?? false,
+      )
+    )
+  }
+
+  private isPayloadSchedulePaused(payload: AddToQueuePayload): boolean {
+    if (payload.origin !== 'schedule' || !payload.scheduleId) return false
+    return this.workspace?.getSchedule(payload.scheduleId)?.downloadsPaused ?? false
+  }
+
+  private releaseSchedulePause(job: JobState): void {
+    job.pausedByScheduleId = undefined
+    job.mode = 'pending'
+    job.status = 'Waiting in queue...'
+    for (const gallery of job.galleries) {
+      if (gallery.mode !== 'paused') continue
+      gallery.mode = 'pending'
+      gallery.status = 'Pending...'
+    }
+    this.pushUpdate(job)
   }
 
   private async processJob(job: JobState): Promise<void> {

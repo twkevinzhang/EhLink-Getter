@@ -162,6 +162,16 @@ export const useAutomationStore = defineStore('automation', () => {
     return run
   }
 
+  async function pauseScheduleDownloads(scheduleId: string) {
+    await window.api.pauseScheduleDownloads(scheduleId)
+    await refreshSchedules()
+  }
+
+  async function resumeScheduleDownloads(scheduleId: string) {
+    await window.api.resumeScheduleDownloads(scheduleId)
+    await refreshSchedules()
+  }
+
   function jobsForSchedule(jobs: JobState[], scheduleId: string) {
     return jobs.filter((job) => {
       const linkedJob = job as JobState & {
@@ -196,6 +206,8 @@ export const useAutomationStore = defineStore('automation', () => {
     updateSchedule,
     deleteSchedule,
     runNow,
+    pauseScheduleDownloads,
+    resumeScheduleDownloads,
     jobsForSchedule,
   }
 })

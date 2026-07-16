@@ -911,3 +911,11 @@ ipcMain.handle(
   (_, scheduleId: string): Promise<ScheduleRun> =>
     scheduleRunnerService.run(scheduleId, 'manual'),
 )
+ipcMain.handle(
+  'pause-schedule-downloads',
+  (_, scheduleId: string): Schedule => scheduleRunnerService.pauseDownloads(scheduleId),
+)
+ipcMain.handle(
+  'resume-schedule-downloads',
+  (_, scheduleId: string): Schedule => scheduleRunnerService.resumeDownloads(scheduleId),
+)

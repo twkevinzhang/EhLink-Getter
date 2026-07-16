@@ -30,6 +30,12 @@ export interface JobState {
   scheduleId?: string
   scheduleRunId?: string
   targetCollectionIds?: string[]
+  /** All schedules that contributed galleries to this (possibly merged) job. */
+  sourceScheduleIds?: string[]
+  /** True when a manual request was merged into this job. */
+  hasManualSource?: boolean
+  /** Set only for jobs paused by their owning schedule. */
+  pausedByScheduleId?: string
 }
 
 export interface AddToQueuePayload {
@@ -154,6 +160,8 @@ export interface Schedule {
   /** null means the dynamic "Uncategorized" collection. */
   targetCollectionId: string | null
   enabled: boolean
+  /** Pauses downloads only; monitoring and manual scans remain available. */
+  downloadsPaused: boolean
   createdAt: string
   updatedAt: string
   lastRunAt?: string
@@ -508,5 +516,7 @@ export interface SidecarAPI {
   updateSchedule: (payload: UpdateSchedulePayload) => Promise<Schedule>
   deleteSchedule: (scheduleId: string) => Promise<void>
   runScheduleNow: (scheduleId: string) => Promise<ScheduleRun>
+  pauseScheduleDownloads: (scheduleId: string) => Promise<Schedule>
+  resumeScheduleDownloads: (scheduleId: string) => Promise<Schedule>
   onScheduleRunProgress: (callback: (run: ScheduleRun) => void) => () => void
 }

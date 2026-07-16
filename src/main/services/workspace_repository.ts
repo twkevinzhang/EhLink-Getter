@@ -442,9 +442,12 @@ export class WorkspaceRepository {
   }
 
   listSchedules(): Schedule[] {
-    return this.readJson<Schedule[]>(this.paths().schedules, []).sort((left, right) =>
-      left.createdAt.localeCompare(right.createdAt),
-    )
+    return this.readJson<Schedule[]>(this.paths().schedules, [])
+      .map((schedule) => ({
+        ...schedule,
+        downloadsPaused: schedule.downloadsPaused ?? false,
+      }))
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
   }
 
   getSchedule(scheduleId: string): Schedule | undefined {
@@ -469,11 +472,23 @@ export class WorkspaceRepository {
       pageLimit: normalizePageLimit(input.pageLimit),
       targetCollectionId,
       enabled: input.enabled ?? true,
+      downloadsPaused: false,
       createdAt: now,
       updatedAt: now,
     }
     const schedules = this.listSchedules()
     schedules.push(schedule)
+    this.writeJson(this.paths().schedules, schedules)
+    this.touchManifest()
+    return schedule
+  }
+
+  setScheduleDownloadsPaused(scheduleId: string, paused: boolean): Schedule {
+    const schedules = this.listSchedules()
+    const schedule = schedules.find((candidate) => candidate.scheduleId === scheduleId)
+    if (!schedule) throw new Error('找不到排程')
+    schedule.downloadsPaused = paused
+    schedule.updatedAt = new Date().toISOString()
     this.writeJson(this.paths().schedules, schedules)
     this.touchManifest()
     return schedule

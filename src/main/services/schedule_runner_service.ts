@@ -121,6 +121,18 @@ export class ScheduleRunnerService {
     await active.promise.catch(() => undefined)
   }
 
+  pauseDownloads(scheduleId: string): Schedule {
+    const schedule = this.workspace.setScheduleDownloadsPaused(scheduleId, true)
+    this.jobManager.pauseScheduleDownloads(scheduleId)
+    return schedule
+  }
+
+  resumeDownloads(scheduleId: string): Schedule {
+    const schedule = this.workspace.setScheduleDownloadsPaused(scheduleId, false)
+    this.jobManager.resumeScheduleDownloads(scheduleId)
+    return schedule
+  }
+
   private async execute(
     active: ActiveScheduleRun,
     schedule: Schedule,

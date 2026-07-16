@@ -146,6 +146,10 @@ const api: SidecarAPI = {
     ipcRenderer.invoke('delete-schedule', scheduleId),
   runScheduleNow: (scheduleId: string) =>
     ipcRenderer.invoke('run-schedule-now', scheduleId),
+  pauseScheduleDownloads: (scheduleId: string) =>
+    ipcRenderer.invoke('pause-schedule-downloads', scheduleId),
+  resumeScheduleDownloads: (scheduleId: string) =>
+    ipcRenderer.invoke('resume-schedule-downloads', scheduleId),
   onScheduleRunProgress: (callback: (run: ScheduleRun) => void) => {
     const listener = (_event: IpcRendererEvent, run: ScheduleRun) => callback(run)
     ipcRenderer.on('schedule-run-progress', listener)
