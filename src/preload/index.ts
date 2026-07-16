@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { exposeElectronAPI } from '@electron-toolkit/preload'
 import {
   type SidecarAPI,
@@ -11,6 +11,16 @@ import {
   type AddToQueuePayload,
   type DownloadJobUpdatedEvent,
   type LibraryProgressEvent,
+  type WorkspaceResponse,
+  type WorkspaceSettings,
+  type WorkspaceSettingsResponse,
+  type WorkspaceState,
+  type CreateCollectionPayload,
+  type UpdateCollectionPayload,
+  type AddBooksToCollectionsPayload,
+  type CreateSchedulePayload,
+  type UpdateSchedulePayload,
+  type ScheduleRun,
 } from '@shared/types/api'
 
 const api: SidecarAPI = {
@@ -63,6 +73,60 @@ const api: SidecarAPI = {
   onArchiveProgress: (callback: (data: ArchiveProgressEvent) => void) =>
     ipcRenderer.on('archive-progress', (_event, value) => callback(value)),
 
+  // workspace module
+  getWorkspaceState: async (): Promise<WorkspaceState> => {
+    const response = (await ipcRenderer.invoke(
+      'get-workspace-state',
+    )) as WorkspaceResponse
+    if (!response.success) throw new Error(response.error ?? '無法讀取工作資料夾')
+    return response.state ?? { configured: false, path: null }
+  },
+  selectWorkspace: async (): Promise<WorkspaceState> => {
+    const response = (await ipcRenderer.invoke('select-workspace')) as WorkspaceResponse
+    if (!response.success) throw new Error(response.error ?? '無法設定工作資料夾')
+    return response.state ?? { configured: false, path: null }
+  },
+  getWorkspaceSettings: async (): Promise<WorkspaceSettings> => {
+    const response = (await ipcRenderer.invoke(
+      'get-workspace-settings',
+    )) as WorkspaceSettingsResponse
+    if (!response.success || !response.settings) {
+      throw new Error(response.error ?? '無法讀取工作資料夾設定')
+    }
+    return response.settings
+  },
+  saveWorkspaceSettings: async (
+    settings: WorkspaceSettings,
+  ): Promise<WorkspaceSettings> => {
+    const response = (await ipcRenderer.invoke(
+      'save-workspace-settings',
+      settings,
+    )) as WorkspaceSettingsResponse
+    if (!response.success || !response.settings) {
+      throw new Error(response.error ?? '無法儲存工作資料夾設定')
+    }
+    return response.settings
+  },
+  onWorkspaceUpdated: (callback: (state: WorkspaceState) => void) => {
+    const listener = (_event: IpcRendererEvent, state: WorkspaceState) => callback(state)
+    ipcRenderer.on('workspace-updated', listener)
+    return () => ipcRenderer.removeListener('workspace-updated', listener)
+  },
+
+  // managed gallery and collection modules
+  listManagedGalleries: () => ipcRenderer.invoke('list-managed-galleries'),
+  listCollections: () => ipcRenderer.invoke('list-collections'),
+  createCollection: (payload: CreateCollectionPayload) =>
+    ipcRenderer.invoke('create-collection', payload),
+  updateCollection: (payload: UpdateCollectionPayload) =>
+    ipcRenderer.invoke('update-collection', payload),
+  deleteCollection: (collectionId: string) =>
+    ipcRenderer.invoke('delete-collection', collectionId),
+  addBooksToCollections: (payload: AddBooksToCollectionsPayload) =>
+    ipcRenderer.invoke('add-books-to-collections', payload),
+  removeBookFromCollection: (gid: string, collectionId: string) =>
+    ipcRenderer.invoke('remove-book-from-collection', { gid, collectionId }),
+
   // electron-storage composable
   storeGet: <T extends unknown = unknown>(key: string) =>
     ipcRenderer.invoke('electron-store-get', key) as Promise<T>,
@@ -70,8 +134,23 @@ const api: SidecarAPI = {
     ipcRenderer.invoke('electron-store-set', key, val),
 
   // scheduler module
-  triggerSchedulerTask: (taskId: string) =>
-    ipcRenderer.invoke('trigger-scheduler-task', taskId),
+  listSchedules: () => ipcRenderer.invoke('list-schedules'),
+  listScheduleRuns: (scheduleId?: string) =>
+    ipcRenderer.invoke('list-schedule-runs', scheduleId),
+  getActiveScheduleRuns: () => ipcRenderer.invoke('get-active-schedule-runs'),
+  createSchedule: (payload: CreateSchedulePayload) =>
+    ipcRenderer.invoke('create-schedule', payload),
+  updateSchedule: (payload: UpdateSchedulePayload) =>
+    ipcRenderer.invoke('update-schedule', payload),
+  deleteSchedule: (scheduleId: string) =>
+    ipcRenderer.invoke('delete-schedule', scheduleId),
+  runScheduleNow: (scheduleId: string) =>
+    ipcRenderer.invoke('run-schedule-now', scheduleId),
+  onScheduleRunProgress: (callback: (run: ScheduleRun) => void) => {
+    const listener = (_event: IpcRendererEvent, run: ScheduleRun) => callback(run)
+    ipcRenderer.on('schedule-run-progress', listener)
+    return () => ipcRenderer.removeListener('schedule-run-progress', listener)
+  },
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

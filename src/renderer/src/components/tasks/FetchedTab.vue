@@ -1,28 +1,31 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
+import MultiSelect from 'primevue/multiselect'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 import { useFetchStore, type DraftGallery } from '@renderer/stores/fetch'
 import DownloadConfigPanel from '@renderer/components/shared/DownloadConfigPanel.vue'
 import { useDownloadStore } from '@renderer/stores/download'
 import { storeToRefs } from 'pinia'
+import { useAutomationStore } from '@renderer/stores/automation'
+import { useWorkspaceStore } from '@renderer/stores/workspace'
 
 const scraperStore = useFetchStore()
 const downloadStore = useDownloadStore()
+const automation = useAutomationStore()
+const workspace = useWorkspaceStore()
 const { galleries } = storeToRefs(scraperStore)
 const toast = useToast()
 const confirm = useConfirm()
 
-const targetPath = ref('')
 const useZip = ref(true)
 const zipPass = ref('')
+const selectedCollectionIds = ref<string[]>([])
 const manualUrl = ref('')
 
 // Pagination state
 const first = ref(0)
 const pageSize = ref(20)
-const currentPage = computed(() => Math.floor(first.value / pageSize.value) + 1)
-
 // Filter state
 const searchQuery = ref('')
 
@@ -109,10 +112,10 @@ const toggleSelectPage = () => {
   }
 }
 
-const handleAddManual = () => {
+const handleAddManual = async () => {
   try {
     if (!manualUrl.value) return
-    scraperStore.addGallery(manualUrl.value)
+    await scraperStore.addGallery(manualUrl.value)
     manualUrl.value = ''
     toast.add({
       severity: 'success',
@@ -131,6 +134,10 @@ const handleAddManual = () => {
 }
 
 const handleAddSelectedToQueue = async () => {
+  if (!workspace.configured) {
+    await workspace.select()
+    if (!workspace.configured) return
+  }
   if (selectedIds.value.length === 0) {
     toast.add({
       severity: 'warn',
@@ -145,14 +152,24 @@ const handleAddSelectedToQueue = async () => {
     selectedIds.value.includes(g.gid),
   )
   const jobId = `draft-${Date.now()}`
-  downloadStore.addToQueue(
-    jobId,
-    'Draft Selection',
-    selectedGalleriesList,
-    targetPath.value,
-    useZip.value,
-    zipPass.value,
-  )
+  try {
+    await downloadStore.addToQueue(
+      jobId,
+      'Draft Selection',
+      selectedGalleriesList,
+      useZip.value,
+      zipPass.value,
+      selectedCollectionIds.value,
+    )
+  } catch (reason) {
+    toast.add({
+      severity: 'error',
+      summary: 'Download Failed',
+      detail: reason instanceof Error ? reason.message : String(reason),
+      life: 5000,
+    })
+    return
+  }
 
   selectedGalleriesList.forEach((g) => {
     scraperStore.removeGallery(g.gid)
@@ -201,12 +218,6 @@ const handleClearDrafts = () => {
 watch(searchQuery, () => {
   first.value = 0
   selectedIds.value = []
-})
-
-onMounted(async () => {
-  if (!targetPath.value || targetPath.value.trim() === '') {
-    targetPath.value = await downloadStore.getDefaultDownloadsPath()
-  }
 })
 </script>
 
@@ -344,16 +355,50 @@ onMounted(async () => {
     </div>
 
     <!-- Configuration Panel -->
-    <DownloadConfigPanel
-      v-model="targetPath"
-      v-model:useZip="useZip"
-      v-model:zipPass="zipPass"
-    />
+    <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.7fr)]">
+      <DownloadConfigPanel v-model:useZip="useZip" v-model:zipPass="zipPass" />
+      <div class="eh-panel-card overflow-hidden">
+        <div class="eh-header">加入 Collections</div>
+        <div class="p-4">
+          <MultiSelect
+            v-model="selectedCollectionIds"
+            :options="automation.sortedCollections"
+            optionLabel="name"
+            optionValue="collectionId"
+            display="chip"
+            placeholder="未選擇時保持未分類"
+            class="w-full"
+          />
+          <p class="mt-2 text-[10px] leading-4 text-eh-muted">
+            Gallery 從開始下載起才會建立正式紀錄，並加入所選 Collections；同一 Gallery
+            可以同時屬於多個 Collection。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="!workspace.configured"
+      class="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-900"
+    >
+      <span>開始下載前，請先選擇工作資料夾。</span>
+      <Button
+        label="選擇工作資料夾"
+        icon="pi pi-folder-open"
+        outlined
+        :loading="workspace.loading"
+        @click="workspace.select"
+      />
+    </div>
 
     <div class="flex gap-2">
       <Button
-        :label="`Start Download (${selectedIds.length} Selected)`"
-        :disabled="selectedIds.length === 0"
+        :label="
+          workspace.configured
+            ? `Start Download (${selectedIds.length} Selected)`
+            : '請先設定工作資料夾'
+        "
+        :disabled="selectedIds.length === 0 || !workspace.configured"
         class="w-full !bg-eh-border !border-eh-border !rounded-none !h-10 font-bold uppercase tracking-widest"
         @click="handleAddSelectedToQueue"
       />

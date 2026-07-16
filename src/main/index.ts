@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, dialog, ipcMain } from 'electron'
 import { join, dirname } from 'path'
 import * as fs from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -12,11 +12,18 @@ import { registerFormat } from 'archiver'
 import zipEncryptable from 'archiver-zip-encryptable'
 import { File as MegaFile } from 'megajs'
 import { SchedulerService } from '@main/services/scheduler_service'
+import { ScheduleRunnerService } from '@main/services/schedule_runner_service'
 import { JobManager } from '@main/services/job_manager'
+import { WorkspaceRepository } from '@main/services/workspace_repository'
 import Store from 'electron-store'
 import { LibrarySqliteService } from '@main/services/library_sqlite_service'
 import { downloadsPath, libraryPath, libraryDbPath } from '@main/services/utilties'
-import { CONFIG_STORE_KEY } from '@shared/utilities'
+import {
+  CONFIG_STORE_KEY,
+  DEFAULT_CONFIG,
+  WORKSPACE_DATA_DIR,
+  WORKSPACE_PATH_STORE_KEY,
+} from '@shared/utilities'
 import {
   type AppConfig,
   type SearchLibraryPayload,
@@ -24,7 +31,6 @@ import {
   type FetchPageResponse,
   type FetchedItem,
   type AddToQueuePayload,
-  type TriggerSchedulerResponse,
   type GetConfigResponse,
   type SaveConfigResponse,
   type CheckSidecarHealthResponse,
@@ -40,6 +46,18 @@ import {
   type GetDownloadsPathResponse,
   type FetchGalleryResponse,
   type LibraryProgressEvent,
+  type WorkspaceResponse,
+  type WorkspaceSettings,
+  type WorkspaceSettingsResponse,
+  type CreateSchedulePayload,
+  type UpdateSchedulePayload,
+  type Schedule,
+  type ScheduleRun,
+  type Collection,
+  type CreateCollectionPayload,
+  type UpdateCollectionPayload,
+  type AddBooksToCollectionsPayload,
+  type ManagedGallery,
 } from '@shared/types/api'
 
 // Register the encryptable zip format
@@ -50,8 +68,27 @@ const store = new Store<any>()
 let mainWindow: BrowserWindow
 let sidecarProcess: ChildProcess | null = null
 let jobManager: JobManager
+let schedulerService: SchedulerService
+let scheduleRunnerService: ScheduleRunnerService
 
-const SIDECAR_PORT = 8000
+const workspaceRepository = new WorkspaceRepository(app.getVersion())
+const savedWorkspacePath = store.get(WORKSPACE_PATH_STORE_KEY) as string | undefined
+if (savedWorkspacePath) {
+  try {
+    workspaceRepository.activate(savedWorkspacePath)
+  } catch {
+    store.delete(WORKSPACE_PATH_STORE_KEY)
+  }
+}
+
+// The legacy scheduler is intentionally discarded instead of migrated.
+store.delete('scheduler.tasks')
+
+const requestedSidecarPort = Number(process.env.SIDECAR_PORT)
+const SIDECAR_PORT =
+  Number.isInteger(requestedSidecarPort) && requestedSidecarPort > 0
+    ? requestedSidecarPort
+    : 8000
 const SIDECAR_URL = `http://127.0.0.1:${SIDECAR_PORT}`
 
 const isQuitting = false
@@ -176,6 +213,77 @@ function createWindow(): void {
   }
 }
 
+function currentConfig(): AppConfig {
+  if (workspaceRepository.root) {
+    const settings = workspaceRepository.getSettings()
+    return {
+      cookies: settings.cookies,
+      proxies: settings.proxies,
+      scan_thread_cnt: settings.scan_thread_cnt,
+      download_thread_cnt: settings.download_thread_cnt,
+    }
+  }
+  return {
+    ...DEFAULT_CONFIG,
+    ...((store.get(CONFIG_STORE_KEY) as Partial<AppConfig> | undefined) ?? {}),
+  }
+}
+
+async function syncConfigToSidecar(config: AppConfig, retries = 5): Promise<void> {
+  try {
+    await axios.post(`${SIDECAR_URL}/config`, config)
+  } catch {
+    if (retries > 0) {
+      setTimeout(() => void syncConfigToSidecar(config, retries - 1), 2000)
+    } else {
+      console.error('Failed to sync config to sidecar after retries')
+    }
+  }
+}
+
+function notifyWorkspaceUpdated(): void {
+  mainWindow?.webContents.send('workspace-updated', workspaceRepository.getState())
+}
+
+function startScheduleScheduler(catchUp = false): void {
+  if (!workspaceRepository.root || !schedulerService || !scheduleRunnerService) return
+  schedulerService.startSchedules(
+    () => workspaceRepository.listSchedules(),
+    async (scheduleId, trigger) => {
+      await scheduleRunnerService.run(scheduleId, trigger)
+      notifyWorkspaceUpdated()
+    },
+    catchUp,
+  )
+}
+
+function activateWorkspace(folderPath: string): WorkspaceResponse {
+  try {
+    const hasActiveDownloads = jobManager
+      ?.getJobs()
+      .some((job) => ['pending', 'running', 'paused'].includes(job.mode))
+    if (hasActiveDownloads || scheduleRunnerService?.getActiveRuns().length) {
+      throw new Error('請先停止進行中的下載與排程，再變更工作資料夾')
+    }
+    const settingsPath = join(folderPath, WORKSPACE_DATA_DIR, 'settings.json')
+    const isNewWorkspace = !fs.existsSync(settingsPath)
+    const fallbackConfig = currentConfig()
+    workspaceRepository.activate(folderPath)
+    if (isNewWorkspace) workspaceRepository.saveSettings(fallbackConfig)
+    store.set(WORKSPACE_PATH_STORE_KEY, workspaceRepository.root)
+    jobManager?.setWorkspace(workspaceRepository)
+    startScheduleScheduler(true)
+    void syncConfigToSidecar(currentConfig())
+    notifyWorkspaceUpdated()
+    return { success: true, state: workspaceRepository.getState() }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
@@ -201,29 +309,24 @@ app.whenReady().then(() => {
   startSidecar()
   createWindow()
 
-  jobManager = new JobManager(mainWindow, store)
-  const schedulerService = new SchedulerService(mainWindow)
-  schedulerService.start()
-  // Store in global for IPC access
-  ;(global as any).schedulerService = schedulerService
-
-  // Sync config to sidecar once it's up
-  store.onDidChange(CONFIG_STORE_KEY, (newValue, oldValue) => {
-    console.log(`${CONFIG_STORE_KEY} changed:`, { oldValue, newValue })
-    syncConfig(newValue, 5)
+  jobManager = new JobManager(
+    mainWindow,
+    workspaceRepository.root ? workspaceRepository : undefined,
+  )
+  schedulerService = new SchedulerService()
+  scheduleRunnerService = new ScheduleRunnerService(workspaceRepository, jobManager)
+  scheduleRunnerService.setOnProgress((run) => {
+    mainWindow?.webContents.send('schedule-run-progress', run)
   })
-  const syncConfig = async (newConfig: any, retries: number) => {
-    try {
-      await axios.post(`${SIDECAR_URL}/config`, newConfig)
-      console.log('Config synced to sidecar')
-    } catch {
-      if (retries > 0) {
-        setTimeout(() => syncConfig(newConfig, retries - 1), 2000)
-      } else {
-        console.error('Failed to sync config to sidecar after retries')
-      }
+  startScheduleScheduler(true)
+
+  // Settings saved before a workspace is selected still live in electron-store.
+  store.onDidChange(CONFIG_STORE_KEY, (newValue) => {
+    if (!workspaceRepository.root && newValue) {
+      void syncConfigToSidecar(newValue as AppConfig)
     }
-  }
+  })
+  void syncConfigToSidecar(currentConfig())
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
@@ -242,6 +345,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  schedulerService?.stop()
   if (sidecarProcess) {
     sidecarProcess.kill()
   }
@@ -252,8 +356,7 @@ app.on('before-quit', () => {
 // --- Config Module ---
 ipcMain.handle('get-config', async (): Promise<GetConfigResponse> => {
   try {
-    const config = store.get(CONFIG_STORE_KEY) as AppConfig
-    return { success: true, config }
+    return { success: true, config: currentConfig() }
   } catch (error: any) {
     return { success: false, error: error.message }
   }
@@ -263,7 +366,9 @@ ipcMain.handle(
   'save-config',
   async (_, config: AppConfig): Promise<SaveConfigResponse> => {
     try {
-      store.set(CONFIG_STORE_KEY, config)
+      if (workspaceRepository.root) workspaceRepository.saveSettings(config)
+      else store.set(CONFIG_STORE_KEY, config)
+      await syncConfigToSidecar(config)
       return { success: true }
     } catch (error: any) {
       return { success: false, error: error.message }
@@ -442,6 +547,8 @@ ipcMain.handle('download-library', async (): Promise<DownloadLibraryResponse> =>
 ipcMain.handle('open-folder', async (_, folderPath: string): Promise<void> => {
   if (folderPath) {
     shell.openPath(folderPath)
+  } else if (workspaceRepository.root) {
+    shell.openPath(workspaceRepository.root)
   } else {
     shell.openPath(downloadsPath())
   }
@@ -629,7 +736,10 @@ ipcMain.handle('select-save-path', async (): Promise<SelectSavePathResponse> => 
 // --- Download Module ---
 ipcMain.handle('get-downloads-path', async (): Promise<GetDownloadsPathResponse> => {
   try {
-    return { success: true, path: downloadsPath() }
+    return {
+      success: Boolean(workspaceRepository.root),
+      path: workspaceRepository.root ? join(workspaceRepository.root, 'galleries') : '',
+    }
   } catch {
     return { success: false, path: '' }
   }
@@ -676,21 +786,128 @@ ipcMain.handle('electron-store-set', async (_, key: string, val: any): Promise<v
   store.set(key, val)
 })
 
-// --- Scheduler Module ---
+// --- Workspace Module ---
 ipcMain.handle(
-  'trigger-scheduler-task',
-  async (_, taskId: string): Promise<TriggerSchedulerResponse> => {
-    // @ts-ignore
-    const schedulerService = (global as any).schedulerService
-    if (schedulerService) {
-      const tasks = (schedulerService.store.get('scheduler.tasks') as any[]) || []
-      const task = tasks.find((t) => (t.taskId || t.id) === taskId)
-      if (task) {
-        schedulerService.runTask(task)
-        return { success: true }
-      }
-      return { success: false, error: 'Task not found' }
+  'get-workspace-state',
+  (): WorkspaceResponse => ({ success: true, state: workspaceRepository.getState() }),
+)
+
+ipcMain.handle('select-workspace', async (): Promise<WorkspaceResponse> => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory', 'createDirectory'],
+  })
+  if (result.canceled || !result.filePaths[0]) {
+    return { success: true, state: workspaceRepository.getState() }
+  }
+  return activateWorkspace(result.filePaths[0])
+})
+
+ipcMain.handle('get-workspace-settings', (): WorkspaceSettingsResponse => {
+  try {
+    return { success: true, settings: workspaceRepository.getSettings() }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
     }
-    return { success: false, error: 'Scheduler service not initialized' }
+  }
+})
+
+ipcMain.handle(
+  'save-workspace-settings',
+  async (_, settings: WorkspaceSettings): Promise<WorkspaceSettingsResponse> => {
+    try {
+      const saved = workspaceRepository.saveSettings(settings)
+      await syncConfigToSidecar(saved)
+      notifyWorkspaceUpdated()
+      return { success: true, settings: saved }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
   },
+)
+
+ipcMain.handle('list-managed-galleries', (): ManagedGallery[] =>
+  workspaceRepository.listGalleries(),
+)
+
+// --- Collection Module ---
+ipcMain.handle('list-collections', (): Collection[] =>
+  workspaceRepository.listCollections(),
+)
+ipcMain.handle(
+  'create-collection',
+  (_, payload: CreateCollectionPayload): Collection =>
+    workspaceRepository.createCollection(payload),
+)
+ipcMain.handle(
+  'update-collection',
+  (_, payload: UpdateCollectionPayload): Collection =>
+    workspaceRepository.updateCollection(payload),
+)
+ipcMain.handle('delete-collection', (_, collectionId: string): void => {
+  workspaceRepository.deleteCollection(collectionId)
+  startScheduleScheduler()
+  notifyWorkspaceUpdated()
+})
+ipcMain.handle(
+  'add-books-to-collections',
+  (_, payload: AddBooksToCollectionsPayload): { added: number; existing: number } => {
+    let added = 0
+    let existing = 0
+    for (const gid of [...new Set(payload.gids)]) {
+      const result = workspaceRepository.addBookToCollections(gid, payload.collectionIds)
+      added += result.added
+      existing += result.existing
+    }
+    notifyWorkspaceUpdated()
+    return { added, existing }
+  },
+)
+ipcMain.handle(
+  'remove-book-from-collection',
+  (_, payload: { gid: string; collectionId: string }): void => {
+    workspaceRepository.removeBookFromCollection(payload.gid, payload.collectionId)
+    notifyWorkspaceUpdated()
+  },
+)
+
+// --- Scheduler Module ---
+ipcMain.handle('list-schedules', (): Schedule[] => workspaceRepository.listSchedules())
+ipcMain.handle('list-schedule-runs', (_, scheduleId?: string): ScheduleRun[] =>
+  workspaceRepository.listScheduleRuns(scheduleId),
+)
+ipcMain.handle('get-active-schedule-runs', (): ScheduleRun[] =>
+  scheduleRunnerService.getActiveRuns(),
+)
+ipcMain.handle('create-schedule', (_, payload: CreateSchedulePayload): Schedule => {
+  if (!SchedulerService.validateCron(payload.cronExpression))
+    throw new Error('Cron string 無效')
+  const schedule = workspaceRepository.createSchedule(payload)
+  startScheduleScheduler()
+  return schedule
+})
+ipcMain.handle('update-schedule', (_, payload: UpdateSchedulePayload): Schedule => {
+  if (
+    payload.cronExpression !== undefined &&
+    !SchedulerService.validateCron(payload.cronExpression)
+  ) {
+    throw new Error('Cron string 無效')
+  }
+  const schedule = workspaceRepository.updateSchedule(payload)
+  startScheduleScheduler()
+  return schedule
+})
+ipcMain.handle('delete-schedule', async (_, scheduleId: string): Promise<void> => {
+  await scheduleRunnerService.cancel(scheduleId)
+  workspaceRepository.deleteSchedule(scheduleId)
+  startScheduleScheduler()
+})
+ipcMain.handle(
+  'run-schedule-now',
+  (_, scheduleId: string): Promise<ScheduleRun> =>
+    scheduleRunnerService.run(scheduleId, 'manual'),
 )

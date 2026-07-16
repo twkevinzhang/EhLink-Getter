@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { ref, onScopeDispose } from 'vue'
-import { parseTemplatePath } from '@shared/utilities'
 import type {
   JobState,
   AddToQueuePayload,
@@ -14,16 +13,19 @@ export const useDownloadStore = defineStore('download', () => {
   const jobs = ref<JobState[]>([])
 
   // 初始化同步
-  window.api.getJobs().then((serverJobs) => {
-    for (const sJob of serverJobs) {
-      const idx = jobs.value.findIndex((j) => j.jobId === sJob.jobId)
-      if (idx >= 0) {
-        jobs.value[idx] = sJob
-      } else {
-        jobs.value.push(sJob)
+  window.api
+    .getJobs()
+    .then((serverJobs) => {
+      for (const sJob of serverJobs) {
+        const idx = jobs.value.findIndex((j) => j.jobId === sJob.jobId)
+        if (idx >= 0) {
+          jobs.value[idx] = sJob
+        } else {
+          jobs.value.push(sJob)
+        }
       }
-    }
-  })
+    })
+    .catch(() => undefined)
 
   // 監聽 push event
   const unsubscribe = window.api.onDownloadJobUpdated((data: DownloadJobUpdatedEvent) => {
@@ -39,32 +41,27 @@ export const useDownloadStore = defineStore('download', () => {
     onScopeDispose(unsubscribe)
   }
 
-  async function getDefaultDownloadsPath() {
-    const response = await window.api.getDownloadsPath()
-    if (response.success) {
-      return response.path + '/{EN_TITLE}'
-    }
-    return '/{EN_TITLE}'
-  }
-
-  function addToQueue(
+  async function addToQueue(
     jobId: string,
     title: string,
     galleries: DraftGallery[],
-    targetTemplate: string,
     isArchive = false,
     password = '',
+    collectionIds: string[] = [],
   ) {
-    const mappedGalleries = galleries.map((g) => ({
-      ...g,
-      targetPath: parseTemplatePath(targetTemplate, g),
-      isArchive,
-      imagecount: g.imagecount || 0,
-      status: 'Pending...',
-      progress: 0,
-      mode: 'pending' as const,
-      password,
-    }))
+    const mappedGalleries = galleries.map(
+      (g) =>
+        ({
+          ...g,
+          isArchive,
+          imagecount: g.imagecount || 0,
+          status: 'Pending...',
+          progress: 0,
+          mode: 'pending' as const,
+          password,
+          collectionIds,
+        }) as AddToQueuePayload['galleries'][number],
+    )
 
     const payload: AddToQueuePayload = {
       jobId,
@@ -72,8 +69,11 @@ export const useDownloadStore = defineStore('download', () => {
       galleries: mappedGalleries,
       isArchive,
       password,
+      origin: 'manual',
+      targetCollectionIds: collectionIds,
     }
-    window.api.addToQueue(payload)
+    await window.api.addToQueue(payload)
+    void window.api.startJob(jobId)
   }
 
   function startJob(jobId: string) {
@@ -106,7 +106,6 @@ export const useDownloadStore = defineStore('download', () => {
 
   return {
     downloadingJobs: jobs,
-    getDefaultDownloadsPath,
     addToQueue,
     startJob,
     pauseJob,

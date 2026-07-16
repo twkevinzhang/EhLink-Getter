@@ -2,14 +2,11 @@ import axios from 'axios'
 import * as fs from 'fs'
 import { join, dirname } from 'path'
 import archiver from 'archiver'
-// @ts-ignore
-import { registerFormat } from 'archiver'
-// @ts-ignore
-import zipEncryptable from 'archiver-zip-encryptable'
-import { parseTemplatePath } from '@shared/utilities'
 
 export interface DownloadOptions {
   gallery: any
+  /** Resolved exclusively by WorkspaceRepository.resolveGalleryPath(gid). */
+  targetPath: string
   isArchive?: boolean
   password?: string
   signal: AbortSignal
@@ -21,17 +18,16 @@ export interface DownloadOptions {
 }
 
 export class DownloadService {
-  private SIDECAR_URL = 'http://127.0.0.1:8000'
+  private SIDECAR_URL = `http://127.0.0.1:${process.env.SIDECAR_PORT || '8000'}`
 
   async downloadGallery(
     options: DownloadOptions,
   ): Promise<{ success: boolean; path?: string; error?: string }> {
-    const { gallery: meta, isArchive, password, signal, onProgress } = options
+    const { gallery: meta, targetPath, isArchive, password, signal, onProgress } = options
     const url = meta.link
 
     try {
-      const targetPath =
-        meta.targetPath || parseTemplatePath(meta.targetTemplate || '', meta)
+      if (!targetPath) throw new Error('Workspace gallery path is required')
       if (!fs.existsSync(targetPath)) {
         fs.mkdirSync(targetPath, { recursive: true })
       }

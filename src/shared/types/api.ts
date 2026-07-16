@@ -2,6 +2,7 @@ import type { LogEntry } from './log'
 
 export interface DownloadGallery {
   gid: string
+  token?: string
   title: string
   link: string
   targetPath: string
@@ -12,6 +13,7 @@ export interface DownloadGallery {
   mode: 'running' | 'paused' | 'error' | 'completed' | 'pending' | 'stopped'
   password?: string
   image_links?: string[]
+  collectionIds?: string[]
 }
 
 export interface JobState {
@@ -24,6 +26,10 @@ export interface JobState {
   isExpanded?: boolean
   isArchive?: boolean
   password?: string
+  origin?: 'manual' | 'schedule'
+  scheduleId?: string
+  scheduleRunId?: string
+  targetCollectionIds?: string[]
 }
 
 export interface AddToQueuePayload {
@@ -32,6 +38,10 @@ export interface AddToQueuePayload {
   galleries: DownloadGallery[]
   isArchive?: boolean
   password?: string
+  origin?: 'manual' | 'schedule'
+  scheduleId?: string
+  scheduleRunId?: string
+  targetCollectionIds?: string[]
 }
 
 export interface DownloadJobUpdatedEvent {
@@ -60,19 +70,235 @@ export interface AppConfig {
   download_thread_cnt: number
 }
 
-export interface ScheduledTask {
-  taskId: string
+export type ManagedGalleryStatus =
+  | 'downloading'
+  | 'paused'
+  | 'completed'
+  | 'error'
+  | 'stopped'
+
+/**
+ * A gallery becomes managed only when a download actually starts. Search and
+ * schedule discovery results intentionally use FetchedItem instead.
+ */
+export interface ManagedGallery {
+  gid: string
+  token: string
+  title: string
   link: string
-  fromPage: number
-  toPage: number | string
-  scheduleTime: string
-  templatePath?: string
-  isArchive?: boolean
-  archivePassword?: string
-  lastRun?: string
-  status: 'enabled' | 'disabled' | 'running'
-  executionCount: number
-  downloadedCount: number
+  imagecount?: number
+  thumb?: string
+  category?: string
+  rating?: string
+  posted?: string
+  localPath: string
+  status: ManagedGalleryStatus
+  progress: number
+  error?: string
+  startedAt?: string
+  completedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface UpsertGalleryPayload {
+  gid: string
+  token?: string
+  title: string
+  link: string
+  imagecount?: number
+  thumb?: string
+  category?: string
+  rating?: string
+  posted?: string
+  status?: ManagedGalleryStatus
+  progress?: number
+  error?: string
+  startedAt?: string
+  completedAt?: string
+}
+
+export type UpsertGalleryInput = UpsertGalleryPayload
+
+export type UpdateGalleryStatusPatch = Partial<
+  Pick<ManagedGallery, 'progress' | 'error' | 'startedAt' | 'completedAt'>
+>
+
+export interface CollectionBookRef {
+  gid: string
+  addedAt: string
+}
+
+/** User-created collections only. "Uncategorized" is a dynamic query. */
+export interface Collection {
+  collectionId: string
+  name: string
+  position: number
+  coverGid?: string
+  books: CollectionBookRef[]
+  createdAt: string
+  updatedAt: string
+}
+
+export type ScheduleRunStatus = 'running' | 'success' | 'error' | 'cancelled'
+export type ScheduleRunTrigger = 'cron' | 'manual' | 'catch-up'
+
+export interface Schedule {
+  scheduleId: string
+  name: string
+  monitorUrl: string
+  canonicalUrl: string
+  query: string
+  cronExpression: string
+  pageLimit: number
+  /** null means the dynamic "Uncategorized" collection. */
+  targetCollectionId: string | null
+  enabled: boolean
+  createdAt: string
+  updatedAt: string
+  lastRunAt?: string
+  lastRunStatus?: Exclude<ScheduleRunStatus, 'running'>
+  lastRunMessage?: string
+}
+
+export interface ScheduleRunSnapshot {
+  name: string
+  monitorUrl: string
+  canonicalUrl: string
+  query: string
+  cronExpression: string
+  pageLimit: number
+  targetCollectionId: string | null
+}
+
+export interface ScheduleRunCounters {
+  discovered: number
+  queued: number
+  existingGalleryAdded: number
+  merged: number
+  ignored: number
+}
+
+export interface ScheduleRun {
+  runId: string
+  scheduleId: string
+  trigger: ScheduleRunTrigger
+  status: ScheduleRunStatus
+  snapshot: ScheduleRunSnapshot
+  currentPage: number
+  totalPages?: number
+  currentGid?: string
+  counters: ScheduleRunCounters
+  startedAt: string
+  updatedAt: string
+  completedAt?: string
+  error?: string
+}
+
+export interface WorkspaceSettings extends AppConfig {
+  isArchive: boolean
+  archivePassword: string
+}
+
+export interface WorkspaceManifest {
+  schemaVersion: 1
+  appVersion: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface WorkspaceState {
+  configured: boolean
+  path: string | null
+  manifest?: WorkspaceManifest
+}
+
+export interface SetWorkspacePayload {
+  path: string
+}
+
+export interface CreateCollectionPayload {
+  name: string
+}
+
+export interface UpdateCollectionPayload {
+  collectionId: string
+  name?: string
+  coverGid?: string | null
+}
+
+export interface AddBooksToCollectionsPayload {
+  gids: string[]
+  collectionIds: string[]
+}
+
+export interface RemoveBookFromCollectionPayload {
+  gid: string
+  collectionId: string
+}
+
+export interface CreateSchedulePayload {
+  name: string
+  monitorUrl: string
+  cronExpression: string
+  pageLimit?: number
+  targetCollectionId?: string | null
+  enabled?: boolean
+}
+
+export interface UpdateSchedulePayload extends Partial<
+  Omit<CreateSchedulePayload, 'targetCollectionId'>
+> {
+  scheduleId: string
+  targetCollectionId?: string | null
+}
+
+export interface WorkspaceResponse {
+  success: boolean
+  state?: WorkspaceState
+  error?: string
+}
+
+export interface WorkspaceSettingsResponse {
+  success: boolean
+  settings?: WorkspaceSettings
+  error?: string
+}
+
+export interface GalleriesResponse {
+  success: boolean
+  galleries: ManagedGallery[]
+  error?: string
+}
+
+export interface CollectionsResponse {
+  success: boolean
+  collections: Collection[]
+  error?: string
+}
+
+export interface CollectionResponse {
+  success: boolean
+  collection?: Collection
+  error?: string
+}
+
+export interface SchedulesResponse {
+  success: boolean
+  schedules: Schedule[]
+  error?: string
+}
+
+export interface ScheduleResponse {
+  success: boolean
+  schedule?: Schedule
+  error?: string
+}
+
+export interface ScheduleRunsResponse {
+  success: boolean
+  runs: ScheduleRun[]
+  error?: string
 }
 
 /** 單筆 gallery 清單項目（fetchPage 回傳的原始資料） */
@@ -200,12 +426,6 @@ export interface GetDownloadsPathResponse {
   path: string
 }
 
-/** Scheduler 模組 Response */
-export interface TriggerSchedulerResponse {
-  success: boolean
-  error?: string
-}
-
 /** onArchiveProgress 事件資料（含 jobId 以便正確對應） */
 export interface ArchiveProgressEvent {
   jobId: string
@@ -214,11 +434,6 @@ export interface ArchiveProgressEvent {
 
 /** onLog 事件資料（從 sidecar 收到的原始事件，無 timestamp） */
 export type SidecarLogEvent = Omit<LogEntry, 'timestamp'>
-
-/** scheduler-updated IPC event payload */
-export interface SchedulerUpdatedEvent {
-  tasks: ScheduledTask[]
-}
 
 export interface SidecarAPI {
   // config
@@ -263,10 +478,35 @@ export interface SidecarAPI {
   onDownloadJobUpdated: (callback: (event: DownloadJobUpdatedEvent) => void) => void
   onArchiveProgress: (callback: (data: ArchiveProgressEvent) => void) => void
 
+  // workspace
+  getWorkspaceState: () => Promise<WorkspaceState>
+  selectWorkspace: () => Promise<WorkspaceState>
+  getWorkspaceSettings: () => Promise<WorkspaceSettings>
+  saveWorkspaceSettings: (settings: WorkspaceSettings) => Promise<WorkspaceSettings>
+  onWorkspaceUpdated: (callback: (state: WorkspaceState) => void) => () => void
+
+  // managed galleries and collections
+  listManagedGalleries: () => Promise<ManagedGallery[]>
+  listCollections: () => Promise<Collection[]>
+  createCollection: (payload: CreateCollectionPayload) => Promise<Collection>
+  updateCollection: (payload: UpdateCollectionPayload) => Promise<Collection>
+  deleteCollection: (collectionId: string) => Promise<void>
+  addBooksToCollections: (
+    payload: AddBooksToCollectionsPayload,
+  ) => Promise<{ added: number; existing: number }>
+  removeBookFromCollection: (gid: string, collectionId: string) => Promise<void>
+
   // electron-storage
   storeGet: <T = unknown>(key: string) => Promise<T>
   storeSet: (key: string, val: unknown) => Promise<void>
 
   // scheduler
-  triggerSchedulerTask: (taskId: string) => Promise<TriggerSchedulerResponse>
+  listSchedules: () => Promise<Schedule[]>
+  listScheduleRuns: (scheduleId?: string) => Promise<ScheduleRun[]>
+  getActiveScheduleRuns: () => Promise<ScheduleRun[]>
+  createSchedule: (payload: CreateSchedulePayload) => Promise<Schedule>
+  updateSchedule: (payload: UpdateSchedulePayload) => Promise<Schedule>
+  deleteSchedule: (scheduleId: string) => Promise<void>
+  runScheduleNow: (scheduleId: string) => Promise<ScheduleRun>
+  onScheduleRunProgress: (callback: (run: ScheduleRun) => void) => () => void
 }

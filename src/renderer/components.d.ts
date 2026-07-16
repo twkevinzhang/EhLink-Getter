@@ -11,7 +11,6 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
-    Badge: typeof import('primevue/badge')['default']
     Button: typeof import('primevue/button')['default']
     Card: typeof import('primevue/card')['default']
     Checkbox: typeof import('primevue/checkbox')['default']
@@ -23,12 +22,10 @@ declare module 'vue' {
     InputText: typeof import('primevue/inputtext')['default']
     Paginator: typeof import('primevue/paginator')['default']
     ProgressBar: typeof import('primevue/progressbar')['default']
-    RadioButton: typeof import('primevue/radiobutton')['default']
     Rating: typeof import('primevue/rating')['default']
     SettingsTab: typeof import('./src/components/tasks/SettingsTab.vue')['default']
     StartFetchTab: typeof import('./src/components/tasks/StartFetchTab.vue')['default']
-    SystemLogs: typeof import('./src/components/SystemLogs.vue')['default']
-    TabPanel: typeof import('primevue/tabpanel')['default']
     Textarea: typeof import('primevue/textarea')['default']
+    WorkspaceGate: typeof import('./src/components/shared/WorkspaceGate.vue')['default']
   }
 }

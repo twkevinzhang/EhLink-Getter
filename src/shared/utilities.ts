@@ -1,4 +1,4 @@
-import type { AppConfig } from './types/api'
+import type { AppConfig, WorkspaceSettings } from './types/api'
 
 export const DEFAULT_CONFIG: AppConfig = {
   cookies: '',
@@ -8,41 +8,12 @@ export const DEFAULT_CONFIG: AppConfig = {
 }
 
 export const CONFIG_STORE_KEY = 'config.config'
+export const WORKSPACE_PATH_STORE_KEY = 'workspace.path'
+export const WORKSPACE_DATA_DIR = '.ehlink-getter'
+export const WORKSPACE_GALLERIES_DIR = 'galleries'
 
-export interface GalleryMeta {
-  gid: string
-  token?: string
-  title: string
-  japanese_title?: string
-  category?: string
-}
-
-export function parseTemplatePath(template: string, meta: GalleryMeta): string {
-  const gid = meta.gid
-  const token = meta.token || ''
-
-  // 1. Prepare base path
-  let path = template
-  if (!path || path.trim() === '') {
-    throw new Error('template is empty')
-  }
-
-  // 2. Safety replacement for filesystem
-  const sanitize = (s: string) => (s || 'untitled').replace(/[\\/:*?"<>|]/g, '_')
-
-  const replacements: Record<string, string> = {
-    '{GID}': gid,
-    '{TOKEN}': token,
-    '{EN_TITLE}': sanitize(meta.title),
-    '{JP_TITLE}': sanitize(meta.japanese_title || meta.title),
-    '{CATEGORY}': sanitize(meta.category || 'Other'),
-  }
-
-  // 3. Perform replacements on the path
-  Object.keys(replacements).forEach((key) => {
-    const regex = new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
-    path = path.replace(regex, replacements[key])
-  })
-
-  return path
+export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
+  ...DEFAULT_CONFIG,
+  isArchive: false,
+  archivePassword: '',
 }

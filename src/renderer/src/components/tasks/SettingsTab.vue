@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { useConfigStore } from '@renderer/stores/config'
+import { useWorkspaceStore } from '@renderer/stores/workspace'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 
 const configStore = useConfigStore()
+const workspace = useWorkspaceStore()
 const toast = useToast()
 const confirm = useConfirm()
 
@@ -22,7 +24,7 @@ interface EhCookie {
 const parsedCookies = computed((): EhCookie[] => {
   try {
     return JSON.parse(configStore.config.cookies || '[]')
-  } catch (e) {
+  } catch {
     return []
   }
 })
@@ -79,29 +81,40 @@ const isModified = computed(() => {
   )
 })
 
-const handleSave = () => {
-  configStore.updateConfig({
-    proxies: proxyPool.value
-      .split('\n')
-      .map((p) => p.trim())
-      .filter((p) => p.length > 0),
-    scan_thread_cnt: scanThreads.value,
-    download_thread_cnt: downloadThreads.value,
-    cookies: localCookies.value,
-  })
-  toast.add({
-    severity: 'success',
-    summary: 'Saved',
-    detail: 'Settings saved and synced to backend',
-    life: 3000,
-  })
+const handleSave = async () => {
+  try {
+    await configStore.updateConfig({
+      proxies: proxyPool.value
+        .split('\n')
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0),
+      scan_thread_cnt: scanThreads.value,
+      download_thread_cnt: downloadThreads.value,
+      cookies: localCookies.value,
+    })
+    toast.add({
+      severity: 'success',
+      summary: 'Saved',
+      detail: workspace.configured
+        ? '設定已儲存到工作資料夾'
+        : '設定已儲存；選擇工作資料夾後會改存於 Workspace',
+      life: 3000,
+    })
+  } catch (error) {
+    toast.add({
+      severity: 'error',
+      summary: 'Save Failed',
+      detail: error instanceof Error ? error.message : String(error),
+      life: 5000,
+    })
+  }
 }
 
 const handleLogin = async () => {
   try {
     const result = await configStore.loginEHentai()
     if (result.success && result.cookies) {
-      configStore.updateConfig({ cookies: result.cookies })
+      await configStore.updateConfig({ cookies: result.cookies })
       toast.add({
         severity: 'success',
         summary: 'Login Success',
@@ -134,8 +147,8 @@ const handleLogout = () => {
     rejectLabel: 'Cancel',
     acceptLabel: 'Logout',
     acceptClass: 'p-button-danger',
-    accept: () => {
-      configStore.updateConfig({ cookies: '' })
+    accept: async () => {
+      await configStore.updateConfig({ cookies: '' })
       toast.add({
         severity: 'success',
         summary: 'Logged Out',
@@ -149,6 +162,53 @@ const handleLogout = () => {
 
 <template>
   <div class="p-4 flex flex-col gap-6 overflow-y-auto h-full">
+    <div class="eh-panel-card overflow-hidden">
+      <div class="eh-header flex items-center justify-between">
+        <span>工作資料夾</span>
+        <span
+          class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
+          :class="
+            workspace.configured
+              ? 'bg-green-100 text-green-700'
+              : 'bg-amber-100 text-amber-700'
+          "
+        >
+          {{ workspace.configured ? '已設定' : '尚未設定' }}
+        </span>
+      </div>
+      <div class="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
+        <div
+          class="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-eh-border/20 bg-eh-sidebar text-eh-text"
+        >
+          <i class="pi pi-folder-open text-lg"></i>
+        </div>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-bold text-eh-text">
+            {{ workspace.configured ? workspace.folderName : '選擇一個工作資料夾' }}
+          </p>
+          <p
+            class="mt-1 truncate font-mono text-[10px] text-eh-muted"
+            :title="workspace.path"
+          >
+            {{ workspace.path || '本子、Collections、排程與下載紀錄都會保存在這裡。' }}
+          </p>
+        </div>
+        <Button
+          :label="workspace.configured ? '變更資料夾' : '選擇資料夾'"
+          icon="pi pi-folder-open"
+          outlined
+          :loading="workspace.loading"
+          @click="workspace.select"
+        />
+      </div>
+      <p
+        v-if="workspace.error"
+        class="border-t border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700"
+      >
+        {{ workspace.error }}
+      </p>
+    </div>
+
     <div class="eh-panel-card overflow-hidden">
       <div class="eh-header">Core Configuration</div>
       <div class="p-4 flex flex-col gap-3">

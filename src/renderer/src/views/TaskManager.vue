@@ -7,7 +7,6 @@ import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
 import Badge from 'primevue/badge'
 
-import SettingsTab from '@renderer/components/tasks/SettingsTab.vue'
 import StartFetchTab from '@renderer/components/tasks/StartFetchTab.vue'
 import FetchingTab from '@renderer/components/tasks/FetchingTab.vue'
 import FetchedTab from '@renderer/components/tasks/FetchedTab.vue'
@@ -15,7 +14,7 @@ import DownloadingTab from '@renderer/components/tasks/DownloadingTab.vue'
 import { useFetchStore } from '@renderer/stores/fetch'
 import { useDownloadStore } from '@renderer/stores/download'
 
-const activeTab = ref('settings')
+const activeTab = ref('start-fetch')
 const fetchStore = useFetchStore()
 const downloadStore = useDownloadStore()
 </script>
@@ -30,7 +29,6 @@ const downloadStore = useDownloadStore()
           content: { class: '!overflow-x-auto !overflow-y-hidden' },
         }"
       >
-        <Tab value="settings" class="eh-tab-item">Settings</Tab>
         <Tab value="start-fetch" class="eh-tab-item">Start Fetch</Tab>
         <Tab value="fetching" class="eh-tab-item">
           <div class="flex items-center gap-1.5 whitespace-nowrap">
@@ -68,9 +66,6 @@ const downloadStore = useDownloadStore()
       </TabList>
 
       <TabPanels class="flex-1 overflow-y-auto !bg-transparent !p-0">
-        <TabPanel value="settings">
-          <SettingsTab />
-        </TabPanel>
         <TabPanel value="start-fetch">
           <StartFetchTab />
         </TabPanel>

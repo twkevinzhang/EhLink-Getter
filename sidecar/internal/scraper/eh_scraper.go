@@ -2,23 +2,23 @@ package scraper
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"sidecar/internal/models"
-	"strconv"
-	"regexp"
-	"encoding/json"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/go-resty/resty/v2"
 )
 
 type EhScraperService struct {
-	client *resty.Client
+	client  *resty.Client
 	cookies string
 }
 
@@ -26,13 +26,13 @@ func NewEhScraperService(cookies string, proxy string) *EhScraperService {
 	client := resty.New()
 	client.SetTimeout(30 * time.Second)
 	client.SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-	
+
 	if proxy != "" {
 		client.SetProxy(proxy)
 	}
 
 	return &EhScraperService{
-		client: client,
+		client:  client,
 		cookies: cookies,
 	}
 }
@@ -64,9 +64,13 @@ func (s *EhScraperService) ParseList(doc *goquery.Document) []models.LinkInfo {
 		if aTag.Length() == 0 {
 			aTag = glink.Closest("a")
 		}
-		
+
 		href, exists := aTag.Attr("href")
 		if !exists {
+			return
+		}
+		gid, token, err := s.ExtractGidToken(href)
+		if err != nil {
 			return
 		}
 
@@ -84,6 +88,8 @@ func (s *EhScraperService) ParseList(doc *goquery.Document) []models.LinkInfo {
 		})
 
 		results = append(results, models.LinkInfo{
+			Gid:        gid,
+			Token:      token,
 			Title:      strings.TrimSpace(glink.Text()),
 			Link:       href,
 			Imagecount: imgCount,
@@ -97,9 +103,13 @@ func (s *EhScraperService) ParseList(doc *goquery.Document) []models.LinkInfo {
 			if aTag.Length() == 0 {
 				aTag = sel.Find("a")
 			}
-			
+
 			href, exists := aTag.Attr("href")
 			if !exists {
+				return
+			}
+			gid, token, err := s.ExtractGidToken(href)
+			if err != nil {
 				return
 			}
 
@@ -121,6 +131,8 @@ func (s *EhScraperService) ParseList(doc *goquery.Document) []models.LinkInfo {
 			})
 
 			results = append(results, models.LinkInfo{
+				Gid:        gid,
+				Token:      token,
 				Title:      title,
 				Link:       href,
 				Imagecount: imgCount,
@@ -191,9 +203,9 @@ func (s *EhScraperService) FetchPageWithToken(ctx context.Context, targetURL str
 		id, _ := sel.Attr("id")
 
 		// Broad match for any "Next" or ">" related links
-		isNextMatch := id == "dnext" || 
-			text == ">" || 
-			text == "»" || 
+		isNextMatch := id == "dnext" ||
+			text == ">" ||
+			text == "»" ||
 			strings.Contains(text, "next") ||
 			(sel.HasClass("ptp") && text == ">")
 
@@ -235,12 +247,12 @@ func extractToken(href string) string {
 	if strings.HasPrefix(href, "?") {
 		parseURL = "https://e-hentai.org/" + href
 	}
-	
+
 	u, err := url.Parse(parseURL)
 	if err != nil {
 		return ""
 	}
-	
+
 	qs := u.Query()
 	// Priority: next > jump > page > from > prev
 	keys := []string{"next", "jump", "page", "from", "prev"}
@@ -291,9 +303,9 @@ func (s *EhScraperService) FetchLibraryGallery(ctx context.Context, targetURL st
 
 func (s *EhScraperService) fetchMetadataViaAPI(ctx context.Context, gid int, token string) (*models.LibraryGallery, error) {
 	type ApiRequest struct {
-		Method    string      `json:"method"`
+		Method    string          `json:"method"`
 		Gidlist   [][]interface{} `json:"gidlist"`
-		Namespace int         `json:"namespace"`
+		Namespace int             `json:"namespace"`
 	}
 
 	reqBody := ApiRequest{
