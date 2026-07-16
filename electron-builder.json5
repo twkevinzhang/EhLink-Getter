@@ -14,21 +14,24 @@
     },
   ],
   asar: true,
-  asarUnpack: [
-    'resources/sidecar/**',
-    'out/main/library_import_worker.js',
-  ],
+  asarUnpack: ['resources/sidecar/**', 'out/main/library_import_worker.js'],
   extraResources: [
     {
       from: 'dist/sidecar',
       to: 'sidecar',
       filter: ['**/*'],
     },
+    {
+      from: 'resources/icon.png',
+      to: 'icon.png',
+    },
   ],
   win: {
+    icon: 'resources/icon.ico',
     target: ['portable'],
   },
   mac: {
+    icon: 'resources/icon.icns',
     target: ['dmg', 'zip'],
   },
   publish: [

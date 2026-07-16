@@ -56,6 +56,12 @@ const SIDECAR_URL = `http://127.0.0.1:${SIDECAR_PORT}`
 
 const isQuitting = false
 
+function getRuntimeIconPath(): string {
+  return is.dev
+    ? join(app.getAppPath(), 'resources', 'icon.png')
+    : join(process.resourcesPath, 'icon.png')
+}
+
 function startSidecar() {
   let sidecarExecutable = ''
 
@@ -133,15 +139,15 @@ function startSidecar() {
 }
 
 function createWindow(): void {
+  const iconPath = getRuntimeIconPath()
+
   // Create the browser window.
   mainWindow = new BrowserWindow({
     width: 1000,
     height: 700,
     show: false,
     autoHideMenuBar: true,
-    ...(process.platform === 'linux'
-      ? { icon: join(__dirname, '../../resources/icon.png') }
-      : {}),
+    ...(process.platform === 'linux' ? { icon: iconPath } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -176,6 +182,15 @@ function createWindow(): void {
 app.whenReady().then(() => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('tw.kevinzhang.ehlinkgetter')
+
+  if (process.platform === 'darwin' && is.dev) {
+    const iconPath = getRuntimeIconPath()
+    if (fs.existsSync(iconPath)) {
+      app.dock.setIcon(iconPath)
+    } else {
+      console.warn(`Development Dock icon not found at: ${iconPath}`)
+    }
+  }
 
   if (is.dev) {
     app.on('browser-window-created', (_, window) => {

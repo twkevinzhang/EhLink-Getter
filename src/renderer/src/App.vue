@@ -46,15 +46,16 @@ onMounted(() => {
     >
       <aside class="w-[200px] bg-eh-sidebar border-r border-eh-border flex flex-col">
         <div
-          class="p-4 border-b border-eh-border bg-eh-panel flex flex-col items-center gap-1"
+          class="p-4 border-b border-eh-border bg-eh-panel flex items-center justify-center gap-3"
         >
-          <div class="text-[10px] uppercase tracking-widest text-eh-text font-bold">
-            E-Hentai
-          </div>
-          <div
-            class="font-serif italic text-eh-text text-xl border-y border-eh-border px-2 py-1 my-1"
-          >
-            Link Getter
+          <img
+            src="./assets/app-logo.svg"
+            alt="EhLink-Getter logo"
+            class="w-12 h-12 shrink-0"
+          />
+          <div class="flex flex-col text-eh-text leading-none" aria-label="EhLink Getter">
+            <span class="text-lg font-bold tracking-wide">EhLink</span>
+            <span class="mt-1 font-serif italic text-base tracking-wide">Getter</span>
           </div>
         </div>
 

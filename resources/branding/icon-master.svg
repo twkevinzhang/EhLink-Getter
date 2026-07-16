@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">EhLink-Getter EL app icon</title>
+  <desc id="desc">Warm ivory EL monogram on a deep burgundy rounded square.</desc>
+  <rect width="1024" height="1024" rx="224" fill="#5c0d11"/>
+  <rect x="38" y="38" width="948" height="948" rx="194" fill="none" stroke="#f2efdf" stroke-opacity=".16" stroke-width="12"/>
+  <g fill="#f2efdf">
+    <path d="M224 224h360v112H336v120h212v112H336v120h248v112H224z"/>
+    <path d="M584 224h112v464h152v112H584z"/>
+  </g>
+  <path d="M548 456h92v112h-92z" fill="#c91f2e"/>
+</svg>
