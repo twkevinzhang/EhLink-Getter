@@ -1,39 +1,39 @@
-import { computed, onScopeDispose, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type {
-  JobState,
+  DownloadQueueItem,
   ManualDownloadPayload,
   ManualDownloadResult,
 } from '@shared/types/api'
 
-export { type JobState }
+export { type DownloadQueueItem }
 
 export type ManualDownloadBatchResult = ManualDownloadResult
 
 export const useDownloadStore = defineStore('download', () => {
-  const jobs = ref<JobState[]>([])
+  const queueItems = ref<DownloadQueueItem[]>([])
   const loading = ref(false)
   const error = ref('')
   const pendingActions = ref<Record<string, boolean>>({})
 
-  const activeJobs = computed(() =>
-    jobs.value.filter((job) => ['pending', 'running', 'paused'].includes(job.mode)),
+  const activeItems = computed(() =>
+    queueItems.value.filter((item) =>
+      ['pending', 'running', 'paused'].includes(item.mode),
+    ),
   )
-  const finishedJobs = computed(() =>
-    jobs.value.filter((job) => ['completed', 'error', 'stopped'].includes(job.mode)),
+  const finishedItems = computed(() =>
+    queueItems.value.filter((item) =>
+      ['completed', 'error', 'stopped'].includes(item.mode),
+    ),
   )
 
-  const unsubscribe = window.api.onDownloadJobUpdated((data) => {
-    const index = jobs.value.findIndex((job) => job.jobId === data.job.jobId)
-    if (index >= 0) {
-      const expanded = jobs.value[index].isExpanded
-      jobs.value[index] = { ...data.job, isExpanded: expanded }
-    } else {
-      jobs.value.unshift(data.job)
-    }
+  window.api.onDownloadQueueItemUpdated(({ item }) => {
+    const index = queueItems.value.findIndex(
+      (candidate) => candidate.queueItemId === item.queueItemId,
+    )
+    if (index >= 0) queueItems.value[index] = item
+    else queueItems.value.unshift(item)
   })
-
-  if (typeof unsubscribe === 'function') onScopeDispose(unsubscribe)
 
   function message(reason: unknown) {
     return reason instanceof Error ? reason.message : String(reason)
@@ -43,11 +43,11 @@ export const useDownloadStore = defineStore('download', () => {
     loading.value = true
     error.value = ''
     try {
-      jobs.value = await window.api.getJobs()
-      return jobs.value
+      queueItems.value = await window.api.getQueueItems()
+      return queueItems.value
     } catch (reason) {
       error.value = message(reason)
-      return jobs.value
+      return queueItems.value
     } finally {
       loading.value = false
     }
@@ -66,42 +66,52 @@ export const useDownloadStore = defineStore('download', () => {
     }
   }
 
-  function isActionPending(jobId: string, action?: string) {
-    if (action) return Boolean(pendingActions.value[`${jobId}:${action}`])
-    return Object.keys(pendingActions.value).some((key) => key.startsWith(`${jobId}:`))
+  function isActionPending(queueItemId: string, action?: string) {
+    if (action) return Boolean(pendingActions.value[`${queueItemId}:${action}`])
+    return Object.keys(pendingActions.value).some((key) =>
+      key.startsWith(`${queueItemId}:`),
+    )
   }
 
-  function startJob(jobId: string) {
-    return runAction(`${jobId}:start`, () => window.api.startJob(jobId))
+  function startItem(queueItemId: string) {
+    return runAction(`${queueItemId}:start`, () => window.api.startQueueItem(queueItemId))
   }
 
-  function pauseJob(jobId: string) {
-    return runAction(`${jobId}:pause`, () => window.api.pauseJob(jobId))
+  function pauseItem(queueItemId: string) {
+    return runAction(`${queueItemId}:pause`, () => window.api.pauseQueueItem(queueItemId))
   }
 
-  function stopJob(jobId: string) {
-    return runAction(`${jobId}:stop`, () => window.api.stopJob(jobId))
+  function stopItem(queueItemId: string) {
+    return runAction(`${queueItemId}:stop`, () => window.api.stopQueueItem(queueItemId))
   }
 
-  function restartJob(jobId: string) {
-    return runAction(`${jobId}:restart`, () => window.api.restartJob(jobId))
+  function restartItem(queueItemId: string) {
+    return runAction(`${queueItemId}:restart`, () =>
+      window.api.restartQueueItem(queueItemId),
+    )
   }
 
-  async function removeJob(jobId: string) {
-    await runAction(`${jobId}:remove`, () => window.api.removeJob(jobId))
-    jobs.value = jobs.value.filter((job) => job.jobId !== jobId)
+  async function removeItem(queueItemId: string) {
+    await runAction(`${queueItemId}:remove`, () =>
+      window.api.removeQueueItem(queueItemId),
+    )
+    queueItems.value = queueItems.value.filter((item) => item.queueItemId !== queueItemId)
   }
 
-  async function clearFinishedJobs() {
-    await runAction('global:clear', () => window.api.clearFinishedJobs())
-    jobs.value = jobs.value.filter(
-      (job) => !['completed', 'error', 'stopped'].includes(job.mode),
+  async function clearFinishedItems() {
+    await runAction('global:clear', () => window.api.clearFinishedQueueItems())
+    queueItems.value = queueItems.value.filter(
+      (item) => !['completed', 'error', 'stopped'].includes(item.mode),
     )
   }
 
   async function startAll() {
-    const resumable = jobs.value.filter((job) => ['pending', 'paused'].includes(job.mode))
-    const outcomes = await Promise.allSettled(resumable.map((job) => startJob(job.jobId)))
+    const resumable = queueItems.value.filter((item) =>
+      ['pending', 'paused'].includes(item.mode),
+    )
+    const outcomes = await Promise.allSettled(
+      resumable.map((item) => startItem(item.queueItemId)),
+    )
     const failed = outcomes.find(
       (outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected',
     )
@@ -109,8 +119,10 @@ export const useDownloadStore = defineStore('download', () => {
   }
 
   async function pauseAll() {
-    const running = jobs.value.filter((job) => job.mode === 'running')
-    const outcomes = await Promise.allSettled(running.map((job) => pauseJob(job.jobId)))
+    const running = queueItems.value.filter((item) => item.mode === 'running')
+    const outcomes = await Promise.allSettled(
+      running.map((item) => pauseItem(item.queueItemId)),
+    )
     const failed = outcomes.find(
       (outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected',
     )
@@ -118,7 +130,7 @@ export const useDownloadStore = defineStore('download', () => {
   }
 
   function stopAll() {
-    return runAction('global:stop', () => window.api.stopAllJobs())
+    return runAction('global:stop', () => window.api.stopAllQueueItems())
   }
 
   async function manualDownloadBatch(payload: ManualDownloadPayload) {
@@ -137,20 +149,20 @@ export const useDownloadStore = defineStore('download', () => {
   }
 
   return {
-    downloadingJobs: jobs,
-    activeJobs,
-    finishedJobs,
+    queueItems,
+    activeItems,
+    finishedItems,
     loading,
     error,
     pendingActions,
     load,
     isActionPending,
-    startJob,
-    pauseJob,
-    stopJob,
-    restartJob,
-    removeJob,
-    clearFinishedJobs,
+    startItem,
+    pauseItem,
+    stopItem,
+    restartItem,
+    removeItem,
+    clearFinishedItems,
     startAll,
     pauseAll,
     stopAll,

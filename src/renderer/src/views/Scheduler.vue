@@ -91,10 +91,10 @@ const selectedRuns = computed(() =>
         .sort((left, right) => right.startedAt.localeCompare(left.startedAt))
     : [],
 )
-const selectedJobs = computed(() =>
+const selectedItems = computed(() =>
   selectedSchedule.value
-    ? automation.jobsForSchedule(
-        downloadStore.downloadingJobs,
+    ? automation.itemsForSchedule(
+        downloadStore.queueItems,
         selectedSchedule.value.scheduleId,
       )
     : [],
@@ -605,48 +605,50 @@ function formatDate(value?: string) {
             <div class="flex items-center justify-between gap-3">
               <h3>當前下載進度</h3>
               <span class="rounded bg-eh-sidebar px-2 py-1 text-xs font-bold text-eh-text"
-                >{{ selectedJobs.length }} 個工作</span
+                >{{ selectedItems.length }} 個 Gallery</span
               >
             </div>
-            <div v-if="selectedJobs.length" class="mt-4 flex flex-col gap-3">
+            <div v-if="selectedItems.length" class="mt-4 flex flex-col gap-3">
               <article
-                v-for="job in selectedJobs"
-                :key="job.jobId"
+                v-for="item in selectedItems"
+                :key="item.queueItemId"
                 class="rounded-md border border-eh-border/20 bg-eh-bg/50 p-3"
               >
                 <div class="flex flex-wrap items-center gap-3">
                   <div class="min-w-0 flex-1">
-                    <p class="truncate text-sm font-bold text-eh-text">{{ job.title }}</p>
-                    <small class="text-eh-muted">{{ job.status }}</small>
+                    <p class="truncate text-sm font-bold text-eh-text">
+                      {{ item.title }}
+                    </p>
+                    <small class="text-eh-muted">{{ item.status }}</small>
                   </div>
                   <Tag
-                    :value="job.mode"
+                    :value="item.mode"
                     :severity="
-                      job.mode === 'completed'
+                      item.mode === 'completed'
                         ? 'success'
-                        : job.mode === 'error'
+                        : item.mode === 'error'
                           ? 'danger'
-                          : job.mode === 'running'
+                          : item.mode === 'running'
                             ? 'info'
                             : 'secondary'
                     "
                   />
                   <div class="w-36">
-                    <ProgressBar :value="job.progress" class="!h-2"
+                    <ProgressBar :value="item.progress" class="!h-2"
                       ><template #default><span></span></template
                     ></ProgressBar>
                   </div>
                   <Button
-                    v-if="job.mode === 'running'"
+                    v-if="item.mode === 'running'"
                     icon="pi pi-pause"
                     text
                     rounded
                     size="small"
                     aria-label="暫停"
-                    @click="downloadStore.pauseJob(job.jobId)"
+                    @click="downloadStore.pauseItem(item.queueItemId)"
                   />
                   <Button
-                    v-else-if="job.mode === 'paused' || job.mode === 'pending'"
+                    v-else-if="item.mode === 'paused' || item.mode === 'pending'"
                     icon="pi pi-play"
                     text
                     rounded
@@ -654,15 +656,15 @@ function formatDate(value?: string) {
                     :disabled="selectedSchedule.downloadsPaused"
                     :aria-label="
                       selectedSchedule.downloadsPaused
-                        ? `無法開始 ${job.title}；請先恢復排程下載`
-                        : `開始下載 ${job.title}`
+                        ? `無法開始 ${item.title}；請先恢復排程下載`
+                        : `開始下載 ${item.title}`
                     "
                     :title="
                       selectedSchedule.downloadsPaused
                         ? '請先恢復這個排程的自動下載'
                         : '開始這個下載工作'
                     "
-                    @click="downloadStore.startJob(job.jobId)"
+                    @click="downloadStore.startItem(item.queueItemId)"
                   />
                 </div>
               </article>
@@ -670,7 +672,7 @@ function formatDate(value?: string) {
             <div v-else class="empty-panel mt-4">
               <i class="pi pi-download"></i>
               <div>
-                <p>目前沒有這個排程的下載工作</p>
+                <p>目前沒有這個排程的下載項目</p>
                 <small>發現新 Gallery 並開始下載後，進度會顯示在這裡。</small>
               </div>
             </div>

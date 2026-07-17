@@ -28,7 +28,7 @@ import {
   type AppConfig,
   type SearchLibraryPayload,
   type SearchLibraryResponse,
-  type AddToQueuePayload,
+  type AddToQueueItemPayload,
   type ManualDownloadPayload,
   type ManualDownloadResult,
   type GetConfigResponse,
@@ -252,8 +252,8 @@ function startScheduleScheduler(catchUp = false): void {
 function activateWorkspace(folderPath: string): WorkspaceResponse {
   try {
     const hasActiveDownloads = jobManager
-      ?.getJobs()
-      .some((job) => ['pending', 'running', 'paused'].includes(job.mode))
+      ?.getQueueItems()
+      .some((item) => ['pending', 'running', 'paused'].includes(item.mode))
     if (hasActiveDownloads || scheduleRunnerService?.getActiveRuns().length) {
       throw new Error('請先停止進行中的下載與排程，再變更工作資料夾')
     }
@@ -547,8 +547,8 @@ ipcMain.handle('open-folder', async (_, folderPath: string): Promise<void> => {
 })
 
 // --- Download Module ---
-ipcMain.handle('get-jobs', async () => {
-  return jobManager.getJobs()
+ipcMain.handle('get-queue-items', async () => {
+  return jobManager.getQueueItems()
 })
 
 ipcMain.handle(
@@ -579,22 +579,21 @@ ipcMain.handle(
 
       const [, gid, token] = match
       const active = jobManager
-        .getJobs()
+        .getQueueItems()
         .find(
-          (job) =>
-            ['pending', 'running', 'paused'].includes(job.mode) &&
-            job.galleries.some((gallery) => gallery.gid === gid),
+          (item) =>
+            ['pending', 'running', 'paused'].includes(item.mode) && item.gid === gid,
         )
       if (active) {
-        const gallery = active.galleries.find((candidate) => candidate.gid === gid)!
-        const merged = jobManager.addJob({
-          jobId: active.jobId,
-          title: active.title,
-          galleries: [{ ...gallery, token, collectionIds }],
+        const merged = jobManager.addQueueItem({
+          queueItemId: active.queueItemId,
+          gallery: { ...active, token, collectionIds },
           origin: 'manual',
           targetCollectionIds: collectionIds,
         })
-        if (merged?.mode === 'pending') void jobManager.startJob(merged.jobId)
+        if (merged?.mode === 'pending') {
+          void jobManager.startQueueItem(merged.queueItemId)
+        }
         result.merged++
         continue
       }
@@ -620,32 +619,29 @@ ipcMain.handle(
 
         const link = `https://e-hentai.org/g/${gid}/${metadataToken}/`
         const title = metadata.title || metadata.title_jpn || link
-        const job = jobManager.addJob({
-          jobId: `manual-${gid}-${Date.now()}-${index}`,
-          title,
-          galleries: [
-            {
-              gid,
-              token: metadataToken,
-              title,
-              link,
-              targetPath: '',
-              isArchive: settings.isArchive,
-              imagecount: Number.parseInt(metadata.filecount, 10) || 0,
-              status: 'Waiting in queue...',
-              progress: 0,
-              mode: 'pending',
-              collectionIds,
-            },
-          ],
+        const item = jobManager.addQueueItem({
+          queueItemId: `manual-${gid}-${Date.now()}-${index}`,
+          gallery: {
+            gid,
+            token: metadataToken,
+            title,
+            link,
+            targetPath: '',
+            isArchive: settings.isArchive,
+            imagecount: Number.parseInt(metadata.filecount, 10) || 0,
+            status: 'Waiting in queue...',
+            progress: 0,
+            mode: 'pending',
+            collectionIds,
+          },
           isArchive: settings.isArchive,
           password: settings.archivePassword,
           origin: 'manual',
           targetCollectionIds: collectionIds,
         })
-        if (!job) throw new Error('無法建立下載工作')
+        if (!item) throw new Error('無法建立下載項目')
         result.queued++
-        if (job.mode === 'pending') void jobManager.startJob(job.jobId)
+        if (item.mode === 'pending') void jobManager.startQueueItem(item.queueItemId)
       } catch {
         result.invalid.push(rawUrl)
       }
@@ -655,38 +651,38 @@ ipcMain.handle(
   },
 )
 
-ipcMain.handle('add-to-queue', async (_, payload: AddToQueuePayload) => {
-  jobManager.addJob(payload)
+ipcMain.handle('add-to-queue-item', async (_, payload: AddToQueueItemPayload) => {
+  jobManager.addQueueItem(payload)
 })
 
-ipcMain.handle('start-job', async (_, jobId: string) => {
-  void jobManager.startJob(jobId).catch((error) => {
-    console.error(`Failed to start download job ${jobId}:`, error)
+ipcMain.handle('start-queue-item', async (_, queueItemId: string) => {
+  void jobManager.startQueueItem(queueItemId).catch((error) => {
+    console.error(`Failed to start download queue item ${queueItemId}:`, error)
   })
 })
 
-ipcMain.handle('pause-job', async (_, jobId: string) => {
-  jobManager.pauseJob(jobId)
+ipcMain.handle('pause-queue-item', async (_, queueItemId: string) => {
+  jobManager.pauseQueueItem(queueItemId)
 })
 
-ipcMain.handle('stop-job', async (_, jobId: string) => {
-  jobManager.stopJob(jobId)
+ipcMain.handle('stop-queue-item', async (_, queueItemId: string) => {
+  jobManager.stopQueueItem(queueItemId)
 })
 
-ipcMain.handle('stop-all-jobs', async () => {
+ipcMain.handle('stop-all-queue-items', async () => {
   jobManager.stopAll()
 })
 
-ipcMain.handle('restart-job', async (_, jobId: string) => {
-  jobManager.restartJob(jobId)
+ipcMain.handle('restart-queue-item', async (_, queueItemId: string) => {
+  jobManager.restartQueueItem(queueItemId)
 })
 
-ipcMain.handle('remove-job', async (_, jobId: string) => {
-  jobManager.removeJob(jobId)
+ipcMain.handle('remove-queue-item', async (_, queueItemId: string) => {
+  jobManager.removeQueueItem(queueItemId)
 })
 
-ipcMain.handle('clear-finished-jobs', async () => {
-  jobManager.clearFinishedJobs()
+ipcMain.handle('clear-finished-queue-items', async () => {
+  jobManager.clearFinishedQueueItems()
 })
 
 // --- Storage Module ---

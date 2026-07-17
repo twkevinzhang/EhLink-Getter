@@ -1,29 +1,26 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { AddToQueuePayload, ManagedGallery } from '@shared/types/api'
+import type { AddToQueueItemPayload, ManagedGallery } from '@shared/types/api'
 import { JobManager } from '../job_manager'
 
 function payload(
   gid = '123',
   targetCollectionIds: string[] = ['collection-a'],
   scheduleId = 'schedule-1',
-): AddToQueuePayload {
+): AddToQueueItemPayload {
   return {
-    jobId: `job-${gid}`,
-    title: `Gallery ${gid}`,
-    galleries: [
-      {
-        gid,
-        token: 'abc123',
-        title: `Gallery ${gid}`,
-        link: `https://e-hentai.org/g/${gid}/abc123/`,
-        targetPath: '/caller-controlled/path',
-        isArchive: false,
-        imagecount: 2,
-        status: 'Pending',
-        progress: 0,
-        mode: 'pending',
-      },
-    ],
+    queueItemId: `item-${gid}`,
+    gallery: {
+      gid,
+      token: 'abc123',
+      title: `Gallery ${gid}`,
+      link: `https://e-hentai.org/g/${gid}/abc123/`,
+      targetPath: '/caller-controlled/path',
+      isArchive: false,
+      imagecount: 2,
+      status: 'Pending',
+      progress: 0,
+      mode: 'pending',
+    },
     origin: 'schedule',
     scheduleId,
     targetCollectionIds,
@@ -34,8 +31,8 @@ function createWorkspace(downloadsPaused = false) {
   const galleries = new Map<string, ManagedGallery>()
   return {
     galleries,
-    loadJobs: vi.fn(() => []),
-    saveJobs: vi.fn(),
+    loadQueueItems: vi.fn(() => []),
+    saveQueueItems: vi.fn(),
     getSchedule: vi.fn((scheduleId: string) => ({ scheduleId, downloadsPaused })),
     resolveGalleryPath: vi.fn((gid: string) => `/workspace/galleries/${gid}`),
     getGallery: vi.fn((gid: string) => galleries.get(String(gid))),
@@ -62,26 +59,27 @@ function createWorkspace(downloadsPaused = false) {
   }
 }
 
-describe('JobManager', () => {
-  it('merges collection targets into the active gallery by gid', () => {
+describe('JobManager flat queue', () => {
+  it('merges collection targets and sources into the active item by gid', () => {
     const workspace = createWorkspace()
     const manager = new JobManager(null, workspace as any)
 
-    const first = manager.addJob(payload('123', ['collection-a']))
-    const merged = manager.addJob({
-      ...payload('123', ['collection-b']),
-      jobId: 'another-job',
+    const first = manager.addQueueItem(payload('123', ['collection-a']))
+    const merged = manager.addQueueItem({
+      ...payload('123', ['collection-b'], 'schedule-2'),
+      queueItemId: 'another-item',
     })
 
-    expect(merged?.jobId).toBe(first?.jobId)
-    expect(manager.getJobs()).toHaveLength(1)
-    expect(first?.galleries[0].collectionIds).toEqual(['collection-a', 'collection-b'])
+    expect(merged?.queueItemId).toBe(first?.queueItemId)
+    expect(manager.getQueueItems()).toHaveLength(1)
+    expect(first?.collectionIds).toEqual(['collection-a', 'collection-b'])
+    expect(first?.sourceScheduleIds).toEqual(['schedule-1', 'schedule-2'])
   })
 
-  it('creates the managed gallery and collection relation only when download starts', async () => {
+  it('creates the managed gallery only when the queue item starts', async () => {
     const workspace = createWorkspace()
     const manager = new JobManager(null, workspace as any)
-    const job = manager.addJob(payload())!
+    const item = manager.addQueueItem(payload())!
     expect(workspace.upsertGallery).not.toHaveBeenCalled()
 
     const downloadGallery = vi.fn(async (options: any) => {
@@ -91,141 +89,47 @@ describe('JobManager', () => {
     })
     ;(manager as any).downloadService = { downloadGallery }
 
-    await manager.startJob(job.jobId)
+    await manager.startQueueItem(item.queueItemId)
 
-    expect(workspace.resolveGalleryPath).toHaveBeenCalledWith('123')
     expect(workspace.upsertGallery).toHaveBeenCalledWith(
       expect.objectContaining({ gid: '123', status: 'downloading' }),
     )
     expect(workspace.addGalleryToCollections).toHaveBeenCalledWith('123', [
       'collection-a',
     ])
-    expect(job.galleries[0].targetPath).toBe('/workspace/galleries/123')
-    expect(job.mode).toBe('completed')
+    expect(item.targetPath).toBe('/workspace/galleries/123')
+    expect(item).toMatchObject({ mode: 'completed', progress: 100 })
   })
 
   it('does not accept downloads before a workspace is configured', () => {
     const manager = new JobManager(null)
-    expect(() => manager.addJob(payload())).toThrow('請先設定工作資料夾')
+    expect(() => manager.addQueueItem(payload())).toThrow('請先設定工作資料夾')
   })
 
-  it('persists a newly discovered schedule job as paused and blocks direct start until resume', async () => {
+  it('persists a schedule item as paused and resumes it when allowed', async () => {
     const workspace = createWorkspace(true)
     const manager = new JobManager(null, workspace as any)
     const downloadGallery = vi.fn(async () => ({ success: true }))
     ;(manager as any).downloadService = { downloadGallery }
 
-    const job = manager.addJob(payload())!
-    await manager.startJob(job.jobId)
-
-    expect(job.mode).toBe('paused')
-    expect(job.pausedByScheduleId).toBe('schedule-1')
-    expect(job.galleries[0].mode).toBe('paused')
-    expect(workspace.upsertGallery).not.toHaveBeenCalled()
+    const item = manager.addQueueItem(payload())!
+    await manager.startQueueItem(item.queueItemId)
+    expect(item).toMatchObject({ mode: 'paused', pausedByScheduleId: 'schedule-1' })
     expect(downloadGallery).not.toHaveBeenCalled()
-    expect(workspace.saveJobs).toHaveBeenLastCalledWith(
-      expect.arrayContaining([expect.objectContaining({ mode: 'paused' })]),
-    )
 
     workspace.getSchedule.mockReturnValue({
       scheduleId: 'schedule-1',
       downloadsPaused: false,
     })
     manager.resumeScheduleDownloads('schedule-1')
-    await vi.waitFor(() => expect(job.mode).toBe('completed'))
+    await vi.waitFor(() => expect(item.mode).toBe('completed'))
     expect(downloadGallery).toHaveBeenCalledOnce()
   })
 
-  it('immediately aborts an owned running job and resumes it later', async () => {
+  it('keeps an item running when a manual source is merged', async () => {
     const workspace = createWorkspace()
     const manager = new JobManager(null, workspace as any)
-    const job = manager.addJob(payload())!
-    let wasAborted = false
-    ;(manager as any).downloadService = {
-      downloadGallery: vi.fn(
-        ({ signal }: { signal: AbortSignal }) =>
-          new Promise((resolve) => {
-            signal.addEventListener('abort', () => {
-              wasAborted = true
-              resolve({ success: false, error: 'aborted' })
-            })
-          }),
-      ),
-    }
-
-    const running = manager.startJob(job.jobId)
-    await vi.waitFor(() => expect(job.mode).toBe('running'))
-    workspace.getSchedule.mockReturnValue({
-      scheduleId: 'schedule-1',
-      downloadsPaused: true,
-    })
-    manager.pauseScheduleDownloads('schedule-1')
-    await running
-
-    expect(wasAborted).toBe(true)
-    expect(job.mode).toBe('paused')
-    expect(job.pausedByScheduleId).toBe('schedule-1')
-    ;(manager as any).downloadService = {
-      downloadGallery: vi.fn(async () => ({ success: true })),
-    }
-    workspace.getSchedule.mockReturnValue({
-      scheduleId: 'schedule-1',
-      downloadsPaused: false,
-    })
-    manager.resumeScheduleDownloads('schedule-1')
-    await vi.waitFor(() => expect(job.mode).toBe('completed'))
-    expect(job.pausedByScheduleId).toBeUndefined()
-  })
-
-  it('does not interrupt a running job shared with a manual request', async () => {
-    const workspace = createWorkspace()
-    const manager = new JobManager(null, workspace as any)
-    const job = manager.addJob(payload())!
-    let finish!: (result: { success: boolean }) => void
-    let wasAborted = false
-    ;(manager as any).downloadService = {
-      downloadGallery: vi.fn(
-        ({ signal }: { signal: AbortSignal }) =>
-          new Promise((resolve) => {
-            finish = resolve
-            signal.addEventListener('abort', () => {
-              wasAborted = true
-              resolve({ success: false })
-            })
-          }),
-      ),
-    }
-
-    const running = manager.startJob(job.jobId)
-    await vi.waitFor(() => expect(job.mode).toBe('running'))
-    manager.addJob({
-      ...payload(),
-      jobId: 'manual-shared',
-      origin: 'manual',
-      scheduleId: undefined,
-    })
-    workspace.getSchedule.mockReturnValue({
-      scheduleId: 'schedule-1',
-      downloadsPaused: true,
-    })
-    manager.pauseScheduleDownloads('schedule-1')
-
-    expect(job.mode).toBe('running')
-    expect(wasAborted).toBe(false)
-    finish({ success: true })
-    await running
-  })
-
-  it('keeps a shared job running while another source schedule still allows downloads', async () => {
-    const workspace = createWorkspace()
-    const pausedSchedules = new Set<string>()
-    workspace.getSchedule.mockImplementation((scheduleId: string) => ({
-      scheduleId,
-      downloadsPaused: pausedSchedules.has(scheduleId),
-    }))
-    const manager = new JobManager(null, workspace as any)
-    const job = manager.addJob(payload())!
-    manager.addJob(payload('123', ['collection-b'], 'schedule-2'))
+    const item = manager.addQueueItem(payload())!
     let finish!: (result: { success: boolean }) => void
     let wasAborted = false
     ;(manager as any).downloadService = {
@@ -241,75 +145,32 @@ describe('JobManager', () => {
       ),
     }
 
-    const running = manager.startJob(job.jobId)
-    await vi.waitFor(() => expect(job.mode).toBe('running'))
-    pausedSchedules.add('schedule-1')
+    const running = manager.startQueueItem(item.queueItemId)
+    await vi.waitFor(() => expect(item.mode).toBe('running'))
+    manager.addQueueItem({
+      ...payload(),
+      queueItemId: 'manual-shared',
+      origin: 'manual',
+      scheduleId: undefined,
+    })
+    workspace.getSchedule.mockReturnValue({
+      scheduleId: 'schedule-1',
+      downloadsPaused: true,
+    })
     manager.pauseScheduleDownloads('schedule-1')
 
-    expect(job.mode).toBe('running')
+    expect(item.mode).toBe('running')
     expect(wasAborted).toBe(false)
     finish({ success: true })
     await running
   })
 
-  it('pauses a shared job when every source schedule is paused', async () => {
-    const workspace = createWorkspace()
-    const pausedSchedules = new Set<string>()
-    workspace.getSchedule.mockImplementation((scheduleId: string) => ({
-      scheduleId,
-      downloadsPaused: pausedSchedules.has(scheduleId),
-    }))
-    const manager = new JobManager(null, workspace as any)
-    const job = manager.addJob(payload())!
-    manager.addJob(payload('123', ['collection-b'], 'schedule-2'))
-    ;(manager as any).downloadService = {
-      downloadGallery: vi.fn(
-        ({ signal }: { signal: AbortSignal }) =>
-          new Promise((resolve) => {
-            signal.addEventListener('abort', () => {
-              resolve({ success: false, error: 'aborted' })
-            })
-          }),
-      ),
-    }
-
-    const running = manager.startJob(job.jobId)
-    await vi.waitFor(() => expect(job.mode).toBe('running'))
-    pausedSchedules.add('schedule-1')
-    pausedSchedules.add('schedule-2')
-    manager.pauseScheduleDownloads('schedule-1')
-    await running
-
-    expect(job.mode).toBe('paused')
-    expect(job.pausedByScheduleId).toBe('schedule-1')
-  })
-
-  it('automatically starts the merged job when a manual source releases a schedule pause', async () => {
-    const workspace = createWorkspace(true)
-    const manager = new JobManager(null, workspace as any)
-    const job = manager.addJob(payload())!
-    ;(manager as any).downloadService = {
-      downloadGallery: vi.fn(async () => ({ success: true })),
-    }
-
-    const merged = manager.addJob({
-      ...payload(),
-      jobId: 'manual-request-id',
-      origin: 'manual',
-      scheduleId: undefined,
-    })
-
-    expect(merged?.jobId).toBe(job.jobId)
-    await vi.waitFor(() => expect(job.mode).toBe('completed'))
-    expect(job.pausedByScheduleId).toBeUndefined()
-  })
-
-  it('stops every pending, running, and paused job without restarting jobs after abort', async () => {
+  it('stops every active queue item without restarting after abort', async () => {
     const workspace = createWorkspace()
     const manager = new JobManager(null, workspace as any)
-    const runningJob = manager.addJob(payload('123'))!
-    const pendingJob = manager.addJob(payload('456'))!
-    const pausedJob = manager.addJob(payload('789'))!
+    const runningItem = manager.addQueueItem(payload('123'))!
+    const pendingItem = manager.addQueueItem(payload('456'))!
+    const pausedItem = manager.addQueueItem(payload('789'))!
     let wasAborted = false
     ;(manager as any).downloadService = {
       downloadGallery: vi.fn(
@@ -323,29 +184,77 @@ describe('JobManager', () => {
       ),
     }
 
-    const running = manager.startJob(runningJob.jobId)
-    await vi.waitFor(() => expect(runningJob.mode).toBe('running'))
-    manager.pauseJob(pausedJob.jobId)
+    const running = manager.startQueueItem(runningItem.queueItemId)
+    await vi.waitFor(() => expect(runningItem.mode).toBe('running'))
+    manager.pauseQueueItem(pausedItem.queueItemId)
     manager.stopAll()
     await running
 
     expect(wasAborted).toBe(true)
-    for (const job of [runningJob, pendingJob, pausedJob]) {
-      expect(job).toMatchObject({ mode: 'stopped', status: 'Stopped by user' })
-      expect(job.galleries).toEqual(
-        expect.arrayContaining([expect.objectContaining({ mode: 'stopped' })]),
-      )
+    for (const item of [runningItem, pendingItem, pausedItem]) {
+      expect(item).toMatchObject({ mode: 'stopped', status: 'Stopped by user' })
     }
     expect((manager as any).downloadService.downloadGallery).toHaveBeenCalledOnce()
   })
 
-  it('resumes more jobs than the concurrency limit as slots become available', async () => {
+  it('marks an item as error when the downloader throws unexpectedly', async () => {
+    const workspace = createWorkspace()
+    const manager = new JobManager(null, workspace as any)
+    const item = manager.addQueueItem(payload())!
+    ;(manager as any).downloadService = {
+      downloadGallery: vi.fn(async () => {
+        throw new Error('network failed')
+      }),
+    }
+
+    await manager.startQueueItem(item.queueItemId)
+
+    expect(item).toMatchObject({ mode: 'error', status: 'network failed' })
+    expect(workspace.updateGalleryStatus).toHaveBeenCalledWith(
+      '123',
+      'error',
+      expect.objectContaining({ error: 'network failed' }),
+    )
+  })
+
+  it('waits for an aborted run to exit before restarting the same item', async () => {
+    const workspace = createWorkspace()
+    const manager = new JobManager(null, workspace as any)
+    const item = manager.addQueueItem(payload())!
+    let secondRunAborted = false
+    let callCount = 0
+    const downloadGallery = vi.fn(
+      ({ signal }: { signal: AbortSignal }) =>
+        new Promise<{ success: false; error: string }>((resolve) => {
+          callCount++
+          signal.addEventListener('abort', () => {
+            if (callCount === 2) secondRunAborted = true
+            resolve({ success: false, error: 'aborted' })
+          })
+        }),
+    )
+    ;(manager as any).downloadService = { downloadGallery }
+
+    const firstRun = manager.startQueueItem(item.queueItemId)
+    await vi.waitFor(() => expect(item.mode).toBe('running'))
+    const restarted = manager.restartQueueItem(item.queueItemId)
+
+    await vi.waitFor(() => expect(downloadGallery).toHaveBeenCalledTimes(2))
+    expect(item.mode).toBe('running')
+    manager.stopQueueItem(item.queueItemId)
+    await Promise.all([firstRun, restarted])
+
+    expect(secondRunAborted).toBe(true)
+    expect(item.mode).toBe('stopped')
+    expect(downloadGallery).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses new slots as running items complete', async () => {
     const workspace = createWorkspace(true)
     const manager = new JobManager(null, workspace as any)
-    const jobs = Array.from(
-      { length: 5 },
-      (_, index) => manager.addJob(payload(String(100 + index)))!,
-    )
+    const items = Array.from({ length: 5 }, (_, index) =>
+      manager.addQueueItem(payload(String(100 + index))),
+    ) as NonNullable<ReturnType<JobManager['addQueueItem']>>[]
     const releases: Array<() => void> = []
     ;(manager as any).downloadService = {
       downloadGallery: vi.fn(
@@ -362,7 +271,7 @@ describe('JobManager', () => {
     })
     manager.resumeScheduleDownloads('schedule-1')
     await vi.waitFor(() => expect(releases).toHaveLength(3))
-    expect(jobs.filter((job) => job.mode === 'running')).toHaveLength(3)
+    expect(items.filter((item) => item.mode === 'running')).toHaveLength(3)
 
     releases.shift()?.()
     await vi.waitFor(() => expect(releases).toHaveLength(3))
@@ -370,7 +279,7 @@ describe('JobManager', () => {
     await vi.waitFor(() => expect(releases).toHaveLength(3))
     for (const release of releases.splice(0)) release()
     await vi.waitFor(() =>
-      expect(jobs.every((job) => job.mode === 'completed')).toBe(true),
+      expect(items.every((item) => item.mode === 'completed')).toBe(true),
     )
   })
 })

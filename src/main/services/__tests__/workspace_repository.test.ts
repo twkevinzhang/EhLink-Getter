@@ -70,6 +70,61 @@ test('upsertGallery keeps one managed record per string gid', () => {
   assert.equal(fs.existsSync(updated.localPath), true)
 })
 
+test('loadQueueItems splits persisted legacy jobs into one item per gallery', () => {
+  const { repository, root } = createRepository()
+  const jobsPath = path.join(root, '.ehlink-getter', 'jobs.json')
+  const downloadGallery = (gid: string) => ({
+    ...gallery(gid),
+    targetPath: '',
+    isArchive: false,
+    imagecount: 10,
+    status: 'Pending',
+    progress: 0,
+    mode: 'pending',
+  })
+  fs.writeFileSync(
+    jobsPath,
+    JSON.stringify([
+      {
+        jobId: 'legacy-job',
+        title: 'Legacy batch',
+        progress: 0,
+        status: 'Paused',
+        mode: 'paused',
+        galleries: [downloadGallery('101'), downloadGallery('102')],
+        isArchive: true,
+        origin: 'schedule',
+        scheduleId: 'schedule-1',
+      },
+    ]),
+  )
+
+  const items = repository.loadQueueItems()
+
+  assert.deepEqual(
+    items.map(({ queueItemId, gid, mode, isArchive }) => ({
+      queueItemId,
+      gid,
+      mode,
+      isArchive,
+    })),
+    [
+      {
+        queueItemId: 'legacy-job-101',
+        gid: '101',
+        mode: 'paused',
+        isArchive: true,
+      },
+      {
+        queueItemId: 'legacy-job-102',
+        gid: '102',
+        mode: 'paused',
+        isArchive: true,
+      },
+    ],
+  )
+})
+
 test('collections are many-to-many and uncategorized remains a dynamic query', () => {
   const { repository } = createRepository()
   repository.upsertGallery(gallery('101'))

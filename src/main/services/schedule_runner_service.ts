@@ -25,7 +25,7 @@ interface ActiveScheduleRun {
   promise: Promise<ScheduleRun>
 }
 
-const ACTIVE_JOB_MODES = new Set(['pending', 'running', 'paused'])
+const ACTIVE_QUEUE_MODES = new Set(['pending', 'running', 'paused'])
 
 function cloneRun(run: ScheduleRun): ScheduleRun {
   return {
@@ -179,18 +179,16 @@ export class ScheduleRunnerService {
             continue
           }
 
-          const existingJob = this.jobManager
-            .getJobs()
+          const existingItem = this.jobManager
+            .getQueueItems()
             .find(
-              (job) =>
-                ACTIVE_JOB_MODES.has(job.mode) &&
-                job.galleries.some((gallery) => gallery.gid === item.gid),
+              (queueItem) =>
+                ACTIVE_QUEUE_MODES.has(queueItem.mode) && queueItem.gid === item.gid,
             )
           const gallery = this.toDownloadGallery(item, run.snapshot.targetCollectionId)
-          const job = this.jobManager.addJob({
-            jobId: `schedule-${run.runId}-${item.gid}`,
-            title: item.title,
-            galleries: [gallery],
+          const queueItem = this.jobManager.addQueueItem({
+            queueItemId: `schedule-${run.runId}-${item.gid}`,
+            gallery,
             isArchive: settings.isArchive,
             password: settings.archivePassword,
             origin: 'schedule',
@@ -200,9 +198,11 @@ export class ScheduleRunnerService {
               ? [run.snapshot.targetCollectionId]
               : [],
           })
-          if (existingJob) run.counters.merged++
+          if (existingItem) run.counters.merged++
           else run.counters.queued++
-          if (job?.mode === 'pending') void this.jobManager.startJob(job.jobId)
+          if (queueItem?.mode === 'pending') {
+            void this.jobManager.startQueueItem(queueItem.queueItemId)
+          }
         }
 
         next = result.next

@@ -16,32 +16,24 @@ export interface DownloadGallery {
   collectionIds?: string[]
 }
 
-export interface JobState {
-  jobId: string
-  title: string
-  progress: number
-  status: string
-  mode: 'running' | 'paused' | 'error' | 'completed' | 'pending' | 'stopped'
-  galleries: DownloadGallery[]
-  isExpanded?: boolean
-  isArchive?: boolean
+export interface DownloadQueueItem extends DownloadGallery {
+  queueItemId: string
   password?: string
   origin?: 'manual' | 'schedule'
   scheduleId?: string
   scheduleRunId?: string
   targetCollectionIds?: string[]
-  /** All schedules that contributed galleries to this (possibly merged) job. */
+  /** All schedules that contributed this Gallery to the queue item. */
   sourceScheduleIds?: string[]
-  /** True when a manual request was merged into this job. */
+  /** True when a manual request was merged into this queue item. */
   hasManualSource?: boolean
-  /** Set only for jobs paused by their owning schedule. */
+  /** Set only for queue items paused by their owning schedule. */
   pausedByScheduleId?: string
 }
 
-export interface AddToQueuePayload {
-  jobId: string
-  title: string
-  galleries: DownloadGallery[]
+export interface AddToQueueItemPayload {
+  queueItemId: string
+  gallery: DownloadGallery
   isArchive?: boolean
   password?: string
   origin?: 'manual' | 'schedule'
@@ -62,8 +54,8 @@ export interface ManualDownloadResult {
   invalid: string[]
 }
 
-export interface DownloadJobUpdatedEvent {
-  job: JobState
+export interface DownloadQueueItemUpdatedEvent {
+  item: DownloadQueueItem
 }
 
 export interface LibraryGallery {
@@ -427,17 +419,19 @@ export interface SidecarAPI {
   onLog: (callback: (log: SidecarLogEvent) => void) => void
 
   // download
-  getJobs: () => Promise<JobState[]>
+  getQueueItems: () => Promise<DownloadQueueItem[]>
   manualDownloadBatch: (payload: ManualDownloadPayload) => Promise<ManualDownloadResult>
-  addToQueue: (payload: AddToQueuePayload) => Promise<void>
-  startJob: (jobId: string) => Promise<void>
-  pauseJob: (jobId: string) => Promise<void>
-  stopJob: (jobId: string) => Promise<void>
-  stopAllJobs: () => Promise<void>
-  restartJob: (jobId: string) => Promise<void>
-  removeJob: (jobId: string) => Promise<void>
-  clearFinishedJobs: () => Promise<void>
-  onDownloadJobUpdated: (callback: (event: DownloadJobUpdatedEvent) => void) => void
+  addToQueueItem: (payload: AddToQueueItemPayload) => Promise<void>
+  startQueueItem: (queueItemId: string) => Promise<void>
+  pauseQueueItem: (queueItemId: string) => Promise<void>
+  stopQueueItem: (queueItemId: string) => Promise<void>
+  stopAllQueueItems: () => Promise<void>
+  restartQueueItem: (queueItemId: string) => Promise<void>
+  removeQueueItem: (queueItemId: string) => Promise<void>
+  clearFinishedQueueItems: () => Promise<void>
+  onDownloadQueueItemUpdated: (
+    callback: (event: DownloadQueueItemUpdatedEvent) => void,
+  ) => void
   onArchiveProgress: (callback: (data: ArchiveProgressEvent) => void) => void
 
   // workspace

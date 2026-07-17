@@ -61,15 +61,15 @@ describe('ScheduleRunnerService', () => {
 
   it('scans up to pageLimit, deduplicates real gids and queues unknown galleries', async () => {
     const workspace = createWorkspace()
-    const jobs: any[] = []
+    const queueItems: any[] = []
     const jobManager = {
-      getJobs: vi.fn(() => jobs),
-      addJob: vi.fn((payload) => {
-        const job = { ...payload, mode: 'pending' }
-        jobs.push(job)
-        return job
+      getQueueItems: vi.fn(() => queueItems),
+      addQueueItem: vi.fn((payload) => {
+        const queueItem = { ...payload.gallery, ...payload, mode: 'pending' }
+        queueItems.push(queueItem)
+        return queueItem
       }),
-      startJob: vi.fn(),
+      startQueueItem: vi.fn(),
     }
     const api = {
       fetchPage: vi
@@ -88,8 +88,8 @@ describe('ScheduleRunnerService', () => {
 
     expect(api.fetchPage).toHaveBeenCalledTimes(3)
     expect(run.counters).toMatchObject({ discovered: 3, queued: 3 })
-    expect(jobManager.addJob).toHaveBeenCalledTimes(3)
-    expect(jobManager.startJob).toHaveBeenCalledTimes(3)
+    expect(jobManager.addQueueItem).toHaveBeenCalledTimes(3)
+    expect(jobManager.startQueueItem).toHaveBeenCalledTimes(3)
     expect(workspace.getGallery).toHaveBeenCalledWith('101')
   })
 
@@ -97,7 +97,11 @@ describe('ScheduleRunnerService', () => {
     const workspace = createWorkspace({
       getGallery: vi.fn(() => ({ gid: '456' })),
     })
-    const jobManager = { getJobs: vi.fn(() => []), addJob: vi.fn(), startJob: vi.fn() }
+    const jobManager = {
+      getQueueItems: vi.fn(() => []),
+      addQueueItem: vi.fn(),
+      startQueueItem: vi.fn(),
+    }
     const api = { fetchPage: vi.fn().mockResolvedValue({ items: [item('456')] }) }
     const runner = new ScheduleRunnerService(
       workspace as any,
@@ -111,7 +115,7 @@ describe('ScheduleRunnerService', () => {
     expect(workspace.addGalleryToCollections).toHaveBeenCalledWith('456', [
       'collection-1',
     ])
-    expect(jobManager.addJob).not.toHaveBeenCalled()
+    expect(jobManager.addQueueItem).not.toHaveBeenCalled()
   })
 
   it('keeps an existing categorized gallery unchanged when target is Uncategorized', async () => {
@@ -120,7 +124,11 @@ describe('ScheduleRunnerService', () => {
       getSchedule: vi.fn(() => uncategorized),
       getGallery: vi.fn(() => ({ gid: '789' })),
     })
-    const jobManager = { getJobs: vi.fn(() => []), addJob: vi.fn(), startJob: vi.fn() }
+    const jobManager = {
+      getQueueItems: vi.fn(() => []),
+      addQueueItem: vi.fn(),
+      startQueueItem: vi.fn(),
+    }
     const api = { fetchPage: vi.fn().mockResolvedValue({ items: [item('789')] }) }
     const runner = new ScheduleRunnerService(
       workspace as any,
@@ -132,6 +140,6 @@ describe('ScheduleRunnerService', () => {
 
     expect(run.counters.ignored).toBe(1)
     expect(workspace.addGalleryToCollections).not.toHaveBeenCalled()
-    expect(jobManager.addJob).not.toHaveBeenCalled()
+    expect(jobManager.addQueueItem).not.toHaveBeenCalled()
   })
 })

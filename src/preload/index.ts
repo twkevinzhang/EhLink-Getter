@@ -6,10 +6,10 @@ import {
   type SearchLibraryPayload,
   type ArchiveProgressEvent,
   type SidecarLogEvent,
-  type AddToQueuePayload,
+  type AddToQueueItemPayload,
   type ManualDownloadPayload,
   type ManualDownloadResult,
-  type DownloadJobUpdatedEvent,
+  type DownloadQueueItemUpdatedEvent,
   type LibraryProgressEvent,
   type WorkspaceResponse,
   type WorkspaceSettings,
@@ -44,19 +44,26 @@ const api: SidecarAPI = {
     ipcRenderer.on('python-log', (_event, value) => callback(value)),
 
   // download module
-  getJobs: () => ipcRenderer.invoke('get-jobs'),
+  getQueueItems: () => ipcRenderer.invoke('get-queue-items'),
   manualDownloadBatch: (payload: ManualDownloadPayload): Promise<ManualDownloadResult> =>
     ipcRenderer.invoke('manual-download-batch', payload),
-  addToQueue: (payload: AddToQueuePayload) => ipcRenderer.invoke('add-to-queue', payload),
-  startJob: (jobId: string) => ipcRenderer.invoke('start-job', jobId),
-  pauseJob: (jobId: string) => ipcRenderer.invoke('pause-job', jobId),
-  stopJob: (jobId: string) => ipcRenderer.invoke('stop-job', jobId),
-  stopAllJobs: () => ipcRenderer.invoke('stop-all-jobs'),
-  restartJob: (jobId: string) => ipcRenderer.invoke('restart-job', jobId),
-  removeJob: (jobId: string) => ipcRenderer.invoke('remove-job', jobId),
-  clearFinishedJobs: () => ipcRenderer.invoke('clear-finished-jobs'),
-  onDownloadJobUpdated: (callback: (event: DownloadJobUpdatedEvent) => void) =>
-    ipcRenderer.on('download-job-updated', (_event, value) => callback(value)),
+  addToQueueItem: (payload: AddToQueueItemPayload) =>
+    ipcRenderer.invoke('add-to-queue-item', payload),
+  startQueueItem: (queueItemId: string) =>
+    ipcRenderer.invoke('start-queue-item', queueItemId),
+  pauseQueueItem: (queueItemId: string) =>
+    ipcRenderer.invoke('pause-queue-item', queueItemId),
+  stopQueueItem: (queueItemId: string) =>
+    ipcRenderer.invoke('stop-queue-item', queueItemId),
+  stopAllQueueItems: () => ipcRenderer.invoke('stop-all-queue-items'),
+  restartQueueItem: (queueItemId: string) =>
+    ipcRenderer.invoke('restart-queue-item', queueItemId),
+  removeQueueItem: (queueItemId: string) =>
+    ipcRenderer.invoke('remove-queue-item', queueItemId),
+  clearFinishedQueueItems: () => ipcRenderer.invoke('clear-finished-queue-items'),
+  onDownloadQueueItemUpdated: (
+    callback: (event: DownloadQueueItemUpdatedEvent) => void,
+  ) => ipcRenderer.on('download-queue-item-updated', (_event, value) => callback(value)),
   onArchiveProgress: (callback: (data: ArchiveProgressEvent) => void) =>
     ipcRenderer.on('archive-progress', (_event, value) => callback(value)),
 

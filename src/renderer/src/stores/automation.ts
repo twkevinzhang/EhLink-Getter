@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import type {
   Collection,
   CreateSchedulePayload,
-  JobState,
+  DownloadQueueItem,
   ManagedGallery,
   Schedule,
   ScheduleRun,
@@ -172,16 +172,11 @@ export const useAutomationStore = defineStore('automation', () => {
     await refreshSchedules()
   }
 
-  function jobsForSchedule(jobs: JobState[], scheduleId: string) {
-    return jobs.filter((job) => {
-      const linkedJob = job as JobState & {
-        scheduleId?: string
-        sourceScheduleId?: string
-      }
-      return (
-        linkedJob.scheduleId === scheduleId || linkedJob.sourceScheduleId === scheduleId
-      )
-    })
+  function itemsForSchedule(items: DownloadQueueItem[], scheduleId: string) {
+    return items.filter(
+      (item) =>
+        item.scheduleId === scheduleId || item.sourceScheduleIds?.includes(scheduleId),
+    )
   }
 
   return {
@@ -208,6 +203,6 @@ export const useAutomationStore = defineStore('automation', () => {
     runNow,
     pauseScheduleDownloads,
     resumeScheduleDownloads,
-    jobsForSchedule,
+    itemsForSchedule,
   }
 })

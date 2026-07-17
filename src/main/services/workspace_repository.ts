@@ -5,7 +5,8 @@ import type {
   Collection,
   CreateCollectionPayload,
   CreateSchedulePayload,
-  JobState,
+  DownloadGallery,
+  DownloadQueueItem,
   ManagedGallery,
   ManagedGalleryStatus,
   Schedule,
@@ -45,6 +46,24 @@ interface WorkspacePaths {
 
 type CollectionPatch = Pick<UpdateCollectionPayload, 'name' | 'coverGid'>
 type SchedulePatch = Omit<UpdateSchedulePayload, 'scheduleId'>
+
+interface LegacyJobState {
+  jobId: string
+  title: string
+  progress: number
+  status: string
+  mode: DownloadQueueItem['mode']
+  galleries: DownloadGallery[]
+  isArchive?: boolean
+  password?: string
+  origin?: 'manual' | 'schedule'
+  scheduleId?: string
+  scheduleRunId?: string
+  targetCollectionIds?: string[]
+  sourceScheduleIds?: string[]
+  hasManualSource?: boolean
+  pausedByScheduleId?: string
+}
 
 const MAX_SCHEDULE_RUNS = 500
 const MAX_LOG_BYTES = 5 * 1024 * 1024
@@ -584,16 +603,45 @@ export class WorkspaceRepository {
     return schedule
   }
 
-  loadJobs(): JobState[] {
-    return this.readJson<JobState[]>(this.paths().jobs, [])
+  loadQueueItems(): DownloadQueueItem[] {
+    const stored = this.readJson<Array<DownloadQueueItem | LegacyJobState>>(
+      this.paths().jobs,
+      [],
+    )
+    return stored.flatMap((entry) => {
+      if ('queueItemId' in entry) return [entry]
+      const multiple = entry.galleries.length > 1
+      return entry.galleries.map((gallery) => {
+        const inheritsJobState =
+          gallery.mode !== 'completed' &&
+          (entry.mode === 'running' ||
+            entry.mode === 'paused' ||
+            entry.mode === 'stopped')
+        return {
+          ...gallery,
+          queueItemId: multiple ? `${entry.jobId}-${gallery.gid}` : entry.jobId,
+          mode: inheritsJobState ? entry.mode : gallery.mode,
+          status: inheritsJobState ? entry.status : gallery.status,
+          isArchive: entry.isArchive ?? gallery.isArchive ?? false,
+          password: entry.password ?? gallery.password ?? '',
+          origin: entry.origin,
+          scheduleId: entry.scheduleId,
+          scheduleRunId: entry.scheduleRunId,
+          targetCollectionIds: entry.targetCollectionIds,
+          sourceScheduleIds: entry.sourceScheduleIds,
+          hasManualSource: entry.hasManualSource,
+          pausedByScheduleId: entry.pausedByScheduleId,
+        }
+      })
+    })
   }
 
-  getJobs(): JobState[] {
-    return this.loadJobs()
+  getQueueItems(): DownloadQueueItem[] {
+    return this.loadQueueItems()
   }
 
-  saveJobs(jobs: JobState[]): void {
-    this.writeJson(this.paths().jobs, jobs)
+  saveQueueItems(items: DownloadQueueItem[]): void {
+    this.writeJson(this.paths().jobs, items)
     this.touchManifest()
   }
 

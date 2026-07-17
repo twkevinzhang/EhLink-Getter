@@ -7,34 +7,34 @@ import ProgressBar from 'primevue/progressbar'
 import Tag from 'primevue/tag'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
-import { useDownloadStore, type JobState } from '@renderer/stores/download'
+import { useDownloadStore, type DownloadQueueItem } from '@renderer/stores/download'
 
 const props = withDefaults(defineProps<{ disabled?: boolean }>(), { disabled: false })
 
 const downloadStore = useDownloadStore()
-const { downloadingJobs, activeJobs, finishedJobs, loading, error, pendingActions } =
+const { queueItems, activeItems, finishedItems, loading, error, pendingActions } =
   storeToRefs(downloadStore)
 const toast = useToast()
 const confirm = useConfirm()
 const actionsMenu = ref()
 
 const globalProgress = computed(() => {
-  if (!downloadingJobs.value.length) return 0
+  if (!queueItems.value.length) return 0
   return Math.round(
-    downloadingJobs.value.reduce((sum, job) => sum + job.progress, 0) /
-      downloadingJobs.value.length,
+    queueItems.value.reduce((sum, item) => sum + item.progress, 0) /
+      queueItems.value.length,
   )
 })
 
 const canStartAll = computed(
   () =>
     !props.disabled &&
-    downloadingJobs.value.some((job) => ['pending', 'paused'].includes(job.mode)),
+    queueItems.value.some((item) => ['pending', 'paused'].includes(item.mode)),
 )
 const canPauseAll = computed(
-  () => !props.disabled && downloadingJobs.value.some((job) => job.mode === 'running'),
+  () => !props.disabled && queueItems.value.some((item) => item.mode === 'running'),
 )
-const canStopAll = computed(() => !props.disabled && activeJobs.value.length > 0)
+const canStopAll = computed(() => !props.disabled && activeItems.value.length > 0)
 
 const globalActionItems = computed(() => [
   {
@@ -55,12 +55,13 @@ const globalActionItems = computed(() => [
     label: '清除已結束',
     icon: 'pi pi-trash',
     class: 'text-red-600',
-    disabled: props.disabled || !finishedJobs.value.length,
-    command: () => perform(downloadStore.clearFinishedJobs, '已清除完成、停止與錯誤工作'),
+    disabled: props.disabled || !finishedItems.value.length,
+    command: () =>
+      perform(downloadStore.clearFinishedItems, '已清除完成、停止與錯誤項目'),
   },
 ])
 
-function statusLabel(mode: JobState['mode']) {
+function statusLabel(mode: DownloadQueueItem['mode']) {
   return {
     pending: '等待中',
     running: '下載中',
@@ -71,16 +72,12 @@ function statusLabel(mode: JobState['mode']) {
   }[mode]
 }
 
-function statusSeverity(mode: JobState['mode']) {
+function statusSeverity(mode: DownloadQueueItem['mode']) {
   if (mode === 'completed') return 'success'
   if (mode === 'error') return 'danger'
   if (mode === 'running') return 'info'
   if (mode === 'paused' || mode === 'pending') return 'warn'
   return 'secondary'
-}
-
-function toggleJob(job: JobState) {
-  job.isExpanded = !job.isExpanded
 }
 
 async function perform(action: () => Promise<unknown>, success?: string) {
@@ -107,7 +104,7 @@ function confirmStopAll() {
   confirm.require({
     header: '停止全部下載？',
     message:
-      '所有等待中、下載中與已暫停的工作都會停止。未完成的工作會保留，可稍後逐筆重試。',
+      '所有等待中、下載中與已暫停的 Gallery 都會停止。未完成項目會保留，可稍後逐筆重試。',
     rejectLabel: '取消',
     acceptLabel: '全部停止',
     acceptProps: { severity: 'danger' },
@@ -130,9 +127,9 @@ function confirmStopAll() {
           <template #default><span></span></template>
         </ProgressBar>
         <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-eh-muted">
-          <span>進行中 {{ activeJobs.length }}</span>
-          <span>已結束 {{ finishedJobs.length }}</span>
-          <span>總計 {{ downloadingJobs.length }}</span>
+          <span>進行中 {{ activeItems.length }}</span>
+          <span>已結束 {{ finishedItems.length }}</span>
+          <span>總計 {{ queueItems.length }}</span>
         </div>
       </div>
 
@@ -143,7 +140,7 @@ function confirmStopAll() {
           size="small"
           :disabled="!canStartAll"
           :loading="Boolean(pendingActions['global:start'])"
-          @click="perform(downloadStore.startAll, '已啟動可繼續的下載工作')"
+          @click="perform(downloadStore.startAll, '已啟動可繼續的下載項目')"
         />
         <Button
           v-tooltip="'更多全域操作'"
@@ -171,172 +168,140 @@ function confirmStopAll() {
         v-if="loading"
         class="grid min-h-40 place-items-center rounded-md border border-dashed border-eh-border/40 text-sm text-eh-muted"
       >
-        <span><i class="pi pi-spin pi-spinner mr-2"></i>載入下載工作…</span>
+        <span><i class="pi pi-spin pi-spinner mr-2"></i>載入下載項目…</span>
       </div>
 
       <article
-        v-for="job in downloadingJobs"
+        v-for="item in queueItems"
         v-else
-        :key="job.jobId"
-        class="overflow-hidden rounded-md border border-eh-border/30 bg-eh-panel shadow-sm"
+        :key="item.queueItemId"
+        class="rounded-md border border-eh-border/30 bg-eh-panel p-3 shadow-sm"
       >
-        <div class="flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
-          <button
-            type="button"
-            class="flex min-w-0 flex-1 items-start gap-3 text-left"
-            :aria-expanded="Boolean(job.isExpanded)"
-            @click="toggleJob(job)"
-          >
-            <span
-              class="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded bg-eh-sidebar"
-            >
-              <i
-                class="pi text-[11px] text-eh-text"
-                :class="job.isExpanded ? 'pi-chevron-down' : 'pi-chevron-right'"
-              ></i>
-            </span>
-            <span class="min-w-0 flex-1">
-              <span class="flex flex-wrap items-center gap-2">
-                <strong class="min-w-0 truncate text-sm text-eh-text">{{
-                  job.title
-                }}</strong>
-                <Tag
-                  :value="statusLabel(job.mode)"
-                  :severity="statusSeverity(job.mode)"
-                />
+        <div
+          class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,18rem)_auto] sm:items-center"
+        >
+          <div class="min-w-0">
+            <div class="flex items-start gap-3">
+              <span
+                class="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded bg-eh-sidebar"
+              >
+                <i
+                  class="text-xs text-eh-text"
+                  :class="item.isArchive ? 'pi pi-file' : 'pi pi-folder'"
+                ></i>
               </span>
-              <span class="mt-1 block text-[11px] text-eh-muted">
-                {{ job.galleries.length }} 本 Gallery · {{ job.status || '等待更新' }}
-              </span>
-            </span>
-          </button>
-
-          <div class="flex min-w-0 items-center gap-3 sm:w-[20rem]">
-            <div class="min-w-24 flex-1">
-              <div class="mb-1 text-right text-[10px] tabular-nums text-eh-muted">
-                {{ job.progress }}%
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <strong
+                    class="min-w-0 truncate text-sm text-eh-text"
+                    :title="item.title"
+                  >
+                    {{ item.title }}
+                  </strong>
+                  <Tag
+                    :value="statusLabel(item.mode)"
+                    :severity="statusSeverity(item.mode)"
+                  />
+                </div>
+                <p
+                  class="mt-1 truncate font-mono text-[9px] text-eh-muted"
+                  :title="item.targetPath"
+                >
+                  {{ item.targetPath || '尚未建立路徑' }}
+                </p>
               </div>
-              <ProgressBar :value="job.progress" class="!h-1.5">
-                <template #default><span></span></template>
-              </ProgressBar>
-            </div>
-            <div class="flex shrink-0 gap-1">
-              <Button
-                v-tooltip="job.mode === 'running' ? '暫停' : '繼續'"
-                :icon="job.mode === 'running' ? 'pi pi-pause' : 'pi pi-play'"
-                rounded
-                text
-                size="small"
-                :loading="
-                  downloadStore.isActionPending(
-                    job.jobId,
-                    job.mode === 'running' ? 'pause' : 'start',
-                  )
-                "
-                :disabled="
-                  disabled ||
-                  downloadStore.isActionPending(job.jobId) ||
-                  ['error', 'completed', 'stopped'].includes(job.mode)
-                "
-                @click="
-                  perform(() =>
-                    job.mode === 'running'
-                      ? downloadStore.pauseJob(job.jobId)
-                      : downloadStore.startJob(job.jobId),
-                  )
-                "
-              />
-              <Button
-                v-tooltip="
-                  ['error', 'completed', 'stopped'].includes(job.mode) ? '重試' : '停止'
-                "
-                :icon="
-                  ['error', 'completed', 'stopped'].includes(job.mode)
-                    ? 'pi pi-refresh'
-                    : 'pi pi-stop'
-                "
-                rounded
-                text
-                size="small"
-                :loading="downloadStore.isActionPending(job.jobId)"
-                :disabled="
-                  disabled ||
-                  downloadStore.isActionPending(job.jobId) ||
-                  job.mode === 'pending'
-                "
-                @click="
-                  perform(() =>
-                    ['error', 'completed', 'stopped'].includes(job.mode)
-                      ? downloadStore.restartJob(job.jobId)
-                      : downloadStore.stopJob(job.jobId),
-                  )
-                "
-              />
-              <Button
-                v-tooltip="'移除'"
-                icon="pi pi-trash"
-                severity="danger"
-                rounded
-                text
-                size="small"
-                :loading="downloadStore.isActionPending(job.jobId, 'remove')"
-                :disabled="
-                  disabled ||
-                  downloadStore.isActionPending(job.jobId) ||
-                  ['running', 'paused'].includes(job.mode)
-                "
-                @click="perform(() => downloadStore.removeJob(job.jobId))"
-              />
             </div>
           </div>
-        </div>
 
-        <div v-show="job.isExpanded" class="border-t border-eh-border/20 bg-eh-bg/30">
-          <div
-            v-for="gallery in job.galleries"
-            :key="gallery.gid"
-            class="grid gap-2 border-b border-eh-border/10 p-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,18rem)] sm:items-center"
-          >
-            <div class="min-w-0">
-              <div class="flex items-center gap-2">
-                <i :class="gallery.isArchive ? 'pi pi-file' : 'pi pi-folder'"></i>
-                <span
-                  class="truncate text-xs font-medium text-eh-text"
-                  :title="gallery.title"
-                >
-                  {{ gallery.title }}
-                </span>
-              </div>
-              <p
-                class="mt-1 truncate font-mono text-[9px] text-eh-muted"
-                :title="gallery.targetPath"
-              >
-                {{ gallery.targetPath || '尚未建立路徑' }}
-              </p>
+          <div class="min-w-0">
+            <div class="mb-1 flex justify-between gap-2 text-[10px] text-eh-muted">
+              <span class="truncate" :title="item.status">{{
+                item.status || '等待更新'
+              }}</span>
+              <span class="shrink-0 tabular-nums">
+                {{ item.progress }}% · {{ item.imagecount }} 張
+              </span>
             </div>
-            <div>
-              <div class="mb-1 flex justify-between gap-2 text-[10px] text-eh-muted">
-                <span class="truncate">{{ gallery.status }}</span>
-                <span class="shrink-0 tabular-nums">
-                  {{ gallery.progress }}% · {{ gallery.imagecount }} 張
-                </span>
-              </div>
-              <ProgressBar :value="gallery.progress" class="!h-1">
-                <template #default><span></span></template>
-              </ProgressBar>
-            </div>
+            <ProgressBar :value="item.progress" class="!h-1.5">
+              <template #default><span></span></template>
+            </ProgressBar>
+          </div>
+
+          <div class="flex shrink-0 justify-end gap-1">
+            <Button
+              v-tooltip="item.mode === 'running' ? '暫停' : '繼續'"
+              :icon="item.mode === 'running' ? 'pi pi-pause' : 'pi pi-play'"
+              rounded
+              text
+              size="small"
+              :loading="
+                downloadStore.isActionPending(
+                  item.queueItemId,
+                  item.mode === 'running' ? 'pause' : 'start',
+                )
+              "
+              :disabled="
+                disabled ||
+                downloadStore.isActionPending(item.queueItemId) ||
+                ['error', 'completed', 'stopped'].includes(item.mode)
+              "
+              @click="
+                perform(() =>
+                  item.mode === 'running'
+                    ? downloadStore.pauseItem(item.queueItemId)
+                    : downloadStore.startItem(item.queueItemId),
+                )
+              "
+            />
+            <Button
+              v-tooltip="
+                ['error', 'completed', 'stopped'].includes(item.mode) ? '重試' : '停止'
+              "
+              :icon="
+                ['error', 'completed', 'stopped'].includes(item.mode)
+                  ? 'pi pi-refresh'
+                  : 'pi pi-stop'
+              "
+              rounded
+              text
+              size="small"
+              :loading="downloadStore.isActionPending(item.queueItemId)"
+              :disabled="disabled || downloadStore.isActionPending(item.queueItemId)"
+              @click="
+                perform(() =>
+                  ['error', 'completed', 'stopped'].includes(item.mode)
+                    ? downloadStore.restartItem(item.queueItemId)
+                    : downloadStore.stopItem(item.queueItemId),
+                )
+              "
+            />
+            <Button
+              v-tooltip="'移除'"
+              icon="pi pi-trash"
+              severity="danger"
+              rounded
+              text
+              size="small"
+              :loading="downloadStore.isActionPending(item.queueItemId, 'remove')"
+              :disabled="
+                disabled ||
+                downloadStore.isActionPending(item.queueItemId) ||
+                ['running', 'paused'].includes(item.mode)
+              "
+              @click="perform(() => downloadStore.removeItem(item.queueItemId))"
+            />
           </div>
         </div>
       </article>
 
       <div
-        v-if="!loading && !downloadingJobs.length"
+        v-if="!loading && !queueItems.length"
         class="grid min-h-52 place-items-center rounded-md border border-dashed border-eh-border/40 bg-eh-panel/40 px-6 text-center"
       >
         <div>
           <i class="pi pi-download mb-3 text-3xl text-eh-border/60"></i>
-          <p class="font-medium text-eh-text">目前沒有下載工作</p>
-          <p class="mt-1 text-xs text-eh-muted">手動新增 Gallery，或等待排程建立工作。</p>
+          <p class="font-medium text-eh-text">目前沒有下載項目</p>
+          <p class="mt-1 text-xs text-eh-muted">手動新增 Gallery，或等待排程建立項目。</p>
         </div>
       </div>
     </div>

@@ -1,27 +1,24 @@
 import type { BrowserWindow } from 'electron'
 import type {
-  AddToQueuePayload,
-  DownloadGallery,
-  JobState,
+  AddToQueueItemPayload,
+  DownloadQueueItem,
   ManagedGalleryStatus,
 } from '@shared/types/api'
 import { DownloadService } from './download_service'
 import type { WorkspaceRepository } from './workspace_repository'
 
-const MAX_CONCURRENT_JOBS = 3
-const ACTIVE_MODES = new Set<JobState['mode']>(['pending', 'running', 'paused'])
+const MAX_CONCURRENT_ITEMS = 3
+const ACTIVE_MODES = new Set<DownloadQueueItem['mode']>(['pending', 'running', 'paused'])
 
 function unique(values: Array<string | undefined>): string[] {
   return [...new Set(values.filter((value): value is string => Boolean(value)))]
 }
 
-/**
- * The only entry point for downloads. Jobs are persisted in the active
- * workspace and gallery paths are always resolved by WorkspaceRepository.
- */
+/** Coordinates the flat download queue. Every queue item owns exactly one Gallery. */
 export class JobManager {
-  private jobs = new Map<string, JobState>()
+  private queueItems = new Map<string, DownloadQueueItem>()
   private controllers = new Map<string, AbortController>()
+  private activeRuns = new Map<string, Promise<void>>()
   private runningCount = 0
   private downloadService = new DownloadService()
   private workspace: WorkspaceRepository | null = null
@@ -35,20 +32,17 @@ export class JobManager {
 
   setWorkspace(workspace: WorkspaceRepository | null): void {
     this.workspace = workspace
-    this.jobs.clear()
+    this.queueItems.clear()
     if (!workspace) return
-    for (const saved of workspace.loadJobs()) {
-      const job: JobState = {
+    for (const saved of workspace.loadQueueItems()) {
+      const item: DownloadQueueItem = {
         ...saved,
         mode: saved.mode === 'running' ? 'paused' : saved.mode,
-        galleries: saved.galleries.map((gallery) => ({
-          ...gallery,
-          mode: gallery.mode === 'running' ? 'paused' : gallery.mode,
-        })),
+        status: saved.mode === 'running' ? 'Paused' : saved.status,
         sourceScheduleIds: unique([...(saved.sourceScheduleIds ?? []), saved.scheduleId]),
         hasManualSource: saved.hasManualSource ?? saved.origin !== 'schedule',
       }
-      this.jobs.set(job.jobId, job)
+      this.queueItems.set(item.queueItemId, item)
     }
     this.persist()
   }
@@ -59,234 +53,200 @@ export class JobManager {
   }
 
   private persist(): void {
-    if (this.workspace) this.workspace.saveJobs(Array.from(this.jobs.values()))
+    if (this.workspace) {
+      this.workspace.saveQueueItems(Array.from(this.queueItems.values()))
+    }
   }
 
-  private pushUpdate(job: JobState): void {
+  private pushUpdate(item: DownloadQueueItem): void {
     this.persist()
-    this.mainWindow?.webContents.send('download-job-updated', { job })
+    this.mainWindow?.webContents.send('download-queue-item-updated', { item })
   }
 
-  getJobs(): JobState[] {
-    return Array.from(this.jobs.values())
+  getQueueItems(): DownloadQueueItem[] {
+    return Array.from(this.queueItems.values())
   }
 
-  addJob(payload: AddToQueuePayload): JobState | null {
+  addQueueItem(payload: AddToQueueItemPayload): DownloadQueueItem | null {
     this.requireWorkspace()
-    const payloadCollections = unique(payload.targetCollectionIds ?? [])
-    const pending: DownloadGallery[] = []
-    const mergedJobs = new Set<JobState>()
-    const seen = new Set<string>()
+    const gid = String(payload.gallery.gid ?? '').trim()
+    if (!/^\d+$/.test(gid)) return null
 
-    for (const incoming of payload.galleries) {
-      const gid = String(incoming.gid ?? '').trim()
-      if (!/^\d+$/.test(gid) || seen.has(gid)) continue
-      seen.add(gid)
-      const collectionIds = unique([
-        ...(incoming.collectionIds ?? []),
-        ...payloadCollections,
+    const collectionIds = unique([
+      ...(payload.gallery.collectionIds ?? []),
+      ...(payload.targetCollectionIds ?? []),
+    ])
+    const active = this.findActiveItem(gid)
+    if (active) {
+      this.addSource(active, payload)
+      active.collectionIds = unique([...(active.collectionIds ?? []), ...collectionIds])
+      active.targetCollectionIds = unique([
+        ...(active.targetCollectionIds ?? []),
+        ...(payload.targetCollectionIds ?? []),
       ])
-      const active = this.findActiveGallery(gid)
-      if (active) {
-        this.addSource(active.job, payload)
-        active.gallery.collectionIds = unique([
-          ...(active.gallery.collectionIds ?? []),
-          ...collectionIds,
-        ])
-        if (
-          active.job.pausedByScheduleId &&
-          !this.isBlockedBySchedulePauses(active.job)
-        ) {
-          this.releaseSchedulePause(active.job)
-          void this.startJob(active.job.jobId)
-        }
-        const managed = this.workspace?.getGallery(gid)
-        if (managed && collectionIds.length) {
-          this.workspace?.addGalleryToCollections(gid, collectionIds)
-        }
-        mergedJobs.add(active.job)
-        continue
+      if (active.pausedByScheduleId && !this.isBlockedBySchedulePauses(active)) {
+        this.releaseSchedulePause(active)
+        void this.startQueueItem(active.queueItemId)
       }
-      const downloadsPaused = this.isPayloadSchedulePaused(payload)
-      pending.push({
-        ...incoming,
-        gid,
-        targetPath: '',
-        collectionIds,
-        mode: downloadsPaused ? 'paused' : 'pending',
-        progress: incoming.progress ?? 0,
-        status: downloadsPaused
-          ? 'Paused by schedule'
-          : incoming.status || 'Waiting in queue...',
-      })
+      const managed = this.workspace?.getGallery(gid)
+      if (managed && collectionIds.length) {
+        this.workspace?.addGalleryToCollections(gid, collectionIds)
+      }
+      this.pushUpdate(active)
+      return active
     }
 
-    let job = this.jobs.get(payload.jobId)
-    if (job && ACTIVE_MODES.has(job.mode)) {
-      this.addSource(job, payload)
-      job.galleries.push(...pending)
-      job.targetCollectionIds = unique([
-        ...(job.targetCollectionIds ?? []),
-        ...payloadCollections,
-      ])
-      if (pending.length) job.status = `Added ${pending.length} more galleries.`
-      mergedJobs.add(job)
-    } else if (pending.length) {
-      const downloadsPaused = this.isPayloadSchedulePaused(payload)
-      job = {
-        jobId: payload.jobId,
-        title: payload.title,
-        progress: 0,
-        status: downloadsPaused ? 'Paused by schedule' : 'Waiting in queue...',
-        mode: downloadsPaused ? 'paused' : 'pending',
-        galleries: pending,
-        isExpanded: true,
-        isArchive: payload.isArchive ?? false,
-        password: payload.password ?? '',
-        origin: payload.origin ?? 'manual',
-        scheduleId: payload.scheduleId,
-        scheduleRunId: payload.scheduleRunId,
-        targetCollectionIds: payloadCollections,
-        sourceScheduleIds: payload.scheduleId ? [payload.scheduleId] : [],
-        hasManualSource: payload.origin !== 'schedule',
-        pausedByScheduleId: downloadsPaused ? payload.scheduleId : undefined,
-      }
-      this.jobs.set(job.jobId, job)
+    const downloadsPaused = this.isPayloadSchedulePaused(payload)
+    const item: DownloadQueueItem = {
+      ...payload.gallery,
+      gid,
+      queueItemId: payload.queueItemId,
+      targetPath: '',
+      collectionIds,
+      mode: downloadsPaused ? 'paused' : 'pending',
+      progress: payload.gallery.progress ?? 0,
+      status: downloadsPaused
+        ? 'Paused by schedule'
+        : payload.gallery.status || 'Waiting in queue...',
+      isArchive: payload.isArchive ?? payload.gallery.isArchive ?? false,
+      password: payload.password ?? payload.gallery.password ?? '',
+      origin: payload.origin ?? 'manual',
+      scheduleId: payload.scheduleId,
+      scheduleRunId: payload.scheduleRunId,
+      targetCollectionIds: unique(payload.targetCollectionIds ?? []),
+      sourceScheduleIds: payload.scheduleId ? [payload.scheduleId] : [],
+      hasManualSource: payload.origin !== 'schedule',
+      pausedByScheduleId: downloadsPaused ? payload.scheduleId : undefined,
     }
-
-    for (const merged of mergedJobs) this.pushUpdate(merged)
-    if (job && !mergedJobs.has(job)) this.pushUpdate(job)
-    return job ?? mergedJobs.values().next().value ?? null
+    this.queueItems.set(item.queueItemId, item)
+    this.pushUpdate(item)
+    return item
   }
 
-  async startJob(jobId: string): Promise<void> {
+  async startQueueItem(queueItemId: string): Promise<void> {
     this.requireWorkspace()
-    const job = this.jobs.get(jobId)
-    if (!job || job.mode === 'running') return
-    if (!['pending', 'paused', 'stopped'].includes(job.mode)) return
-    if (this.isBlockedBySchedulePauses(job)) return
-    if (this.runningCount >= MAX_CONCURRENT_JOBS) return
-    await this.processJob(job)
+    const activeRun = this.activeRuns.get(queueItemId)
+    if (activeRun) {
+      await activeRun
+      return this.startQueueItem(queueItemId)
+    }
+    const item = this.queueItems.get(queueItemId)
+    if (!item || item.mode === 'running') return
+    if (!['pending', 'paused'].includes(item.mode)) return
+    if (this.isBlockedBySchedulePauses(item)) return
+    if (this.runningCount >= MAX_CONCURRENT_ITEMS) return
+    const run = this.processQueueItem(item)
+    this.activeRuns.set(queueItemId, run)
+    try {
+      await run
+    } finally {
+      if (this.activeRuns.get(queueItemId) === run) {
+        this.activeRuns.delete(queueItemId)
+      }
+    }
   }
 
-  pauseJob(jobId: string): void {
-    const job = this.jobs.get(jobId)
-    if (!job) return
-    this.controllers.get(jobId)?.abort()
-    this.controllers.delete(jobId)
-    job.mode = 'paused'
-    job.status = 'Paused'
-    for (const gallery of job.galleries) {
-      if (gallery.mode !== 'running') continue
-      gallery.mode = 'paused'
-      gallery.status = 'Paused'
-      this.updateManagedStatus(gallery.gid, 'paused', gallery.progress)
-    }
-    this.pushUpdate(job)
+  pauseQueueItem(queueItemId: string): void {
+    const item = this.queueItems.get(queueItemId)
+    if (!item || !['pending', 'running'].includes(item.mode)) return
+    this.controllers.get(queueItemId)?.abort()
+    this.controllers.delete(queueItemId)
+    item.mode = 'paused'
+    item.status = 'Paused'
+    this.updateManagedStatus(item.gid, 'paused', item.progress)
+    this.pushUpdate(item)
   }
 
   pauseScheduleDownloads(scheduleId: string): void {
-    for (const job of this.jobs.values()) {
-      if (!this.getSourceScheduleIds(job).includes(scheduleId)) continue
-      if (!this.isBlockedBySchedulePauses(job)) continue
-      if (!['pending', 'running'].includes(job.mode)) continue
-      job.pausedByScheduleId = scheduleId
-      this.pauseJob(job.jobId)
+    for (const item of this.queueItems.values()) {
+      if (!this.getSourceScheduleIds(item).includes(scheduleId)) continue
+      if (!this.isBlockedBySchedulePauses(item)) continue
+      if (!['pending', 'running'].includes(item.mode)) continue
+      item.pausedByScheduleId = scheduleId
+      this.pauseQueueItem(item.queueItemId)
     }
   }
 
   resumeScheduleDownloads(scheduleId: string): void {
-    const resumable: JobState[] = []
-    for (const job of this.jobs.values()) {
-      const belongsToSchedule = this.getSourceScheduleIds(job).includes(scheduleId)
-      if (!belongsToSchedule) continue
-      if (job.pausedByScheduleId && !this.isBlockedBySchedulePauses(job)) {
-        this.releaseSchedulePause(job)
+    const resumable: DownloadQueueItem[] = []
+    for (const item of this.queueItems.values()) {
+      if (!this.getSourceScheduleIds(item).includes(scheduleId)) continue
+      if (item.pausedByScheduleId && !this.isBlockedBySchedulePauses(item)) {
+        this.releaseSchedulePause(item)
       }
-      if (job.mode === 'pending') resumable.push(job)
+      if (item.mode === 'pending') resumable.push(item)
     }
-    for (const job of resumable) void this.startJob(job.jobId)
+    for (const item of resumable) void this.startQueueItem(item.queueItemId)
   }
 
-  stopJob(jobId: string): void {
-    const job = this.jobs.get(jobId)
-    if (!job) return
-    this.controllers.get(jobId)?.abort()
-    this.controllers.delete(jobId)
-    job.mode = 'stopped'
-    job.status = 'Stopped by user'
-    for (const gallery of job.galleries) {
-      if (gallery.mode === 'completed') continue
-      gallery.mode = 'stopped'
-      gallery.status = 'Stopped'
-      this.updateManagedStatus(gallery.gid, 'stopped', gallery.progress)
-    }
-    this.pushUpdate(job)
+  stopQueueItem(queueItemId: string): void {
+    const item = this.queueItems.get(queueItemId)
+    if (!item || !ACTIVE_MODES.has(item.mode)) return
+    this.controllers.get(queueItemId)?.abort()
+    this.controllers.delete(queueItemId)
+    item.mode = 'stopped'
+    item.status = 'Stopped by user'
+    this.updateManagedStatus(item.gid, 'stopped', item.progress)
+    this.pushUpdate(item)
   }
 
   stopAll(): void {
-    for (const job of this.jobs.values()) {
-      if (!ACTIVE_MODES.has(job.mode)) continue
-      this.stopJob(job.jobId)
+    for (const item of this.queueItems.values()) {
+      if (ACTIVE_MODES.has(item.mode)) this.stopQueueItem(item.queueItemId)
     }
   }
 
-  restartJob(jobId: string): void {
-    const job = this.jobs.get(jobId)
-    if (!job) return
-    if (job.mode === 'running') this.controllers.get(jobId)?.abort()
-    job.progress = 0
-    job.mode = 'pending'
-    job.status = 'Restarting...'
-    for (const gallery of job.galleries) {
-      gallery.progress = 0
-      gallery.mode = 'pending'
-      gallery.status = 'Pending...'
-    }
-    this.pushUpdate(job)
-    void this.startJob(jobId)
+  async restartQueueItem(queueItemId: string): Promise<void> {
+    const item = this.queueItems.get(queueItemId)
+    if (!item) return
+    const activeRun = this.activeRuns.get(queueItemId)
+    if (item.mode === 'running') this.controllers.get(queueItemId)?.abort()
+    item.progress = 0
+    item.mode = 'pending'
+    item.status = 'Restarting...'
+    this.pushUpdate(item)
+    if (activeRun) await activeRun
+    await this.startQueueItem(queueItemId)
   }
 
-  removeJob(jobId: string): void {
-    const job = this.jobs.get(jobId)
-    if (!job || job.mode === 'running') return
-    this.jobs.delete(jobId)
+  removeQueueItem(queueItemId: string): void {
+    const item = this.queueItems.get(queueItemId)
+    if (!item || item.mode === 'running') return
+    this.queueItems.delete(queueItemId)
     this.persist()
   }
 
-  clearFinishedJobs(): void {
-    for (const [jobId, job] of this.jobs.entries()) {
-      if (['completed', 'error', 'stopped'].includes(job.mode)) this.jobs.delete(jobId)
+  clearFinishedQueueItems(): void {
+    for (const [queueItemId, item] of this.queueItems.entries()) {
+      if (['completed', 'error', 'stopped'].includes(item.mode)) {
+        this.queueItems.delete(queueItemId)
+      }
     }
     this.persist()
   }
 
-  private findActiveGallery(
-    gid: string,
-  ): { job: JobState; gallery: DownloadGallery } | null {
-    for (const job of this.jobs.values()) {
-      if (!ACTIVE_MODES.has(job.mode)) continue
-      const gallery = job.galleries.find((candidate) => candidate.gid === gid)
-      if (gallery) return { job, gallery }
+  private findActiveItem(gid: string): DownloadQueueItem | null {
+    for (const item of this.queueItems.values()) {
+      if (ACTIVE_MODES.has(item.mode) && item.gid === gid) return item
     }
     return null
   }
 
-  private getSourceScheduleIds(job: JobState): string[] {
-    return unique([...(job.sourceScheduleIds ?? []), job.scheduleId])
+  private getSourceScheduleIds(item: DownloadQueueItem): string[] {
+    return unique([...(item.sourceScheduleIds ?? []), item.scheduleId])
   }
 
-  private addSource(job: JobState, payload: AddToQueuePayload): void {
-    job.sourceScheduleIds = unique([
-      ...this.getSourceScheduleIds(job),
+  private addSource(item: DownloadQueueItem, payload: AddToQueueItemPayload): void {
+    item.sourceScheduleIds = unique([
+      ...this.getSourceScheduleIds(item),
       payload.scheduleId,
     ])
-    if (payload.origin !== 'schedule') job.hasManualSource = true
+    if (payload.origin !== 'schedule') item.hasManualSource = true
   }
 
-  private isBlockedBySchedulePauses(job: JobState): boolean {
-    if (job.hasManualSource) return false
-    const scheduleIds = this.getSourceScheduleIds(job)
+  private isBlockedBySchedulePauses(item: DownloadQueueItem): boolean {
+    if (item.hasManualSource) return false
+    const scheduleIds = this.getSourceScheduleIds(item)
     return (
       scheduleIds.length > 0 &&
       scheduleIds.every(
@@ -295,120 +255,95 @@ export class JobManager {
     )
   }
 
-  private isPayloadSchedulePaused(payload: AddToQueuePayload): boolean {
+  private isPayloadSchedulePaused(payload: AddToQueueItemPayload): boolean {
     if (payload.origin !== 'schedule' || !payload.scheduleId) return false
     return this.workspace?.getSchedule(payload.scheduleId)?.downloadsPaused ?? false
   }
 
-  private releaseSchedulePause(job: JobState): void {
-    job.pausedByScheduleId = undefined
-    job.mode = 'pending'
-    job.status = 'Waiting in queue...'
-    for (const gallery of job.galleries) {
-      if (gallery.mode !== 'paused') continue
-      gallery.mode = 'pending'
-      gallery.status = 'Pending...'
-    }
-    this.pushUpdate(job)
+  private releaseSchedulePause(item: DownloadQueueItem): void {
+    item.pausedByScheduleId = undefined
+    item.mode = 'pending'
+    item.status = 'Waiting in queue...'
+    this.pushUpdate(item)
   }
 
-  private async processJob(job: JobState): Promise<void> {
+  private async processQueueItem(item: DownloadQueueItem): Promise<void> {
     const workspace = this.requireWorkspace()
     this.runningCount++
-    job.mode = 'running'
+    item.mode = 'running'
+    item.status = 'Downloading...'
     const controller = new AbortController()
-    this.controllers.set(job.jobId, controller)
-    let completedCount = job.galleries.filter(
-      (gallery) => gallery.mode === 'completed',
-    ).length
+    this.controllers.set(item.queueItemId, controller)
 
     try {
-      for (const gallery of job.galleries) {
-        if (controller.signal.aborted) break
-        if (gallery.mode === 'completed') continue
-
-        const targetPath = workspace.resolveGalleryPath(gallery.gid)
-        gallery.targetPath = targetPath
-        gallery.mode = 'running'
-        gallery.status = 'Downloading...'
-        const startedAt = new Date().toISOString()
-        workspace.upsertGallery({
-          gid: gallery.gid,
-          token: gallery.token,
-          title: gallery.title,
-          link: gallery.link,
-          imagecount: gallery.imagecount,
-          status: 'downloading',
-          progress: gallery.progress,
-          startedAt,
-        })
-        const collectionIds = unique(gallery.collectionIds ?? [])
-        if (collectionIds.length)
-          workspace.addGalleryToCollections(gallery.gid, collectionIds)
-        this.pushUpdate(job)
-
-        const result = await this.downloadService.downloadGallery({
-          gallery,
-          targetPath,
-          isArchive: job.isArchive ?? false,
-          password: job.password ?? '',
-          signal: controller.signal,
-          onProgress: (data) => {
-            if (data.progress !== undefined) gallery.progress = data.progress
-            if (data.status) gallery.status = data.status
-            job.progress = this.calculateProgress(job)
-            this.updateManagedStatus(gallery.gid, 'downloading', gallery.progress)
-            this.pushUpdate(job)
-          },
-        })
-
-        if (result.error === 'aborted') break
-        if (result.success) {
-          gallery.mode = 'completed'
-          gallery.progress = 100
-          gallery.status = 'Completed'
-          completedCount++
-          workspace.updateGalleryStatus(gallery.gid, 'completed', {
-            progress: 100,
-            completedAt: new Date().toISOString(),
-          })
-        } else {
-          gallery.mode = 'error'
-          gallery.status = result.error ?? 'Failed'
-          workspace.updateGalleryStatus(gallery.gid, 'error', {
-            progress: gallery.progress,
-            error: result.error ?? 'Download failed',
-          })
-        }
-
-        job.progress = this.calculateProgress(job)
-        job.status = `Progress: ${completedCount}/${job.galleries.length} galleries.`
-        this.pushUpdate(job)
+      item.targetPath = workspace.resolveGalleryPath(item.gid)
+      workspace.upsertGallery({
+        gid: item.gid,
+        token: item.token,
+        title: item.title,
+        link: item.link,
+        imagecount: item.imagecount,
+        status: 'downloading',
+        progress: item.progress,
+        startedAt: new Date().toISOString(),
+      })
+      const collectionIds = unique(item.collectionIds ?? [])
+      if (collectionIds.length) {
+        workspace.addGalleryToCollections(item.gid, collectionIds)
       }
+      this.pushUpdate(item)
+
+      const result = await this.downloadService.downloadGallery({
+        gallery: item,
+        targetPath: item.targetPath,
+        isArchive: item.isArchive,
+        password: item.password ?? '',
+        signal: controller.signal,
+        onProgress: (data) => {
+          if (data.progress !== undefined) item.progress = data.progress
+          if (data.status) item.status = data.status
+          this.updateManagedStatus(item.gid, 'downloading', item.progress)
+          this.pushUpdate(item)
+        },
+      })
+
+      if (result.error === 'aborted') return
+      if (result.success) {
+        item.mode = 'completed'
+        item.progress = 100
+        item.status = item.isArchive ? 'Finished & Archived' : 'Finished'
+        workspace.updateGalleryStatus(item.gid, 'completed', {
+          progress: 100,
+          completedAt: new Date().toISOString(),
+        })
+      } else {
+        item.mode = 'error'
+        item.status = result.error ?? 'Failed'
+        workspace.updateGalleryStatus(item.gid, 'error', {
+          progress: item.progress,
+          error: result.error ?? 'Download failed',
+        })
+      }
+      this.pushUpdate(item)
+    } catch (reason) {
+      if (item.mode !== 'running') return
+      const message = reason instanceof Error ? reason.message : String(reason)
+      item.mode = 'error'
+      item.status = message || 'Download failed'
+      if (workspace.getGallery(item.gid)) {
+        workspace.updateGalleryStatus(item.gid, 'error', {
+          progress: item.progress,
+          error: item.status,
+        })
+      }
+      this.pushUpdate(item)
     } finally {
       this.runningCount--
-      this.controllers.delete(job.jobId)
-
-      if (job.mode === 'running') {
-        if (completedCount === job.galleries.length) {
-          job.mode = 'completed'
-          job.progress = 100
-          job.status = job.isArchive ? 'Finished & Archived' : 'Finished'
-        } else {
-          job.mode = 'error'
-          job.status = `Error: ${completedCount}/${job.galleries.length} galleries completed`
-        }
-        this.pushUpdate(job)
+      if (this.controllers.get(item.queueItemId) === controller) {
+        this.controllers.delete(item.queueItemId)
       }
-
       this.tryStartNext()
     }
-  }
-
-  private calculateProgress(job: JobState): number {
-    if (!job.galleries.length) return 0
-    const total = job.galleries.reduce((sum, gallery) => sum + gallery.progress, 0)
-    return Math.round(total / job.galleries.length)
   }
 
   private updateManagedStatus(
@@ -421,9 +356,11 @@ export class JobManager {
   }
 
   private tryStartNext(): void {
-    for (const job of this.jobs.values()) {
-      if (this.runningCount >= MAX_CONCURRENT_JOBS) return
-      if (job.mode === 'pending') void this.startJob(job.jobId)
+    for (const item of this.queueItems.values()) {
+      if (this.runningCount >= MAX_CONCURRENT_ITEMS) return
+      if (item.mode === 'pending' && !this.activeRuns.has(item.queueItemId)) {
+        void this.startQueueItem(item.queueItemId)
+      }
     }
   }
 }
