@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import Button from 'primevue/button'
+import Menu from 'primevue/menu'
 import ProgressBar from 'primevue/progressbar'
 import Tag from 'primevue/tag'
+import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import { useDownloadStore, type JobState } from '@renderer/stores/download'
 
@@ -13,6 +15,8 @@ const downloadStore = useDownloadStore()
 const { downloadingJobs, activeJobs, finishedJobs, loading, error, pendingActions } =
   storeToRefs(downloadStore)
 const toast = useToast()
+const confirm = useConfirm()
+const actionsMenu = ref()
 
 const globalProgress = computed(() => {
   if (!downloadingJobs.value.length) return 0
@@ -30,6 +34,31 @@ const canStartAll = computed(
 const canPauseAll = computed(
   () => !props.disabled && downloadingJobs.value.some((job) => job.mode === 'running'),
 )
+const canStopAll = computed(() => !props.disabled && activeJobs.value.length > 0)
+
+const globalActionItems = computed(() => [
+  {
+    label: '全部暫停',
+    icon: 'pi pi-pause',
+    disabled: !canPauseAll.value,
+    command: () => perform(downloadStore.pauseAll, '執行中的下載已暫停'),
+  },
+  {
+    label: '全部停止',
+    icon: 'pi pi-stop',
+    class: 'text-red-600',
+    disabled: !canStopAll.value,
+    command: () => confirmStopAll(),
+  },
+  { separator: true },
+  {
+    label: '清除已結束',
+    icon: 'pi pi-trash',
+    class: 'text-red-600',
+    disabled: props.disabled || !finishedJobs.value.length,
+    command: () => perform(downloadStore.clearFinishedJobs, '已清除完成、停止與錯誤工作'),
+  },
+])
 
 function statusLabel(mode: JobState['mode']) {
   return {
@@ -69,6 +98,22 @@ async function perform(action: () => Promise<unknown>, success?: string) {
     })
   }
 }
+
+function toggleGlobalActions(event: Event) {
+  actionsMenu.value?.toggle(event)
+}
+
+function confirmStopAll() {
+  confirm.require({
+    header: '停止全部下載？',
+    message:
+      '所有等待中、下載中與已暫停的工作都會停止。未完成的工作會保留，可稍後逐筆重試。',
+    rejectLabel: '取消',
+    acceptLabel: '全部停止',
+    acceptProps: { severity: 'danger' },
+    accept: () => perform(downloadStore.stopAll, '所有未完成下載已停止'),
+  })
+}
 </script>
 
 <template>
@@ -91,7 +136,7 @@ async function perform(action: () => Promise<unknown>, success?: string) {
         </div>
       </div>
 
-      <div class="flex flex-wrap gap-2 sm:justify-end">
+      <div class="flex flex-wrap items-center gap-2 sm:justify-end">
         <Button
           label="全部開始"
           icon="pi pi-play"
@@ -101,24 +146,15 @@ async function perform(action: () => Promise<unknown>, success?: string) {
           @click="perform(downloadStore.startAll, '已啟動可繼續的下載工作')"
         />
         <Button
-          label="全部暫停"
-          icon="pi pi-pause"
-          severity="secondary"
-          size="small"
-          outlined
-          :disabled="!canPauseAll"
-          @click="perform(downloadStore.pauseAll, '執行中的下載已暫停')"
-        />
-        <Button
-          label="清除已結束"
-          icon="pi pi-trash"
-          severity="danger"
+          v-tooltip="'更多全域操作'"
+          icon="pi pi-ellipsis-h"
+          aria-label="更多全域操作"
           size="small"
           text
-          :disabled="disabled || !finishedJobs.length"
-          :loading="Boolean(pendingActions['global:clear'])"
-          @click="perform(downloadStore.clearFinishedJobs, '已清除完成、停止與錯誤工作')"
+          :disabled="disabled"
+          @click="toggleGlobalActions"
         />
+        <Menu ref="actionsMenu" :model="globalActionItems" popup />
       </div>
     </div>
 

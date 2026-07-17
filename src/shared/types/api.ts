@@ -433,6 +433,7 @@ export interface SidecarAPI {
   startJob: (jobId: string) => Promise<void>
   pauseJob: (jobId: string) => Promise<void>
   stopJob: (jobId: string) => Promise<void>
+  stopAllJobs: () => Promise<void>
   restartJob: (jobId: string) => Promise<void>
   removeJob: (jobId: string) => Promise<void>
   clearFinishedJobs: () => Promise<void>

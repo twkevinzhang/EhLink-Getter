@@ -673,6 +673,10 @@ ipcMain.handle('stop-job', async (_, jobId: string) => {
   jobManager.stopJob(jobId)
 })
 
+ipcMain.handle('stop-all-jobs', async () => {
+  jobManager.stopAll()
+})
+
 ipcMain.handle('restart-job', async (_, jobId: string) => {
   jobManager.restartJob(jobId)
 })

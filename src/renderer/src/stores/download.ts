@@ -117,6 +117,10 @@ export const useDownloadStore = defineStore('download', () => {
     if (failed) throw failed.reason
   }
 
+  function stopAll() {
+    return runAction('global:stop', () => window.api.stopAllJobs())
+  }
+
   async function manualDownloadBatch(payload: ManualDownloadPayload) {
     pendingActions.value['global:manual'] = true
     error.value = ''
@@ -149,6 +153,7 @@ export const useDownloadStore = defineStore('download', () => {
     clearFinishedJobs,
     startAll,
     pauseAll,
+    stopAll,
     manualDownloadBatch,
   }
 })

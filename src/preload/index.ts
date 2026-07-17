@@ -51,6 +51,7 @@ const api: SidecarAPI = {
   startJob: (jobId: string) => ipcRenderer.invoke('start-job', jobId),
   pauseJob: (jobId: string) => ipcRenderer.invoke('pause-job', jobId),
   stopJob: (jobId: string) => ipcRenderer.invoke('stop-job', jobId),
+  stopAllJobs: () => ipcRenderer.invoke('stop-all-jobs'),
   restartJob: (jobId: string) => ipcRenderer.invoke('restart-job', jobId),
   removeJob: (jobId: string) => ipcRenderer.invoke('remove-job', jobId),
   clearFinishedJobs: () => ipcRenderer.invoke('clear-finished-jobs'),

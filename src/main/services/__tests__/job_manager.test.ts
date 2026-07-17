@@ -304,6 +304,41 @@ describe('JobManager', () => {
     expect(job.pausedByScheduleId).toBeUndefined()
   })
 
+  it('stops every pending, running, and paused job without restarting jobs after abort', async () => {
+    const workspace = createWorkspace()
+    const manager = new JobManager(null, workspace as any)
+    const runningJob = manager.addJob(payload('123'))!
+    const pendingJob = manager.addJob(payload('456'))!
+    const pausedJob = manager.addJob(payload('789'))!
+    let wasAborted = false
+    ;(manager as any).downloadService = {
+      downloadGallery: vi.fn(
+        ({ signal }: { signal: AbortSignal }) =>
+          new Promise((resolve) => {
+            signal.addEventListener('abort', () => {
+              wasAborted = true
+              resolve({ success: false, error: 'aborted' })
+            })
+          }),
+      ),
+    }
+
+    const running = manager.startJob(runningJob.jobId)
+    await vi.waitFor(() => expect(runningJob.mode).toBe('running'))
+    manager.pauseJob(pausedJob.jobId)
+    manager.stopAll()
+    await running
+
+    expect(wasAborted).toBe(true)
+    for (const job of [runningJob, pendingJob, pausedJob]) {
+      expect(job).toMatchObject({ mode: 'stopped', status: 'Stopped by user' })
+      expect(job.galleries).toEqual(
+        expect.arrayContaining([expect.objectContaining({ mode: 'stopped' })]),
+      )
+    }
+    expect((manager as any).downloadService.downloadGallery).toHaveBeenCalledOnce()
+  })
+
   it('resumes more jobs than the concurrency limit as slots become available', async () => {
     const workspace = createWorkspace(true)
     const manager = new JobManager(null, workspace as any)

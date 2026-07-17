@@ -224,6 +224,13 @@ export class JobManager {
     this.pushUpdate(job)
   }
 
+  stopAll(): void {
+    for (const job of this.jobs.values()) {
+      if (!ACTIVE_MODES.has(job.mode)) continue
+      this.stopJob(job.jobId)
+    }
+  }
+
   restartJob(jobId: string): void {
     const job = this.jobs.get(jobId)
     if (!job) return
