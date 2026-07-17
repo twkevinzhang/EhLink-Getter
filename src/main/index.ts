@@ -172,8 +172,10 @@ function createWindow(): void {
 
   // Create the browser window.
   mainWindow = new BrowserWindow({
-    width: 1000,
-    height: 700,
+    width: 1200,
+    height: 800,
+    minWidth: 640,
+    minHeight: 600,
     show: false,
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon: iconPath } : {}),
