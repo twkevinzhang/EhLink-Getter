@@ -102,7 +102,8 @@ const formatPosted = (ts: string | number | undefined) => {
     <div class="download-section flex flex-col gap-2">
       <Button
         type="button"
-        icon="pi pi-download"
+        :icon="libraryStore.isLibraryDownloaded ? 'pi pi-check' : 'pi pi-download'"
+        :severity="libraryStore.isLibraryDownloaded ? 'success' : undefined"
         :disabled="libraryStore.isLibraryDownloaded || libraryStore.downloading"
         :loading="libraryStore.downloading"
         class="w-full !h-12 !font-bold"
