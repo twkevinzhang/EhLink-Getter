@@ -1,7 +1,7 @@
-import axios from 'axios'
 import * as fs from 'fs'
-import { join, dirname } from 'path'
+import { basename, dirname, extname, join } from 'path'
 import archiver from 'archiver'
+import { TypeScriptEhentaiService, type EhentaiGateway } from './ehentai'
 
 export interface DownloadOptions {
   gallery: any
@@ -17,8 +17,69 @@ export interface DownloadOptions {
   }) => void
 }
 
+function detectImageExtension(data: Buffer): string | undefined {
+  if (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff)
+    return 'jpg'
+  if (
+    data.length >= 8 &&
+    data
+      .subarray(0, 8)
+      .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  )
+    return 'png'
+  if (data.length >= 6 && /^GIF8[79]a$/.test(data.subarray(0, 6).toString('ascii')))
+    return 'gif'
+  if (
+    data.length >= 12 &&
+    data.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    data.subarray(8, 12).toString('ascii') === 'WEBP'
+  )
+    return 'webp'
+  if (data.length >= 2 && data.subarray(0, 2).toString('ascii') === 'BM') return 'bmp'
+  if (
+    data.length >= 12 &&
+    data.subarray(4, 8).toString('ascii') === 'ftyp' &&
+    ['avif', 'avis'].includes(data.subarray(8, 12).toString('ascii'))
+  )
+    return 'avif'
+  return undefined
+}
+
+function imageFileName(
+  originalUrl: string,
+  resolvedUrl: string,
+  index: number,
+  data: Buffer,
+  contentType: string,
+): string {
+  const mime = contentType.split(';', 1)[0].trim().toLowerCase()
+  if (mime && !mime.startsWith('image/') && mime !== 'application/octet-stream') {
+    throw new Error(`Downloaded response is not an image (${mime})`)
+  }
+  const extension = detectImageExtension(data)
+  if (!extension) throw new Error('Downloaded response is not a supported image')
+
+  let rawName = ''
+  for (const candidate of [originalUrl, resolvedUrl]) {
+    try {
+      rawName = decodeURIComponent(basename(new URL(candidate).pathname))
+      if (rawName) break
+    } catch {
+      // Fall through to a stable page number.
+    }
+  }
+  const existingExtension = extname(rawName)
+  const stem = (
+    existingExtension ? rawName.slice(0, -existingExtension.length) : rawName
+  ).trim()
+  const safeStem = (stem || String(index + 1))
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')
+    .replace(/[. ]+$/g, '')
+  return `${safeStem || index + 1}.${extension}`
+}
+
 export class DownloadService {
-  private SIDECAR_URL = `http://127.0.0.1:${process.env.SIDECAR_PORT || '8000'}`
+  constructor(private gateway: EhentaiGateway = new TypeScriptEhentaiService()) {}
 
   async downloadGallery(
     options: DownloadOptions,
@@ -34,12 +95,8 @@ export class DownloadService {
 
       if (!meta.image_links || meta.image_links.length === 0) {
         onProgress({ status: 'Fetching image list...' })
-        const linksResp = await axios.get(`${this.SIDECAR_URL}/gallery/image-links`, {
-          params: { url },
-          timeout: 5 * 60 * 1000,
-          signal,
-        })
-        meta.image_links = linksResp.data?.image_links ?? []
+        const links = await this.gateway.fetchImageLinks(url, signal)
+        meta.image_links = links.image_links ?? []
       }
 
       const libraryPath = join(targetPath, 'library.json')
@@ -76,13 +133,15 @@ export class DownloadService {
           continue
         }
         try {
-          const response = await axios.get(`${this.SIDECAR_URL}/image/fetch`, {
-            params: { url: imgUrl },
-            responseType: 'arraybuffer',
-            signal,
-          })
-          const fileName = `${imgUrl.split('/').pop()}.jpg`
-          fs.writeFileSync(join(targetPath, fileName), Buffer.from(response.data))
+          const response = await this.gateway.fetchImage(imgUrl, signal)
+          const fileName = imageFileName(
+            imgUrl,
+            response.resolvedUrl,
+            i,
+            response.data,
+            response.contentType,
+          )
+          fs.writeFileSync(join(targetPath, fileName), response.data)
           downloadedSet.add(imgUrl)
           downloadedCount++
           // 每張成功後寫回 downloaded_urls
@@ -99,7 +158,7 @@ export class DownloadService {
             progress: Math.round((downloadedCount / totalImages) * 100),
           })
         } catch (e: any) {
-          if (axios.isCancel(e)) throw e
+          if (signal.aborted || e?.name === 'AbortError') throw e
           onProgress({ status: `Image skipped: ${e.message}`, level: 'warn' })
         }
       }
@@ -123,7 +182,7 @@ export class DownloadService {
       onProgress({ status: 'Completed', progress: 100 })
       return { success: true, path: finalPath }
     } catch (error: any) {
-      if (axios.isCancel(error)) {
+      if (signal.aborted || error?.name === 'AbortError') {
         return { success: false, error: 'aborted' }
       }
       console.error('[DownloadService] Error:', error)

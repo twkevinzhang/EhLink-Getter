@@ -9,7 +9,7 @@ const store = useLogStore()
     <!-- Header Area -->
     <div class="mb-4">
       <h1 class="text-2xl font-bold text-eh-text m-0">System Logs</h1>
-      <p class="text-eh-muted mt-1 text-sm">Real-time sidecar output</p>
+      <p class="text-eh-muted mt-1 text-sm">Real-time application and service output</p>
     </div>
 
     <!-- Console Terminal -->

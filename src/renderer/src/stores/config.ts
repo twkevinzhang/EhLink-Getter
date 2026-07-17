@@ -6,20 +6,20 @@ import type { AppConfig } from '@shared/types/api'
 
 export const useConfigStore = defineStore('config', () => {
   const config = ref<AppConfig>({ ...DEFAULT_CONFIG })
-  const sidecarOnline = ref(false)
+  const engineReady = ref(false)
   const loading = ref(false)
   const error = ref('')
 
-  async function checkSidecarHealth() {
-    if (window.api?.checkSidecarHealth) {
-      const response = await window.api.checkSidecarHealth()
-      sidecarOnline.value = response.success
+  async function checkEngineHealth() {
+    if (window.api?.checkEngineHealth) {
+      const response = await window.api.checkEngineHealth()
+      engineReady.value = response.success
     } else {
-      sidecarOnline.value = false
+      engineReady.value = false
     }
   }
 
-  useIntervalFn(checkSidecarHealth, 5000, { immediate: true })
+  useIntervalFn(checkEngineHealth, 5000, { immediate: true })
 
   async function load() {
     loading.value = true
@@ -50,7 +50,7 @@ export const useConfigStore = defineStore('config', () => {
 
   return {
     config,
-    sidecarOnline,
+    engineReady,
     loading,
     error,
     load,

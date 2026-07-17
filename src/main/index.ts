@@ -3,7 +3,6 @@ import { join } from 'path'
 import * as fs from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { spawn, type ChildProcess } from 'child_process'
-import axios from 'axios'
 import { Worker } from 'worker_threads'
 import path from 'path'
 // @ts-ignore
@@ -14,6 +13,12 @@ import { File as MegaFile } from 'megajs'
 import { SchedulerService } from '@main/services/scheduler_service'
 import { ScheduleRunnerService } from '@main/services/schedule_runner_service'
 import { JobManager } from '@main/services/job_manager'
+import { DownloadService } from '@main/services/download_service'
+import {
+  GoSidecarGateway,
+  TypeScriptEhentaiService,
+  type EhentaiGateway,
+} from '@main/services/ehentai'
 import { WorkspaceRepository } from '@main/services/workspace_repository'
 import Store from 'electron-store'
 import { LibrarySqliteService } from '@main/services/library_sqlite_service'
@@ -33,7 +38,7 @@ import {
   type ManualDownloadResult,
   type GetConfigResponse,
   type SaveConfigResponse,
-  type CheckSidecarHealthResponse,
+  type CheckEngineHealthResponse,
   type LoginEHentaiResponse,
   type DownloadLibraryResponse,
   type CheckLibraryExistsResponse,
@@ -59,6 +64,7 @@ const store = new Store<any>()
 
 let mainWindow: BrowserWindow
 let sidecarProcess: ChildProcess | null = null
+let ehentaiGateway: EhentaiGateway
 let jobManager: JobManager
 let schedulerService: SchedulerService
 let scheduleRunnerService: ScheduleRunnerService
@@ -82,6 +88,8 @@ const SIDECAR_PORT =
     ? requestedSidecarPort
     : 8000
 const SIDECAR_URL = `http://127.0.0.1:${SIDECAR_PORT}`
+const SCRAPER_BACKEND =
+  process.env.EH_SCRAPER_BACKEND?.toLowerCase() === 'go' ? 'go' : 'typescript'
 
 const isQuitting = false
 
@@ -135,11 +143,11 @@ function startSidecar() {
       try {
         const json = JSON.parse(trimmedLine)
         if (json.type === 'log') {
-          mainWindow?.webContents.send('python-log', json)
+          mainWindow?.webContents.send('app-log', json)
         }
       } catch {
         // Not JSON, just regular log
-        mainWindow?.webContents.send('python-log', {
+        mainWindow?.webContents.send('app-log', {
           level: 'info',
           message: trimmedLine,
         })
@@ -152,7 +160,7 @@ function startSidecar() {
     if (!message) return
 
     console.error(`Sidecar error: ${message}`)
-    mainWindow?.webContents.send('python-log', {
+    mainWindow?.webContents.send('app-log', {
       level: 'error',
       message: message,
     })
@@ -223,16 +231,18 @@ function currentConfig(): AppConfig {
   }
 }
 
-async function syncConfigToSidecar(config: AppConfig, retries = 5): Promise<void> {
-  try {
-    await axios.post(`${SIDECAR_URL}/config`, config)
-  } catch {
+async function syncConfigToEngine(config: AppConfig): Promise<void> {
+  await ehentaiGateway.updateConfig(config)
+}
+
+function syncConfigToEngineWithRetry(config: AppConfig, retries = 5): void {
+  void syncConfigToEngine(config).catch((error) => {
     if (retries > 0) {
-      setTimeout(() => void syncConfigToSidecar(config, retries - 1), 2000)
-    } else {
-      console.error('Failed to sync config to sidecar after retries')
+      setTimeout(() => syncConfigToEngineWithRetry(config, retries - 1), 2000)
+      return
     }
-  }
+    console.error('Failed to sync config to E-Hentai engine after retries', error)
+  })
 }
 
 function notifyWorkspaceUpdated(): void {
@@ -267,7 +277,7 @@ function activateWorkspace(folderPath: string): WorkspaceResponse {
     store.set(WORKSPACE_PATH_STORE_KEY, workspaceRepository.root)
     jobManager?.setWorkspace(workspaceRepository)
     startScheduleScheduler(true)
-    void syncConfigToSidecar(currentConfig())
+    syncConfigToEngineWithRetry(currentConfig())
     notifyWorkspaceUpdated()
     return { success: true, state: workspaceRepository.getState() }
   } catch (error) {
@@ -300,15 +310,24 @@ app.whenReady().then(() => {
     })
   }
 
-  startSidecar()
+  if (SCRAPER_BACKEND === 'go') startSidecar()
+  ehentaiGateway =
+    SCRAPER_BACKEND === 'go'
+      ? new GoSidecarGateway(SIDECAR_URL)
+      : new TypeScriptEhentaiService()
   createWindow()
 
   jobManager = new JobManager(
     mainWindow,
     workspaceRepository.root ? workspaceRepository : undefined,
+    new DownloadService(ehentaiGateway),
   )
   schedulerService = new SchedulerService()
-  scheduleRunnerService = new ScheduleRunnerService(workspaceRepository, jobManager)
+  scheduleRunnerService = new ScheduleRunnerService(
+    workspaceRepository,
+    jobManager,
+    () => ehentaiGateway,
+  )
   scheduleRunnerService.setOnProgress((run) => {
     mainWindow?.webContents.send('schedule-run-progress', run)
   })
@@ -317,10 +336,10 @@ app.whenReady().then(() => {
   // Settings saved before a workspace is selected still live in electron-store.
   store.onDidChange(CONFIG_STORE_KEY, (newValue) => {
     if (!workspaceRepository.root && newValue) {
-      void syncConfigToSidecar(newValue as AppConfig)
+      syncConfigToEngineWithRetry(newValue as AppConfig)
     }
   })
-  void syncConfigToSidecar(currentConfig())
+  syncConfigToEngineWithRetry(currentConfig())
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
@@ -360,9 +379,9 @@ ipcMain.handle(
   'save-config',
   async (_, config: AppConfig): Promise<SaveConfigResponse> => {
     try {
+      await syncConfigToEngine(config)
       if (workspaceRepository.root) workspaceRepository.saveSettings(config)
       else store.set(CONFIG_STORE_KEY, config)
-      await syncConfigToSidecar(config)
       return { success: true }
     } catch (error: any) {
       return { success: false, error: error.message }
@@ -370,12 +389,10 @@ ipcMain.handle(
   },
 )
 
-ipcMain.handle('check-sidecar-health', async (): Promise<CheckSidecarHealthResponse> => {
+ipcMain.handle('check-engine-health', async (): Promise<CheckEngineHealthResponse> => {
   try {
-    const response = await axios.get(`${SIDECAR_URL}/health`, {
-      timeout: 2000,
-    })
-    return { success: response.data.status === 'ok' }
+    const response = await ehentaiGateway.checkHealth()
+    return { success: response.status === 'ok' }
   } catch {
     return { success: false }
   }
@@ -610,10 +627,7 @@ ipcMain.handle(
       }
 
       try {
-        const response = await axios.get(`${SIDECAR_URL}/gallery/metadata`, {
-          params: { url: rawUrl },
-        })
-        const metadata = response.data
+        const metadata = await ehentaiGateway.fetchGalleryMetadata(rawUrl)
         const metadataGid = String(metadata.gid)
         const metadataToken = String(metadata.token ?? '')
         if (metadataGid !== gid || !metadataToken)
@@ -719,8 +733,8 @@ ipcMain.handle(
   'save-workspace-settings',
   async (_, settings: WorkspaceSettings): Promise<WorkspaceSettingsResponse> => {
     try {
+      await syncConfigToEngine(settings)
       const saved = workspaceRepository.saveSettings(settings)
-      await syncConfigToSidecar(saved)
       notifyWorkspaceUpdated()
       return { success: true, settings: saved }
     } catch (error) {

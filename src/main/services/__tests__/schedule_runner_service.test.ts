@@ -142,4 +142,44 @@ describe('ScheduleRunnerService', () => {
     expect(workspace.addGalleryToCollections).not.toHaveBeenCalled()
     expect(jobManager.addQueueItem).not.toHaveBeenCalled()
   })
+
+  it('aborts the in-flight engine request when a schedule is cancelled', async () => {
+    const workspace = createWorkspace()
+    const jobManager = {
+      getQueueItems: vi.fn(() => []),
+      addQueueItem: vi.fn(),
+      startQueueItem: vi.fn(),
+    }
+    let requestSignal: AbortSignal | undefined
+    const api = {
+      fetchPage: vi.fn(
+        (_url: string, _next?: string, signal?: AbortSignal) =>
+          new Promise<never>((_resolve, reject) => {
+            requestSignal = signal
+            signal?.addEventListener(
+              'abort',
+              () => reject(new DOMException('Aborted', 'AbortError')),
+              { once: true },
+            )
+          }),
+      ),
+    }
+    const runner = new ScheduleRunnerService(
+      workspace as any,
+      jobManager as any,
+      () => api,
+    )
+
+    const running = runner.run(schedule.scheduleId, 'manual')
+    await vi.waitFor(() => expect(api.fetchPage).toHaveBeenCalledOnce())
+    await runner.cancel(schedule.scheduleId)
+
+    await expect(running).resolves.toMatchObject({ status: 'cancelled' })
+    expect(requestSignal?.aborted).toBe(true)
+    expect(workspace.markScheduleRun).toHaveBeenCalledWith(
+      schedule.scheduleId,
+      'cancelled',
+      '排程執行已取消',
+    )
+  })
 })

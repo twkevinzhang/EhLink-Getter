@@ -1,8 +1,6 @@
 import { randomUUID } from 'crypto'
-import axios from 'axios'
 import type {
   DownloadGallery,
-  FetchPageResponse,
   FetchedItem,
   Schedule,
   ScheduleRun,
@@ -12,8 +10,16 @@ import type {
 import type { JobManager } from './job_manager'
 import type { WorkspaceRepository } from './workspace_repository'
 
+interface SchedulePageItem extends Omit<FetchedItem, 'gid'> {
+  gid: string | number
+}
+
 interface ScheduleApi {
-  fetchPage(url: string, next?: string): Promise<FetchPageResponse>
+  fetchPage(
+    url: string,
+    next?: string,
+    signal?: AbortSignal,
+  ): Promise<{ items: SchedulePageItem[]; next?: string; error?: string }>
 }
 
 type ScheduleApiFactory = () => ScheduleApi
@@ -22,6 +28,7 @@ type ProgressCallback = (run: ScheduleRun) => void
 interface ActiveScheduleRun {
   run: ScheduleRun
   cancelled: boolean
+  abortController: AbortController
   promise: Promise<ScheduleRun>
 }
 
@@ -35,18 +42,6 @@ function cloneRun(run: ScheduleRun): ScheduleRun {
   }
 }
 
-function createSidecarApi(): ScheduleApi {
-  const sidecarUrl = `http://127.0.0.1:${process.env.SIDECAR_PORT || '8000'}`
-  return {
-    async fetchPage(url, next) {
-      const response = await axios.get(`${sidecarUrl}/tasks/fetch`, {
-        params: { url, next },
-      })
-      return response.data as FetchPageResponse
-    },
-  }
-}
-
 export class ScheduleRunnerService {
   private activeRuns = new Map<string, ActiveScheduleRun>()
   private onProgress?: ProgressCallback
@@ -54,7 +49,9 @@ export class ScheduleRunnerService {
   constructor(
     private workspace: WorkspaceRepository,
     private jobManager: JobManager,
-    private apiFactory: ScheduleApiFactory = createSidecarApi,
+    private apiFactory: ScheduleApiFactory = () => {
+      throw new Error('E-Hentai engine is not configured')
+    },
   ) {}
 
   setOnProgress(callback: ProgressCallback): void {
@@ -102,6 +99,7 @@ export class ScheduleRunnerService {
     const activeRun: ActiveScheduleRun = {
       run,
       cancelled: false,
+      abortController: new AbortController(),
       promise: Promise.resolve(run),
     }
     activeRun.promise = this.execute(activeRun, schedule).finally(() => {
@@ -118,6 +116,7 @@ export class ScheduleRunnerService {
     const active = this.activeRuns.get(scheduleId)
     if (!active) return
     active.cancelled = true
+    active.abortController.abort()
     await active.promise.catch(() => undefined)
   }
 
@@ -150,7 +149,11 @@ export class ScheduleRunnerService {
         run.totalPages = run.snapshot.pageLimit
         this.emit(run)
 
-        const result = await api.fetchPage(run.snapshot.monitorUrl, next)
+        const result = await api.fetchPage(
+          run.snapshot.monitorUrl,
+          next,
+          active.abortController.signal,
+        )
         if (result.error) throw new Error(result.error)
 
         for (const rawItem of result.items ?? []) {
@@ -220,7 +223,7 @@ export class ScheduleRunnerService {
       this.emit(run)
       return cloneRun(run)
     } catch (reason) {
-      const cancelled = reason instanceof Error && reason.message === 'SCHEDULE_CANCELLED'
+      const cancelled = active.cancelled
       run.status = cancelled ? 'cancelled' : 'error'
       run.error = cancelled
         ? undefined
@@ -240,7 +243,7 @@ export class ScheduleRunnerService {
     }
   }
 
-  private normalizeItem(item: FetchedItem): FetchedItem | null {
+  private normalizeItem(item: SchedulePageItem): FetchedItem | null {
     const gid = String(item.gid ?? '').trim()
     const token = String(item.token ?? '').trim()
     if (!/^\d+$/.test(gid) || !token || !item.link) return null

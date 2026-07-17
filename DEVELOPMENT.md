@@ -4,25 +4,25 @@ This document covers the technical architecture, development setup, and build pr
 
 ## Architecture
 
-EhLink-Getter follows a **hybrid architecture** combining the strengths of Electron, Node.js, and Go:
+EhLink-Getter is migrating to a **TypeScript-first Electron architecture**:
 
-- **Frontend (Renderer)**: Built with **Vue 3**, **TypeScript**, and **Element Plus**. It provides a modern, responsive UI with glassmorphism aesthetics.
-- **Main Process**: Handles Electron app lifecycle, IPC communication, and high-performance file operations (like metadata searching using Node.js streams).
-- **Go Sidecar**: A dedicated scraping service built with **Go (Gin framework)**. It handles external web requests, HTML parsing (via goquery), and proxy management. Communication between Main and Sidecar happens over local HTTP and structured JSON via stdout.
+- **Frontend (Renderer)**: Built with **Vue 3**, **TypeScript**, and **PrimeVue**.
+- **Main Process**: Handles Electron app lifecycle, IPC communication, E-Hentai scraping, downloads, and high-performance file operations such as metadata searching with Node.js streams.
+- **Temporary Go Fallback**: The previous Gin/goquery sidecar remains packaged for one transition release. It is not the default backend and will be removed after cross-platform validation.
 
 ## Tech Stack
 
-- **Frontend**: Vue 3 (Composition API), Pinia, Element Plus, Vite, Tailwind CSS
-- **Main Process**: Electron, Node.js (Fs streams, readline for big JSON processing)
-- **Sidecar**: Go 1.25+, Gin, Goquery, Resty
+- **Frontend**: Vue 3 (Composition API), Pinia, PrimeVue, Vite, Tailwind CSS
+- **Main Process**: Electron, Node.js, TypeScript, Cheerio, Axios
+- **Temporary Fallback**: Go, Gin, Goquery, Resty
 
 ## Getting Started
 
 ### Prerequisites
 
-- **Node.js**: v18 or later
-- **Go**: v1.25 or later (managed via `asdf` recommended, see `.tool-versions`)
+- **Node.js**: v20 or later
 - **pnpm**: Recommended package manager
+- **Go**: v1.25 or later, required only while building or testing the temporary fallback sidecar
 
 ### Installation
 
@@ -39,7 +39,7 @@ EhLink-Getter follows a **hybrid architecture** combining the strengths of Elect
    pnpm install
    ```
 
-3. Setup and build the Go sidecar:
+3. Optional: build the temporary Go fallback if you need to test it:
    ```bash
    cd sidecar
    make install
@@ -49,36 +49,59 @@ EhLink-Getter follows a **hybrid architecture** combining the strengths of Elect
 
 ## Development
 
-To start the application in development mode with Hot Module Replacement (HMR) for the renderer and automatic sidecar spawning:
+To start the application in development mode with Hot Module Replacement (HMR), using the default TypeScript scraper:
 
 ```bash
 pnpm run dev
 ```
 
+To diagnose a regression against the temporary Go fallback:
+
+```bash
+EH_SCRAPER_BACKEND=go pnpm run dev
+```
+
+Supported values are `ts` (default) and `go`. The fallback still uses a local sidecar process and port; the TypeScript backend runs directly in Electron main.
+
 ## Building & Packaging
 
-### 1. Build the Go Sidecar
+### 1. Verify the TypeScript application
 
-Ensure the sidecar binary is compiled for your target platform:
+```bash
+pnpm test
+pnpm run typecheck
+pnpm exec electron-vite build
+```
+
+### 2. Build the temporary Go fallback
+
+The transition release still packages the fallback, so release builds must compile it for the target platform:
 
 ```bash
 pnpm run build:sidecar
 ```
 
-### 2. Package the Electron Application
+### 3. Package the Electron Application
 
 Use electron-builder to create a distributable package:
 
 ```bash
-pnpm run build:win  # For Windows
-pnpm run build:mac  # For macOS
+pnpm exec electron-builder --win --publish never  # Windows
+pnpm exec electron-builder --mac --publish never  # macOS
 ```
+
+The Windows target is a portable `.exe`, not an NSIS installer.
+
+## Post-transition cleanup
+
+After one stable release with TypeScript as the default backend:
+
+1. Remove `EH_SCRAPER_BACKEND=go` and the sidecar lifecycle code.
+2. Delete `sidecar/`, `build:sidecar`, and Go-specific setup documentation.
+3. Remove `setup-go`, the sidecar build step, and sidecar cache settings from release CI.
+4. Remove the sidecar entry from `electron-builder.json5` (`asarUnpack` and `extraResources`).
+5. Verify packaged macOS and Windows builds before declaring the migration complete.
 
 ## Documentation
 
-- [User Manual (正體中文)](./USER_MANUAL.zh-TW.md): Functional guide for end-users.
 - [CLAUDE.md](./CLAUDE.md): Internal developer guidelines and technical deep-dives.
-
-## Legacy Code
-
-The original Python-only implementation has been moved to `legacy_python/` for reference and comparative testing.

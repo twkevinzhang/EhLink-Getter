@@ -20,13 +20,15 @@ export class JobManager {
   private controllers = new Map<string, AbortController>()
   private activeRuns = new Map<string, Promise<void>>()
   private runningCount = 0
-  private downloadService = new DownloadService()
+  private downloadService: DownloadService
   private workspace: WorkspaceRepository | null = null
 
   constructor(
     private mainWindow: BrowserWindow | null,
     workspace?: WorkspaceRepository,
+    downloadService = new DownloadService(),
   ) {
+    this.downloadService = downloadService
     if (workspace) this.setWorkspace(workspace)
   }
 

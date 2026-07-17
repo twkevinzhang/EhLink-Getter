@@ -1,11 +1,11 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { exposeElectronAPI } from '@electron-toolkit/preload'
 import {
-  type SidecarAPI,
+  type AppAPI,
   type AppConfig,
   type SearchLibraryPayload,
   type ArchiveProgressEvent,
-  type SidecarLogEvent,
+  type AppLogEvent,
   type AddToQueueItemPayload,
   type ManualDownloadPayload,
   type ManualDownloadResult,
@@ -23,11 +23,11 @@ import {
   type ScheduleRun,
 } from '@shared/types/api'
 
-const api: SidecarAPI = {
+const api: AppAPI = {
   // config module
   getConfig: () => ipcRenderer.invoke('get-config'),
   saveConfig: (config: AppConfig) => ipcRenderer.invoke('save-config', config),
-  checkSidecarHealth: () => ipcRenderer.invoke('check-sidecar-health'),
+  checkEngineHealth: () => ipcRenderer.invoke('check-engine-health'),
   loginEHentai: () => ipcRenderer.invoke('login-ehentai'),
 
   // library module
@@ -40,8 +40,8 @@ const api: SidecarAPI = {
   openFolder: (path?: string) => ipcRenderer.invoke('open-folder', path),
 
   // app.vue
-  onLog: (callback: (log: SidecarLogEvent) => void) =>
-    ipcRenderer.on('python-log', (_event, value) => callback(value)),
+  onLog: (callback: (log: AppLogEvent) => void) =>
+    ipcRenderer.on('app-log', (_event, value) => callback(value)),
 
   // download module
   getQueueItems: () => ipcRenderer.invoke('get-queue-items'),

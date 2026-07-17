@@ -50,7 +50,7 @@
 ## 🎨 卓越的設計與體驗
 
 - 💎 **精緻介面**：基於 **Vue 3** 與 **PrimeVue v4** 打造，擁有豐富的轉場動畫與優化的佈局設計。
-- ⚙️ **整合監控**：內建 Sidecar 日誌查看器，讓抓取引擎的運作狀況一目了然。
+- ⚙️ **整合監控**：內建應用程式日誌查看器，讓抓取與下載引擎的運作狀況一目了然。
 
 ![系統日誌](./docs/images/system-logs.png)
 
@@ -70,7 +70,13 @@
 
 - [Development Guide](./DEVELOPMENT.md) - 技術架構與編譯指南
 - [CLAUDE.md](./CLAUDE.md) - 開發手冊與規範
-- **技術棧**：Electron, Vue 3, TypeScript, Go Sidecar, Node.js Streams
+- **技術棧**：Electron、Vue 3、TypeScript、Node.js Streams
+
+### 抓取後端過渡說明
+
+目前版本預設在 Electron main process 內使用 TypeScript 抓取服務，不需要另外啟動 localhost HTTP 服務。為了讓遷移期間能快速回退，本 release 仍會隨應用程式打包既有 Go sidecar；開發或除錯時可設定 `EH_SCRAPER_BACKEND=go` 改用舊後端。未設定或設定為 `ts` 時，會使用 TypeScript 後端。
+
+Go fallback 預計只保留一個 release；確認 TypeScript 後端在 macOS 與 Windows 的抓取、代理與下載流程皆穩定後，將移除 sidecar 原始碼、binary 打包與 Go CI toolchain。
 
 ---
 
@@ -79,4 +85,3 @@
 本專案採用 [MIT License](./LICENSE) 授權。
 
 Co-Authored-By: Antigravity <antigravity@google.com>
-

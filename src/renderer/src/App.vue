@@ -13,7 +13,7 @@ import Scheduler from './views/Scheduler.vue'
 import SystemLogs from './views/SystemLogs.vue'
 import SettingsTab from './components/tasks/SettingsTab.vue'
 import WorkspaceGate from './components/shared/WorkspaceGate.vue'
-import type { SidecarLogEvent } from '@shared/types/api'
+import type { AppLogEvent } from '@shared/types/api'
 
 type ViewKey =
   | 'all-downloads'
@@ -46,7 +46,7 @@ const activeFeatureName = computed(
 const edgeToEdge = computed(() => ['collections', 'scheduler'].includes(activeTab.value))
 
 onMounted(async () => {
-  window.api.onLog((log: SidecarLogEvent) => {
+  window.api.onLog((log: AppLogEvent) => {
     logStore.addLog(log)
   })
   await Promise.all([workspace.load(), configStore.load()])
@@ -146,20 +146,20 @@ watch(
                 : 'border-transparent'
             "
             :aria-current="activeTab === 'system-logs' ? 'page' : undefined"
-            :aria-label="`開啟 System Logs，Sidecar 目前${configStore.sidecarOnline ? '上線' : '離線'}`"
+            :aria-label="`開啟 System Logs，下載引擎目前${configStore.engineReady ? '已就緒' : '未就緒'}`"
             @click="activeTab = 'system-logs'"
           >
             <span
               class="h-1.5 w-1.5 rounded-full"
               :class="
-                configStore.sidecarOnline
+                configStore.engineReady
                   ? 'animate-pulse bg-green-500 shadow-[0_0_5px_#22c55e]'
                   : 'bg-red-500 shadow-[0_0_5px_#ef4444]'
               "
               aria-hidden="true"
             ></span>
             <span class="max-[760px]:hidden">
-              SIDECAR: {{ configStore.sidecarOnline ? 'ONLINE' : 'OFFLINE' }}
+              ENGINE: {{ configStore.engineReady ? 'READY' : 'UNAVAILABLE' }}
             </span>
           </button>
         </div>

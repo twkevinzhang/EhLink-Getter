@@ -353,7 +353,7 @@ export interface SaveConfigResponse {
   error?: string
 }
 
-export interface CheckSidecarHealthResponse {
+export interface CheckEngineHealthResponse {
   success: boolean
 }
 
@@ -398,14 +398,14 @@ export interface ArchiveProgressEvent {
   progress: number
 }
 
-/** onLog 事件資料（從 sidecar 收到的原始事件，無 timestamp） */
-export type SidecarLogEvent = Omit<LogEntry, 'timestamp'>
+/** onLog IPC-event payload (without the renderer-added timestamp). */
+export type AppLogEvent = Omit<LogEntry, 'timestamp'>
 
-export interface SidecarAPI {
+export interface AppAPI {
   // config
   getConfig: () => Promise<GetConfigResponse>
   saveConfig: (config: AppConfig) => Promise<SaveConfigResponse>
-  checkSidecarHealth: () => Promise<CheckSidecarHealthResponse>
+  checkEngineHealth: () => Promise<CheckEngineHealthResponse>
   loginEHentai: () => Promise<LoginEHentaiResponse>
 
   // library
@@ -416,7 +416,7 @@ export interface SidecarAPI {
   openFolder: (path?: string) => Promise<void>
 
   // events
-  onLog: (callback: (log: SidecarLogEvent) => void) => void
+  onLog: (callback: (log: AppLogEvent) => void) => void
 
   // download
   getQueueItems: () => Promise<DownloadQueueItem[]>

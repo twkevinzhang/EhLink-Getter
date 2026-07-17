@@ -278,7 +278,7 @@ const handleLogout = () => {
             v-model="proxyPool"
             rows="3"
             class="w-full !p-2"
-            placeholder="socks5://127.0.0.1:1080"
+            placeholder="http://127.0.0.1:8080"
           />
         </div>
         <div class="flex gap-10">

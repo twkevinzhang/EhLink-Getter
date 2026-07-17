@@ -170,9 +170,12 @@ export class WorkspaceRepository {
   }
 
   listGalleries(): ManagedGallery[] {
-    return Object.values(this.readIndex().galleries).sort((left, right) =>
-      right.updatedAt.localeCompare(left.updatedAt),
-    )
+    return Object.values(this.readIndex().galleries).sort((left, right) => {
+      const updatedOrder = right.updatedAt.localeCompare(left.updatedAt)
+      return (
+        updatedOrder || right.gid.localeCompare(left.gid, undefined, { numeric: true })
+      )
+    })
   }
 
   getGallery(gid: string | number): ManagedGallery | undefined {
