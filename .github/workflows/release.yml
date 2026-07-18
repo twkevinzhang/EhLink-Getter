@@ -74,7 +74,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest, windows-latest]
+        # Electron 28's rebuild toolchain cannot detect Visual Studio 2026 on
+        # windows-latest. Pin VS 2022 until the Electron toolchain is upgraded.
+        os: [macos-latest, windows-2022]
     permissions:
       contents: write
     env:
@@ -124,7 +126,7 @@ jobs:
         run: |
           mkdir -p dist/sidecar
           cd sidecar
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          if [ "${{ matrix.os }}" = "windows-2022" ]; then
             go build -o ../dist/sidecar/sidecar.exe ./cmd/sidecar/main.go
           else
             go build -o ../dist/sidecar/sidecar ./cmd/sidecar/main.go
@@ -139,7 +141,7 @@ jobs:
         run: pnpm exec electron-builder --mac --publish never
 
       - name: Package Electron App (Windows)
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-2022'
         run: pnpm exec electron-builder --win --publish never
 
       - name: Upload Artifacts
